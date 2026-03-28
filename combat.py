@@ -121,7 +121,7 @@ def build_heir(dead_player: dict, heir_name: str) -> dict:
     ancestor = _make_ancestor_record(dead_player)
 
     return {
-        "name":             f"{heir_name}, Heir of {dead_player['name']}",
+        "name":             f"{heir_name}, Heir of {dead_player['name'].split(', Heir of')[0]}",
         "password_hash":    dead_player.get("password_hash", ""),
         "race":             dead_player["race"],
         "subrace":          None,
