@@ -53,7 +53,7 @@ def get_location(key: str) -> dict | None:
     return None
 
 def save_location(key: str, data: dict):
-    sb.table("locations").upsert({"key": key, "data": data}).execute()
+    sb.table("locations").upsert({"key": key, "data": data, "updated_at": "now()"}).execute()
 
 
 # ── Auth ───────────────────────────────────────────────────────────────────────

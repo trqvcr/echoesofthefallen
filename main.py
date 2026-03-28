@@ -1,5 +1,6 @@
 import os
 import random
+import json
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -316,9 +317,12 @@ RECENT ACTIONS: {player['history'][-5:]}
 
 PLAYER ACTION: {action}
 
-Respond with vivid narrative (2-3 sentences). Then on new lines:
+Respond with vivid narrative (2-3 sentences). Then output EXACTLY these tags on new lines:
 ENV_DAMAGE: [integer 0-999 — non-zero ONLY if the action directly causes physical harm: falling, self-inflicted wounds, environmental hazards, touching dangerous objects. Use 0 for all normal exploration, movement, talking, or inspecting.]
-VISUAL: [one sentence describing the scene for image generation]"""
+VISUAL: [one sentence describing the scene for image generation]
+STATE_CHANGES: [JSON object of state flags to set, e.g. {{"broken_chair": true}} — or {{}} if nothing changed]
+NPC_UPDATE: [npc_id|disposition_delta|memory_to_append — or none if no NPC was affected]
+HISTORY: [one sentence to append to this location's history log — or none]"""
 
     narrative = "[The void is silent — no AI connected]"
     raw_text  = ""
@@ -327,26 +331,70 @@ VISUAL: [one sentence describing the scene for image generation]"""
         raw_text  = response.text or ""
         narrative = raw_text or "[The void is silent — no AI connected]"
 
-    def parse_tag(tag, text, default):
+    def parse_tag(tag, text, default=""):
         for line in text.splitlines():
             if line.strip().startswith(f"{tag}:"):
                 return line.split(":", 1)[1].strip()
         return default
+
+    tag_prefixes = ["ENV_DAMAGE:", "VISUAL:", "STATE_CHANGES:", "NPC_UPDATE:", "HISTORY:"]
+    display_text = "\n".join(
+        line for line in narrative.splitlines()
+        if not any(line.strip().startswith(t) for t in tag_prefixes)
+    ).strip()
+
+    # ── Apply world state mutations ────────────────────────────────────────────
+    location_dirty = False
+
+    state_changes_raw = parse_tag("STATE_CHANGES", raw_text)
+    if state_changes_raw and state_changes_raw != "{}":
+        try:
+            changes = json.loads(state_changes_raw)
+            if isinstance(changes, dict) and changes:
+                if "state" not in current_location:
+                    current_location["state"] = {}
+                current_location["state"].update(changes)
+                location_dirty = True
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    npc_update_raw = parse_tag("NPC_UPDATE", raw_text)
+    if npc_update_raw and npc_update_raw.lower() != "none":
+        parts = npc_update_raw.split("|")
+        if len(parts) >= 3:
+            npc_id, delta_str, memory_str = parts[0].strip(), parts[1].strip(), parts[2].strip()
+            npcs = current_location.get("npcs", {})
+            if npc_id in npcs:
+                try:
+                    delta = int(delta_str)
+                    npcs[npc_id]["disposition"] = npcs[npc_id].get("disposition", 0) + delta
+                except ValueError:
+                    pass
+                if "memory" not in npcs[npc_id]:
+                    npcs[npc_id]["memory"] = []
+                npcs[npc_id]["memory"].append(memory_str)
+                current_location["npcs"] = npcs
+                location_dirty = True
+
+    history_raw = parse_tag("HISTORY", raw_text)
+    if history_raw and history_raw.lower() != "none":
+        if "history" not in current_location:
+            current_location["history"] = []
+        current_location["history"].append(f"[{player['name']}] {history_raw}")
+        location_dirty = True
+
+    if location_dirty:
+        save_location(location_key, current_location)
+
+    # ── Environmental damage ───────────────────────────────────────────────────
+    combat_event = None
+    extra_data   = {}
 
     try:
         env_damage = int(parse_tag("ENV_DAMAGE", raw_text, "0"))
         env_damage = max(0, env_damage)
     except ValueError:
         env_damage = 0
-
-    display_text = "\n".join(
-        line for line in narrative.splitlines()
-        if not line.strip().startswith("ENV_DAMAGE:")
-        and not line.strip().startswith("VISUAL:")
-    ).strip()
-
-    combat_event = None
-    extra_data   = {}
 
     if env_damage > 0:
         player["hp"] = max(0, player["hp"] - env_damage)
@@ -360,9 +408,8 @@ VISUAL: [one sentence describing the scene for image generation]"""
             descendant, descendant_id, ancestor = _handle_death(player, player_id)
             extra_data = {"ancestor": ancestor, "descendant_id": descendant_id}
             player = descendant
-        else:
-            save_player(player_id, player)
-    else:
+
+    if combat_event != "death":
         save_player(player_id, player)
 
     result = {
