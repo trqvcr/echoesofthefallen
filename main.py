@@ -684,7 +684,8 @@ Guidelines:
 - If the player is talking to an NPC, write dialogue in their voice based on their personality. NPCs remember past interactions.
 - If the player is examining something, reveal lore and sensory detail — smells, sounds, inscriptions, textures.
 - If the player finds a clue or discovery, make it feel earned and specific to this location.
-Respond with vivid narrative (2-3 sentences). Do NOT include any game mechanic notations, inventory updates, state updates, or bracketed annotations in your response — pure prose only."""
+- After narrating the action, naturally hint at 2-3 things the player could do next — weave them into the prose as environmental details, NPC behaviour, or things that catch the eye. Never list them as options; just describe them as part of the world (e.g. "A loose stone near the altar looks recently disturbed. The hooded figure in the corner hasn't moved.").
+Respond with vivid narrative (3-4 sentences). Do NOT include any game mechanic notations, inventory updates, state updates, or bracketed annotations in your response — pure prose only."""
 
     narrative = "[The void is silent — no AI connected]"
     mutation  = {"env_damage": 0, "visual": "", "state_changes": [], "items_gained": [], "npc_id": "", "npc_delta": 0, "npc_memory": "", "history": ""}
