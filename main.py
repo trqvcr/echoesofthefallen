@@ -598,8 +598,8 @@ VISUAL: [scene description for image generation]"""
             "text":         display_text,
             "image_base64": generate_scene_image(
                 client, visual_prompt,
-                player.get("avatar_visual_prompt", player.get("avatar_description", "")),
-                npc_description=npc_data.get("description", ""),
+                avatar_portrait_b64=player.get("avatar_portrait", ""),
+                npc_portrait_b64=npc_portrait,
             ),
             "npc_portrait": npc_portrait,
             "status":       player["status"],
