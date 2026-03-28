@@ -637,6 +637,11 @@
 
         function syncMapLocation(locationId) {
             if (!mapBuilt) return;
+            const svg = document.getElementById('map-svg');
+            // Remove old "you are here" marker
+            const old = svg.getElementById('you-are-here');
+            if (old) old.remove();
+
             MAP_NODES.forEach(node => {
                 const pulse = document.getElementById('pulse-'+node.id);
                 const glow  = document.getElementById('glowdisc-'+node.id);
@@ -645,6 +650,21 @@
                     if (pulse) { pulse.setAttribute('opacity','1'); pulse.classList.add('pulse-ring'); }
                     if (glow)  glow.setAttribute('opacity','0.28');
                     if (bub)   bub.setAttribute('r','21');
+
+                    // "YOU ARE HERE" marker
+                    const g = svgEl('g', {id:'you-are-here'});
+                    // glowing backdrop circle
+                    const halo = svgEl('circle', {cx:node.x, cy:node.y-38, r:'10', fill:'#7c3aed', opacity:'0.25'});
+                    g.appendChild(halo);
+                    // downward-pointing arrow ▼
+                    const arrow = svgEl('text', {x:node.x, y:node.y-28, 'text-anchor':'middle', 'font-size':'14', fill:'#a855f7', 'filter':'url(#node-glow)'});
+                    arrow.textContent = '▼';
+                    g.appendChild(arrow);
+                    // "YOU" label
+                    const lbl = svgEl('text', {x:node.x, y:node.y-48, 'text-anchor':'middle', 'font-size':'8', fill:'#c4b5fd', 'font-family':'monospace', 'letter-spacing':'0.12em'});
+                    lbl.textContent = 'YOU';
+                    g.appendChild(lbl);
+                    svg.appendChild(g);
                 } else {
                     if (pulse) { pulse.setAttribute('opacity','0'); pulse.classList.remove('pulse-ring'); }
                     if (glow)  glow.setAttribute('opacity','0.07');

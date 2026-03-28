@@ -57,7 +57,8 @@
     "exits": [
       "ashen_courtyard",
       "ruined_keep",
-      "saltmarsh_settlement"
+      "saltmarsh_gate",
+      "void_wastes_edge"
     ],
     "history": [],
     "state": {
