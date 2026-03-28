@@ -26,3 +26,7 @@ class RiseRequest(BaseModel):
 class AvatarRequest(BaseModel):
     player_id: str
     description: str
+
+class TravelRequest(BaseModel):
+    player_id: str
+    destination: str

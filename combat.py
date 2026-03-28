@@ -77,9 +77,16 @@ def _end_combat(player: dict, outcome: str, all_locations: dict, location_key: s
             player["xp"]               -= player["xp_to_next_level"]
             player["xp_to_next_level"]  = int(player["xp_to_next_level"] * 1.5)
             player["attributes"]["STR"] += 1
+            player["attributes"]["AGI"] += 1
             player["attributes"]["CON"] += 1
-            player["derived_stats"]["max_hp"] = 20 + player["attributes"]["CON"] * 5
-            player["max_hp"] = player["derived_stats"]["max_hp"]
+            player["attributes"]["ARC"] += 1
+            attrs = player["attributes"]
+            player["derived_stats"]["max_hp"]       = 20 + attrs["CON"] * 5
+            player["derived_stats"]["atk"]          = attrs["STR"] + 2
+            player["derived_stats"]["def"]          = attrs["CON"] // 2
+            player["derived_stats"]["dodge_chance"] = attrs["AGI"] * 2
+            player["max_hp"]   = player["derived_stats"]["max_hp"]
+            player["max_mana"] = attrs["ARC"] * 2
 
     player["combat_state"] = {"active": False}
     return player
@@ -164,19 +171,31 @@ def build_heir(dead_player: dict, heir_name: str) -> dict:
             "subclass_unlocked":        False,
             "subrace_unlocked":         False,
         },
-        "lineage":      [ancestor] + dead_player.get("lineage", []),
-        "reputation":   dead_player.get("reputation", {"saltmarsh": 0, "ashen_ruins": 0, "void_wastes": 0}),
-        "combat_state": {"active": False},
+        "lineage":          [ancestor] + dead_player.get("lineage", []),
+        "reputation":       dead_player.get("reputation", {"saltmarsh": 0, "ashen_ruins": 0, "void_wastes": 0}),
+        "combat_state":     {"active": False},
+        "visited_locations": ["ashen_courtyard"],
     }
 
 
 # ── Player State Serializer ────────────────────────────────────────────────────
 
-def player_to_state(player: dict) -> dict:
+def _ensure_location_visited(player: dict) -> list:
+    """Return visited_locations, always including current location."""
+    visited = list(player.get("visited_locations", []))
+    current = player.get("location", "ashen_courtyard")
+    if current not in visited:
+        visited.append(current)
+    return visited
+
+
+def player_to_state(player: dict, player_id: str = None) -> dict:
     attrs = player.get("attributes", {})
+    if player_id is None:
+        player_id = player["name"].lower().replace(" ", "_")
     return {
         "house_name":       player["name"],
-        "player_id":        player["name"].lower().replace(" ", "_"),
+        "player_id":        player_id,
         "race":             player["race"],
         "class":            player["class"],
         "status":           player["status"],
@@ -203,6 +222,7 @@ def player_to_state(player: dict) -> dict:
         "combat_state":        player.get("combat_state", {"active": False}),
         "avatar_description":  player.get("avatar_description", ""),
         "avatar_portrait":     player.get("avatar_portrait", ""),
+        "visited_locations":   _ensure_location_visited(player),
     }
 
 
@@ -233,7 +253,7 @@ async def process_combat_turn(
     p_min, p_max = _calc_player_damage_range(player, skill_used, skill_defs)
     e_min, e_max = _calc_enemy_damage_range({"atk": cs["enemy_atk"]}, player["derived_stats"]["def"])
 
-    player_speed = attrs["AGI"] + random.randint(1, 6)
+    player_speed = attrs.get("AGI", 0) + random.randint(1, 6)
     enemy_speed  = random.randint(1, 8)
     player_first = cs["turn"] == "player" or player_speed >= enemy_speed
 
@@ -371,7 +391,7 @@ VISUAL: [one sentence describing the combat scene]"""
         "image_base64": generate_scene_image(client, parse_tag("VISUAL", raw_text), player.get("avatar_description", "")),
         "status":       player["status"],
         "location":     current_location_name,
-        "state":        player_to_state(player),
+        "state":        player_to_state(player, player_id),
         "combat_event": combat_event,
         "player_dmg":   player_dmg if flee_outcome not in ("success", "captured") else 0,
         "enemy_dmg":    enemy_dmg  if flee_outcome not in ("success",)            else 0,

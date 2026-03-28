@@ -1,5 +1,6 @@
 import hashlib
 import os
+from datetime import datetime, timezone
 from fastapi import HTTPException
 from supabase import create_client
 from dotenv import load_dotenv
@@ -19,15 +20,17 @@ sb = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def get_player(player_id: str) -> dict | None:
     res = sb.table("players").select("state").eq("id", player_id).execute()
+    print(f"[get_player] id={player_id} data={res.data} count={res.count}")
     if res.data:
         return res.data[0]["state"]  # type: ignore
     return None
+
 
 def save_player(player_id: str, state: dict):
     sb.table("players").upsert({
         "id":         player_id,
         "state":      state,
-        "updated_at": "now()"
+        "updated_at": datetime.now(timezone.utc).isoformat()
     }).execute()
 
 
@@ -53,7 +56,7 @@ def get_location(key: str) -> dict | None:
     return None
 
 def save_location(key: str, data: dict):
-    sb.table("locations").upsert({"key": key, "data": data, "updated_at": "now()"}).execute()
+    sb.table("locations").upsert({"key": key, "data": data, "updated_at": datetime.now(timezone.utc).isoformat()}).execute()
 
 
 # ── Auth ───────────────────────────────────────────────────────────────────────

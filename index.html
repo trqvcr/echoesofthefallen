@@ -125,6 +125,20 @@
             letter-spacing: 0.35em; color: rgba(107,33,168,0.35);
             text-transform: uppercase; font-weight: bold; pointer-events: none;
         }
+
+        /* ── MINI-MAP ── */
+        #minimap-wrap {
+            background: rgba(4,2,16,0.82);
+            border: 1px solid rgba(139,92,246,0.25);
+            border-radius: 7px;
+            padding: 4px 5px 2px 5px;
+        }
+        #minimap-title {
+            font-family: 'Cinzel', serif; font-size: 7px;
+            letter-spacing: 0.25em; color: rgba(107,33,168,0.7);
+            text-transform: uppercase; text-align: center;
+            margin-bottom: 2px;
+        }
     </style>
 </head>
 <body class="text-gray-200 min-h-screen flex items-center justify-center p-4">
@@ -266,6 +280,14 @@
                     <li>• Nothing but hope</li>
                 </ul>
 
+                <div class="mt-6 pt-3 border-t border-purple-900/20">
+                    <h3 class="title-font text-[10px] text-purple-500 tracking-[0.3em] uppercase mb-2">Vicinity</h3>
+                    <div id="minimap-wrap" class="rounded">
+                        <div id="minimap-title">Area Map</div>
+                        <svg id="minimap-svg" width="100%" height="88" viewBox="0 0 220 88" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"></svg>
+                    </div>
+                </div>
+
                 <div class="mt-auto pt-4 border-t border-purple-900/20">
                     <button onclick="abandonLegacy()" class="w-full title-font text-[9px] text-gray-600 hover:text-red-500 transition-colors uppercase tracking-[0.2em]">
                         Abandon Legacy
@@ -385,7 +407,12 @@
 
             const inv = gameState.inventory || [];
             document.getElementById('inventory-list').innerHTML = inv.length
-                ? inv.map(i => `<li>• ${i.replace(/_/g, ' ')}</li>`).join('')
+                ? inv.map(i => {
+                    if (typeof i === 'string') return `<li>• ${i.replace(/_/g, ' ')}</li>`;
+                    const name = (i.name || i.id || '').replace(/_/g, ' ');
+                    const desc = i.description ? `<span class="text-gray-600 block ml-2 text-xs">${i.description}</span>` : '';
+                    return `<li>• ${name}${desc}</li>`;
+                }).join('')
                 : '<li>• Nothing but hope</li>';
 
             if (gameState.location) {
@@ -393,7 +420,21 @@
                     gameState.location.replace(/_/g, ' ').toUpperCase();
                 const locBar = document.getElementById('map-cur-loc');
                 if (locBar) locBar.textContent = gameState.location.replace(/_/g, ' ');
-                syncMapLocation(gameState.location);
+                if (isMapOpen) syncMapLocation(gameState.location);
+                buildMiniMap(gameState.location);
+            }
+
+            // Exit buttons
+            const exitBtns = document.getElementById('exit-buttons');
+            if (exitBtns && mapData && gameState.location && mapData[gameState.location]) {
+                const exits = mapData[gameState.location].exits || [];
+                exitBtns.innerHTML = exits.map(exitKey => {
+                    if (!mapData[exitKey]) return '';
+                    return `<button onclick="fastTravel('${exitKey}')"
+                        class="title-font text-[9px] uppercase tracking-wider px-3 py-1.5 border border-purple-900/40 hover:border-purple-600 hover:text-purple-300 text-purple-600 rounded transition-all">
+                        ${mapData[exitKey].name}
+                    </button>`;
+                }).join('');
             }
 
             // Combat banner
@@ -422,54 +463,110 @@
         }
 
         // ── WORLD MAP — DATA ──────────────────────────────────────────────────
-        const MAP_NODES = [
-            { id:'ashen_courtyard', label:['Ashen','Courtyard'], icon:'🏛', x:420, y:300, type:'Hub',
-              desc:'Central ruins of the old imperial district. A safe haven between paths.',
-              color:{fill:'#1e0f3a',stroke:'#7c3aed',glow:'#9333ea'} },
-            { id:'ruined_keep', label:['Ruined','Keep'], icon:'🏰', x:260, y:185, type:'Dungeon',
-              desc:'A collapsed fortification haunted by the spirits of fallen soldiers.',
-              color:{fill:'#3b0f0f',stroke:'#991b1b',glow:'#dc2626'} },
-            { id:'throne_vault', label:['Throne','Vault'], icon:'💎', x:120, y:90, type:'Boss Area',
-              locked:true, requires:'Vault Key',
-              desc:'The sealed vault beneath the old throne. Great danger awaits those who enter.',
-              color:{fill:'#12093a',stroke:'#4338ca',glow:'#818cf8'} },
-            { id:'sunken_library', label:['Sunken','Library'], icon:'📚', x:230, y:430, type:'Exploration',
-              desc:'Ancient tomes half-submerged in void water. Knowledge and peril in equal measure.',
-              color:{fill:'#071f10',stroke:'#065f46',glow:'#10b981'} },
-            { id:'void_bridge', label:['Void','Bridge'], icon:'🌉', x:570, y:300, type:'Transit',
-              desc:'A stone bridge arcing over the void rift. Connects the ruins to the east.',
-              color:{fill:'#0c1a3a',stroke:'#1d4ed8',glow:'#60a5fa'} },
-            { id:'saltmarsh_gate', label:['Saltmarsh','Gate'], icon:'⛩', x:720, y:300, type:'Town Gate',
-              desc:'Entry to the Saltmarsh settlement. Guarded but welcoming to those with coin.',
-              color:{fill:'#1e0f3a',stroke:'#7c3aed',glow:'#a78bfa'} },
-            { id:'the_ashen_flagon', label:['Ashen','Flagon'], icon:'🍺', x:690, y:430, type:'Tavern',
-              desc:'A dimly lit tavern. Rest, buy provisions, and hear rumors from passing travelers.',
-              color:{fill:'#271300',stroke:'#92400e',glow:'#f59e0b'} },
-            { id:'saltmarsh_market', label:['Market','Square'], icon:'⚖', x:800, y:430, type:'Shop',
-              desc:'Merchants trade weapons, armor, and rare relics salvaged from the ruins.',
-              color:{fill:'#0f1f07',stroke:'#3f6212',glow:'#84cc16'} },
-            { id:'void_wastes_edge', label:['Void','Wastes'], icon:'⚠', x:710, y:150, type:'Danger Zone',
-              danger:true, desc:'The edge of pure void corruption. Extremely dangerous.',
-              color:{fill:'#250000',stroke:'#7f1d1d',glow:'#ef4444'} },
-        ];
+        let mapData = null; // loaded from /map.json
 
-        const MAP_EDGES = [
-            ['ashen_courtyard','ruined_keep'], ['ashen_courtyard','sunken_library'],
-            ['ashen_courtyard','void_bridge'], ['ruined_keep','throne_vault'],
-            ['void_bridge','saltmarsh_gate'],  ['saltmarsh_gate','the_ashen_flagon'],
-            ['saltmarsh_gate','saltmarsh_market'], ['void_bridge','void_wastes_edge'],
-        ];
+        // SVG grid-to-pixel conversion (grid: x 0-12, y 0-6; viewBox 0 0 900 560)
+        const MAP_PAD_X = 70, MAP_PAD_Y = 55;
+        const MAP_USABLE_W = 900 - MAP_PAD_X * 2; // 760
+        const MAP_USABLE_H = 560 - MAP_PAD_Y * 2; // 450
+        function gridToSvg(gx, gy) {
+            return {
+                x: MAP_PAD_X + (gx / 12) * MAP_USABLE_W,
+                y: MAP_PAD_Y + (gy / 6)  * MAP_USABLE_H,
+            };
+        }
+
+        const PARENT_COLORS = {
+            ashen_ruins:          {fill:'#1e0f3a', stroke:'#7c3aed', glow:'#9333ea'},
+            saltmarsh_settlement: {fill:'#271300', stroke:'#92400e', glow:'#f59e0b'},
+            void_wastes:          {fill:'#250000', stroke:'#7f1d1d', glow:'#ef4444'},
+        };
+        const FOG_COLOR = {fill:'#080810', stroke:'#1e1e30', glow:'#2a2a40'};
+        const DEFAULT_COLOR = {fill:'#0c0a20', stroke:'#4c1d95', glow:'#7c3aed'};
+
+        const KEY_ICONS = {
+            ashen_courtyard:'🏛',  ruined_keep:'🏰',       throne_vault:'💎',
+            sunken_library:'📚',   void_bridge:'🌉',        saltmarsh_gate:'⛩',
+            the_ashen_flagon:'🍺', tavern_back_room:'🚪',  saltmarsh_market:'⚖',
+            void_wastes_edge:'⚠',  crumbling_watchtower:'🗼', watchtower_peak:'🔭',
+            ash_burial_grounds:'⚰', void_altar:'⬛',        forgotten_camp:'⛺',
+            old_barracks:'🏚',     underground_vault:'🔐', dockside:'⚓',
+            void_chasm_edge:'🌑',  shattered_spire:'💠',   healers_hut:'💊',
+        };
+
+        function splitLabel(name) {
+            const words = name.split(' ');
+            if (words.length <= 2) return words;
+            const mid = Math.ceil(words.length / 2);
+            return [words.slice(0, mid).join(' '), words.slice(mid).join(' ')];
+        }
+
+        function getMapNodes() {
+            if (!mapData) return [];
+            const visited = new Set((gameState && gameState.visited_locations) || []);
+            const known   = new Set(visited);
+            visited.forEach(key => {
+                const loc = mapData[key];
+                if (loc && loc.exits) loc.exits.forEach(e => { if (mapData[e]) known.add(e); });
+            });
+
+            return Object.entries(mapData)
+                .filter(([key, loc]) => loc.x !== null && loc.x !== undefined && known.has(key))
+                .map(([key, loc]) => {
+                    const pos     = gridToSvg(loc.x, loc.y);
+                    const isVis   = visited.has(key);
+                    const color   = isVis ? (PARENT_COLORS[loc.parent] || DEFAULT_COLOR) : FOG_COLOR;
+                    return {
+                        id:    key,
+                        label: splitLabel(loc.name),
+                        icon:  isVis ? (KEY_ICONS[key] || '📍') : '?',
+                        x:     pos.x,
+                        y:     pos.y,
+                        type:  loc.type || 'Location',
+                        desc:  loc.description ? loc.description.slice(0, 130) + (loc.description.length > 130 ? '…' : '') : '',
+                        color: color,
+                        foggy: !isVis,
+                    };
+                });
+        }
+
+        function getMapEdges(nodes) {
+            if (!mapData) return [];
+            const nodeIds = new Set(nodes.map(n => n.id));
+            const seen    = new Set();
+            const edges   = [];
+            for (const [key, loc] of Object.entries(mapData)) {
+                if (!nodeIds.has(key) || !loc.exits) continue;
+                for (const exit of loc.exits) {
+                    if (!nodeIds.has(exit)) continue;
+                    const edgeKey = [key, exit].sort().join('|');
+                    if (!seen.has(edgeKey)) { seen.add(edgeKey); edges.push([key, exit]); }
+                }
+            }
+            return edges;
+        }
+
+        async function loadMapData() {
+            try {
+                const res = await fetch('/map.json');
+                mapData = await res.json();
+                buildMiniMap(gameState && gameState.location);
+            } catch(e) {
+                console.warn('Failed to load map data', e);
+            }
+        }
 
         // ── WORLD MAP — RENDERING ─────────────────────────────────────────────
-        let isMapOpen = false;
-        let mapBuilt  = false;
+        let isMapOpen    = false;
+        let canvasBuilt  = false; // star-field canvas (built once)
 
         function toggleMap() {
             const modal = document.getElementById('world-map-modal');
             isMapOpen = !isMapOpen;
             if (isMapOpen) {
                 modal.classList.add('open');
-                if (!mapBuilt) { buildMap(); mapBuilt = true; }
+                if (!canvasBuilt) { drawMapCanvas(); canvasBuilt = true; }
+                buildMapSVG();
                 if (gameState && gameState.location) syncMapLocation(gameState.location);
             } else {
                 modal.classList.remove('open');
@@ -489,7 +586,6 @@
             return el;
         }
 
-        function buildMap() { drawMapCanvas(); buildMapSVG(); }
 
         function drawMapCanvas() {
             const canvas = document.getElementById('map-canvas');
@@ -531,8 +627,13 @@
         }
 
         function buildMapSVG() {
-            const svg = document.getElementById('map-svg');
+            const svg     = document.getElementById('map-svg');
             svg.innerHTML = '';
+            if (!mapData) {
+                const t = svgEl('text', {x:'450',y:'280','text-anchor':'middle','font-size':'12',fill:'#4c1d95','font-family':'Cinzel, serif'});
+                t.textContent = 'MAP DATA LOADING…'; svg.appendChild(t); return;
+            }
+
             const defs = svgEl('defs');
             defs.innerHTML = `
                 <filter id="node-glow" x="-50%" y="-50%" width="200%" height="200%">
@@ -541,87 +642,94 @@
                 </filter>`;
             svg.appendChild(defs);
 
+            const nodes   = getMapNodes();
+            const edges   = getMapEdges(nodes);
+            const nodeMap = Object.fromEntries(nodes.map(n => [n.id, n]));
+
+            // Edges
             const edgeG = svgEl('g', {id:'map-edges'});
             svg.appendChild(edgeG);
-            MAP_EDGES.forEach(([aId, bId]) => {
-                const na = MAP_NODES.find(n => n.id === aId), nb = MAP_NODES.find(n => n.id === bId);
+            edges.forEach(([aId, bId]) => {
+                const na = nodeMap[aId], nb = nodeMap[bId];
                 if (!na || !nb) return;
-                edgeG.appendChild(svgEl('line', {x1:na.x,y1:na.y,x2:nb.x,y2:nb.y,stroke:'rgba(139,92,246,0.18)','stroke-width':'1.5','stroke-dasharray':'4 6',fill:'none'}));
-                const flow = svgEl('line', {x1:na.x,y1:na.y,x2:nb.x,y2:nb.y,stroke:'rgba(139,92,246,0.55)','stroke-width':'1',fill:'none',class:'path-flow'});
-                flow.style.animationDuration = (2 + Math.random()*2.5) + 's';
-                edgeG.appendChild(flow);
+                const both = !na.foggy && !nb.foggy;
+                edgeG.appendChild(svgEl('line', {x1:na.x,y1:na.y,x2:nb.x,y2:nb.y,
+                    stroke:both?'rgba(139,92,246,0.2)':'rgba(60,60,80,0.2)',
+                    'stroke-width':'1.5','stroke-dasharray':'4 6',fill:'none'}));
+                if (both) {
+                    const flow = svgEl('line', {x1:na.x,y1:na.y,x2:nb.x,y2:nb.y,
+                        stroke:'rgba(139,92,246,0.5)','stroke-width':'1',fill:'none',class:'path-flow'});
+                    flow.style.animationDuration = (2 + Math.random()*2.5) + 's';
+                    edgeG.appendChild(flow);
+                }
             });
 
-            const nodeG = svgEl('g', {id:'map-nodes'});
+            // Nodes
+            const nodeG   = svgEl('g', {id:'map-nodes'});
             svg.appendChild(nodeG);
             const tooltip = document.getElementById('map-tooltip');
             const mapCont = document.getElementById('map-container');
 
-            MAP_NODES.forEach(node => {
-                const g = svgEl('g', {class:'map-node', id:'mnode-'+node.id});
+            nodes.forEach(node => {
+                const g = svgEl('g', {class: node.foggy ? 'map-node map-node-locked' : 'map-node', id:'mnode-'+node.id});
                 g.style.setProperty('--node-glow', node.color.glow);
 
                 g.appendChild(svgEl('circle', {cx:node.x,cy:node.y,r:26,fill:'none',stroke:node.color.glow,'stroke-width':'1.2',opacity:'0',id:'pulse-'+node.id}));
-                g.appendChild(svgEl('circle', {cx:node.x,cy:node.y,r:30,fill:node.color.glow,opacity:'0.07',id:'glowdisc-'+node.id}));
+                g.appendChild(svgEl('circle', {cx:node.x,cy:node.y,r:30,fill:node.color.glow,opacity: node.foggy?'0.04':'0.07',id:'glowdisc-'+node.id}));
 
-                const circle = svgEl('circle', {cx:node.x,cy:node.y,r:18,fill:node.color.fill,stroke:node.color.stroke,'stroke-width':node.locked?'2':'1.5',class:'node-circle',id:'bubble-'+node.id,opacity:node.locked?'0.65':'1'});
+                const r = node.foggy ? 14 : 18;
+                const circle = svgEl('circle', {cx:node.x,cy:node.y,r:String(r),fill:node.color.fill,
+                    stroke:node.color.stroke,'stroke-width':'1.5',class:'node-circle',id:'bubble-'+node.id,
+                    opacity: node.foggy ? '0.5' : '1'});
                 g.appendChild(circle);
 
-                const icon = svgEl('text', {x:node.x,y:node.y+5,'text-anchor':'middle','font-size':'13'});
+                const icon = svgEl('text', {x:node.x,y:node.y+5,'text-anchor':'middle','font-size': node.foggy?'10':'13',opacity: node.foggy?'0.5':'1'});
                 icon.textContent = node.icon;
-                if (node.locked) icon.setAttribute('opacity','0.45');
                 g.appendChild(icon);
 
-                if (node.locked) {
-                    const lock = svgEl('text', {x:node.x+14,y:node.y-11,'font-size':'9','text-anchor':'middle'});
-                    lock.textContent = '🔒'; g.appendChild(lock);
+                if (!node.foggy) {
+                    node.label.forEach((line, i) => {
+                        const t = svgEl('text', {x:node.x,y:node.y+32+i*13,'text-anchor':'middle',class:'node-label'});
+                        t.textContent = line; g.appendChild(t);
+                    });
+                    const sub = svgEl('text', {x:node.x,y:node.y+32+node.label.length*13,'text-anchor':'middle',class:'node-sublabel'});
+                    sub.textContent = node.type.toUpperCase(); g.appendChild(sub);
+                } else {
+                    const unk = svgEl('text', {x:node.x,y:node.y+26,'text-anchor':'middle',
+                        'font-size':'8',fill:'#3a3a55','font-family':'Cinzel, serif','letter-spacing':'0.05em'});
+                    unk.textContent = 'UNEXPLORED'; g.appendChild(unk);
                 }
-                if (node.danger) {
-                    const dr = svgEl('circle', {cx:node.x,cy:node.y,r:22,fill:'none',stroke:'#ef4444','stroke-width':'0.8',opacity:'0.5'});
-                    const an = svgEl('animate'); an.setAttribute('attributeName','r'); an.setAttribute('values','22;28;22'); an.setAttribute('dur','1.8s'); an.setAttribute('repeatCount','indefinite');
-                    dr.appendChild(an); g.appendChild(dr);
-                }
-                node.label.forEach((line, i) => {
-                    const t = svgEl('text', {x:node.x,y:node.y+32+i*13,'text-anchor':'middle',class:'node-label'});
-                    t.textContent = line; g.appendChild(t);
-                });
-                const sub = svgEl('text', {x:node.x,y:node.y+32+node.label.length*13,'text-anchor':'middle',class:'node-sublabel'});
-                sub.textContent = node.type.toUpperCase(); g.appendChild(sub);
-
-                if (node.locked) g.classList.add('map-node-locked');
 
                 g.addEventListener('mouseenter', e => {
-                    document.getElementById('glowdisc-'+node.id).setAttribute('opacity','0.22');
-                    const bub = document.getElementById('bubble-'+node.id); if (bub) bub.setAttribute('r','21');
-                    document.getElementById('tt-name').textContent = node.label.join(' ');
-                    document.getElementById('tt-type').textContent = node.type;
-                    document.getElementById('tt-desc').textContent = node.desc;
+                    if (!node.foggy) {
+                        document.getElementById('glowdisc-'+node.id).setAttribute('opacity','0.22');
+                        const bub = document.getElementById('bubble-'+node.id); if (bub) bub.setAttribute('r','21');
+                    }
+                    document.getElementById('tt-name').textContent = node.foggy ? '???' : node.label.join(' ');
+                    document.getElementById('tt-type').textContent = node.foggy ? 'Unexplored' : node.type;
+                    document.getElementById('tt-desc').textContent = node.foggy ? 'You have not been here yet.' : node.desc;
                     const cta = document.getElementById('tt-cta');
-                    if (node.locked) { cta.textContent = `🔒 Requires ${node.requires}`; cta.classList.add('locked'); }
-                    else             { cta.textContent = '↗ Click to fast travel'; cta.classList.remove('locked'); }
+                    if (node.foggy) { cta.textContent = '🦶 Must explore on foot'; cta.classList.add('locked'); }
+                    else            { cta.textContent = '↗ Click to fast travel'; cta.classList.remove('locked'); }
                     posTooltip(e); tooltip.classList.add('visible');
                 });
                 g.addEventListener('mousemove', posTooltip);
                 g.addEventListener('mouseleave', () => {
                     if (node.id !== (gameState && gameState.location)) {
-                        document.getElementById('glowdisc-'+node.id).setAttribute('opacity','0.07');
-                        const bub = document.getElementById('bubble-'+node.id); if (bub) bub.setAttribute('r','18');
+                        document.getElementById('glowdisc-'+node.id).setAttribute('opacity', node.foggy?'0.04':'0.07');
+                        const bub = document.getElementById('bubble-'+node.id);
+                        if (bub) bub.setAttribute('r', node.foggy?'14':'18');
                     }
                     tooltip.classList.remove('visible');
                 });
                 g.addEventListener('click', () => {
-                    if (node.locked) {
+                    if (node.foggy) {
                         g.classList.add('lock-shake');
                         setTimeout(() => g.classList.remove('lock-shake'), 350);
-                        toggleMap();
-                        const msg = document.createElement('p');
-                        msg.className = 'text-red-400 title-font text-xs tracking-widest msg-fade';
-                        msg.innerText = `🔒 ${node.label.join(' ')} is sealed — you need a ${node.requires} to enter.`;
-                        log.appendChild(msg); log.scrollTop = log.scrollHeight;
                         return;
                     }
-                    input.value = `move to ${node.id.replace(/_/g,' ')}`;
-                    toggleMap(); sendAction();
+                    toggleMap();
+                    fastTravel(node.id);
                 });
                 nodeG.appendChild(g);
             });
@@ -636,13 +744,15 @@
         }
 
         function syncMapLocation(locationId) {
-            if (!mapBuilt) return;
             const svg = document.getElementById('map-svg');
+            if (!svg || !mapData) return;
+
             // Remove old "you are here" marker
             const old = svg.getElementById('you-are-here');
             if (old) old.remove();
 
-            MAP_NODES.forEach(node => {
+            const nodes = getMapNodes();
+            nodes.forEach(node => {
                 const pulse = document.getElementById('pulse-'+node.id);
                 const glow  = document.getElementById('glowdisc-'+node.id);
                 const bub   = document.getElementById('bubble-'+node.id);
@@ -651,26 +761,134 @@
                     if (glow)  glow.setAttribute('opacity','0.28');
                     if (bub)   bub.setAttribute('r','21');
 
-                    // "YOU ARE HERE" marker
                     const g = svgEl('g', {id:'you-are-here'});
-                    // glowing backdrop circle
-                    const halo = svgEl('circle', {cx:node.x, cy:node.y-38, r:'10', fill:'#7c3aed', opacity:'0.25'});
+                    const halo = svgEl('circle', {cx:String(node.x), cy:String(node.y-38), r:'10', fill:'#7c3aed', opacity:'0.25'});
                     g.appendChild(halo);
-                    // downward-pointing arrow ▼
-                    const arrow = svgEl('text', {x:node.x, y:node.y-28, 'text-anchor':'middle', 'font-size':'14', fill:'#a855f7', 'filter':'url(#node-glow)'});
-                    arrow.textContent = '▼';
-                    g.appendChild(arrow);
-                    // "YOU" label
-                    const lbl = svgEl('text', {x:node.x, y:node.y-48, 'text-anchor':'middle', 'font-size':'8', fill:'#c4b5fd', 'font-family':'monospace', 'letter-spacing':'0.12em'});
-                    lbl.textContent = 'YOU';
-                    g.appendChild(lbl);
+                    const arrow = svgEl('text', {x:String(node.x), y:String(node.y-28), 'text-anchor':'middle', 'font-size':'14', fill:'#a855f7', 'filter':'url(#node-glow)'});
+                    arrow.textContent = '▼'; g.appendChild(arrow);
+                    const lbl = svgEl('text', {x:String(node.x), y:String(node.y-48), 'text-anchor':'middle', 'font-size':'8', fill:'#c4b5fd', 'font-family':'monospace', 'letter-spacing':'0.12em'});
+                    lbl.textContent = 'YOU'; g.appendChild(lbl);
                     svg.appendChild(g);
                 } else {
                     if (pulse) { pulse.setAttribute('opacity','0'); pulse.classList.remove('pulse-ring'); }
-                    if (glow)  glow.setAttribute('opacity','0.07');
-                    if (bub)   bub.setAttribute('r','18');
+                    if (glow)  glow.setAttribute('opacity', node.foggy?'0.04':'0.07');
+                    if (bub)   bub.setAttribute('r', node.foggy?'14':'18');
                 }
             });
+        }
+
+        // ── Mini-Map ───────────────────────────────────────────────────────────
+        function mmEl(tag, attrs = {}) {
+            const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+            Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
+            return el;
+        }
+
+        function buildMiniMap(locationKey) {
+            const svg = document.getElementById('minimap-svg');
+            if (!svg || !mapData || !locationKey || !mapData[locationKey]) return;
+            svg.innerHTML = '';
+
+            const loc     = mapData[locationKey];
+            const exits   = (loc.exits || []).filter(e => mapData[e]);
+            const visited = new Set((gameState && gameState.visited_locations) || []);
+            const CX = 110, CY = 44; // center of 220x88 viewBox
+            const SCALE = 28;
+
+            // Draw edges first
+            exits.forEach(exitKey => {
+                const exitLoc = mapData[exitKey];
+                const dx = (exitLoc.x - loc.x) * SCALE;
+                const dy = (exitLoc.y - loc.y) * SCALE;
+                const ex = Math.max(12, Math.min(208, CX + dx));
+                const ey = Math.max(10, Math.min(78, CY + dy));
+                svg.appendChild(mmEl('line', {x1:CX, y1:CY, x2:ex, y2:ey,
+                    stroke:'rgba(100,60,180,0.35)', 'stroke-width':'1', 'stroke-dasharray':'3 3'}));
+            });
+
+            // Draw exit nodes
+            exits.forEach(exitKey => {
+                const exitLoc = mapData[exitKey];
+                const dx = (exitLoc.x - loc.x) * SCALE;
+                const dy = (exitLoc.y - loc.y) * SCALE;
+                const ex = Math.max(12, Math.min(208, CX + dx));
+                const ey = Math.max(10, Math.min(78, CY + dy));
+                const isVis = visited.has(exitKey);
+
+                svg.appendChild(mmEl('circle', {cx:ex, cy:ey, r:'6',
+                    fill: isVis ? '#2d1665' : '#0d0d1a',
+                    stroke: isVis ? '#7c3aed' : '#2a2a40', 'stroke-width':'1'}));
+
+                const nm = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                nm.setAttribute('x', ex); nm.setAttribute('y', ey - 9);
+                nm.setAttribute('text-anchor', 'middle'); nm.setAttribute('font-size', '6');
+                nm.setAttribute('fill', isVis ? '#9d7ecf' : '#3a3a55');
+                nm.setAttribute('font-family', 'Cinzel, serif');
+                nm.textContent = exitLoc.name.split(' ')[0];
+                svg.appendChild(nm);
+            });
+
+            // Current location (center, highlighted)
+            svg.appendChild(mmEl('circle', {cx:CX, cy:CY, r:'10', fill:'none',
+                stroke:'#a855f7', 'stroke-width':'1', opacity:'0.5'}));
+            svg.appendChild(mmEl('circle', {cx:CX, cy:CY, r:'7',
+                fill:'#4c1d95', stroke:'#a855f7', 'stroke-width':'1.5'}));
+
+            const nm = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            nm.setAttribute('x', CX); nm.setAttribute('y', CY + 20);
+            nm.setAttribute('text-anchor', 'middle'); nm.setAttribute('font-size', '7');
+            nm.setAttribute('fill', '#c4b5fd'); nm.setAttribute('font-family', 'Cinzel, serif');
+            nm.textContent = loc.name.split(' ').slice(0, 2).join(' ');
+            svg.appendChild(nm);
+        }
+
+        // ── Fast Travel ────────────────────────────────────────────────────────
+        async function fastTravel(destination) {
+            if (!gameState || !destination) return;
+            const visited = gameState.visited_locations || [];
+
+            if (visited.includes(destination)) {
+                // Use /travel endpoint — no AI call, instant
+                input.disabled = true; btn.disabled = true;
+                const sceneImg = document.getElementById('scene-image');
+                sceneImg.classList.add('opacity-0');
+                try {
+                    const res = await fetch('/travel', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({player_id: sessionStorage.getItem('playerId'), destination})
+                    });
+                    if (!res.ok) throw new Error((await res.json().catch(()=>({}))).detail || 'Travel failed');
+                    const data = await res.json();
+                    if (data.state) {
+                        gameState = data.state;
+                        localStorage.setItem(`echoes_save_${gameState.house_name}`, JSON.stringify(gameState));
+                    }
+                    updateUI();
+                    if (data.image_base64) {
+                        sceneImg.onload = () => sceneImg.classList.remove('opacity-0');
+                        sceneImg.src = data.image_base64;
+                        document.getElementById('image-placeholder').classList.add('hidden');
+                    }
+                    const loc = mapData && mapData[destination];
+                    const msg = document.createElement('p');
+                    msg.className = 'text-purple-400/70 font-mono text-xs italic msg-fade';
+                    msg.innerText = `→ ${data.text}`;
+                    log.appendChild(msg); log.scrollTop = log.scrollHeight;
+                } catch(e) {
+                    const err = document.createElement('p');
+                    err.className = 'text-red-500 text-xs msg-fade';
+                    err.innerText = `Travel failed: ${e.message}`;
+                    log.appendChild(err);
+                    sceneImg.classList.remove('opacity-0');
+                } finally {
+                    input.disabled = false; btn.disabled = false; input.focus();
+                }
+            } else {
+                // Not yet visited — use normal action system to walk there
+                input.value = `go to ${destination.replace(/_/g, ' ')}`;
+                sendAction();
+            }
         }
 
         // ── Death Screen ───────────────────────────────────────────────────────
@@ -791,7 +1009,7 @@
             updateUI();
         }
 
-        window.onload = () => {
+        window.onload = async () => {
             const playerId   = sessionStorage.getItem('playerId');
             const playerName = sessionStorage.getItem('playerName');
 
@@ -803,6 +1021,7 @@
             const saved = localStorage.getItem(`echoes_save_${playerName}`);
             if (saved) {
                 gameState = JSON.parse(saved);
+                await loadMapData(); // load map before updateUI so mini-map renders
                 updateUI();
                 if (!gameState.avatar_description) {
                     const av = document.getElementById('avatar-screen');
@@ -827,18 +1046,6 @@
         async function sendAction() {
             const actionText = input.value.trim();
             if (!actionText || !gameState) return;
-
-            // Block movement to locked locations
-            for (const node of MAP_NODES.filter(n => n.locked)) {
-                if (actionText.toLowerCase().includes(node.id.replace(/_/g,' '))) {
-                    input.value = '';
-                    const msg = document.createElement('p');
-                    msg.className = 'text-red-400 title-font text-xs tracking-widest msg-fade';
-                    msg.innerText = `🔒 ${node.label.join(' ')} is sealed — you need a ${node.requires} to enter.`;
-                    log.appendChild(msg); log.scrollTop = log.scrollHeight;
-                    return;
-                }
-            }
 
             const pMsg = document.createElement('p');
             pMsg.className = "text-green-500/80 font-mono text-xs opacity-60 italic";

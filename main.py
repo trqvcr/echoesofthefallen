@@ -1,5 +1,6 @@
 import os
 import random
+import time
 import json
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,12 +9,12 @@ from google import genai
 from google.genai.types import GenerateImagesConfig, GenerateContentConfig, Schema, Type
 from dotenv import load_dotenv
 
-from models import RegisterRequest, LoginRequest, ActionRequest, RiseRequest, AvatarRequest
+from models import RegisterRequest, LoginRequest, ActionRequest, RiseRequest, AvatarRequest, TravelRequest
 from db import get_player, save_player, get_world, get_all_locations, save_location, hash_password
 from enemies import tick_spawns
+from world_tick import tick_world
 from combat import player_to_state, _start_combat, process_combat_turn, _make_ancestor_record, build_heir
 from images import generate_scene_image, generate_avatar_portrait
-import base64;
 
 load_dotenv()
 
@@ -47,7 +48,19 @@ async def health():
 
 @app.get("/map.json")
 async def serve_map():
-    return get_all_locations()
+    locs = get_all_locations()
+    return {
+        key: {
+            "name":        data.get("name", key),
+            "type":        data.get("type", "location"),
+            "parent":      data.get("parent", ""),
+            "description": data.get("description", ""),
+            "exits":       data.get("exits", []),
+            "x":           data.get("x"),
+            "y":           data.get("y"),
+        }
+        for key, data in locs.items()
+    }
 
 
 # ── /register ──────────────────────────────────────────────────────────────────
@@ -130,13 +143,14 @@ async def register(request: RegisterRequest):
             "subclass_unlocked":        False,
             "subrace_unlocked":         False,
         },
-        "lineage":      [],
-        "reputation":   {"saltmarsh": 0, "ashen_ruins": 0, "void_wastes": 0},
-        "combat_state": {"active": False},
+        "lineage":           [],
+        "reputation":        {"saltmarsh": 0, "ashen_ruins": 0, "void_wastes": 0},
+        "combat_state":      {"active": False},
+        "visited_locations": ["ashen_courtyard"],
     }
 
     save_player(player_id, player)
-    return {"player_id": player_id, "state": player_to_state(player)}
+    return {"player_id": player_id, "state": player_to_state(player, player_id)}
 
 
 # ── /login ─────────────────────────────────────────────────────────────────────
@@ -151,7 +165,7 @@ async def login(request: LoginRequest):
     if player.get("password_hash") != hash_password(request.password):
         raise HTTPException(status_code=401, detail="Incorrect password.")
 
-    return {"player_id": player_id, "state": player_to_state(player)}
+    return {"player_id": player_id, "state": player_to_state(player, player_id)}
 
 
 # ── /rise ──────────────────────────────────────────────────────────────────────
@@ -172,7 +186,7 @@ async def rise_as_heir(request: RiseRequest):
 
     heir = build_heir(dead_player, heir_name)
     save_player(player_id, heir)
-    return {"player_id": player_id, "state": player_to_state(heir)}
+    return {"player_id": player_id, "state": player_to_state(heir, player_id)}
 
 
 # ── /avatar ────────────────────────────────────────────────────────────────────
@@ -193,7 +207,7 @@ async def set_avatar(request: AvatarRequest):
     player["avatar_portrait"]    = portrait
     save_player(request.player_id, player)
 
-    return {"portrait": portrait, "state": player_to_state(player)}
+    return {"portrait": portrait, "state": player_to_state(player, request.player_id)}
 
 
 # ── /action ────────────────────────────────────────────────────────────────────
@@ -203,6 +217,7 @@ async def handle_action(request: ActionRequest):
     world_state   = get_world()
     all_locations = get_all_locations()
     all_locations = tick_spawns(all_locations)
+    all_locations = tick_world(all_locations)
 
     player = get_player(request.player_id)
     if not player:
@@ -225,20 +240,49 @@ async def handle_action(request: ActionRequest):
             request.player_id, skill_defs
         )
 
+# ── State Formatter ───────────────────────────────────────────────────────────
+
+def _format_state_for_prompt(state: dict) -> str:
+    """Renders location state for Gemini prompts in a readable way.
+    Handles both old-format primitives and new-format dicts with metadata."""
+    if not state:
+        return "none"
+    parts = []
+    for k, v in state.items():
+        if isinstance(v, dict):
+            val   = v.get("value", "?")
+            desc  = v.get("description", "")
+            stages = v.get("stages", [])
+            idx   = v.get("stage_index", 0)
+            if stages:
+                parts.append(f"{k}={val} [stage {idx+1}/{len(stages)}] — {desc}")
+            else:
+                parts.append(f"{k}={val} — {desc}")
+        else:
+            parts.append(f"{k}={v}")
+    return "; ".join(parts)
+
+
 # ── Exploration Handler ────────────────────────────────────────────────────────
 
 async def _process_exploration(
     player, action, current_location, location_key,
     world_state, all_locations, player_id, skill_defs
 ):
-    action_lower = action.lower()
+    action_lower     = action.lower()
+    location_changed = False
 
     # Movement
     for exit_key in current_location.get("exits", []):
         if exit_key.replace("_", " ") in action_lower or exit_key in action_lower:
-            player["location"] = exit_key
-            current_location   = all_locations.get(exit_key, {})
-            location_key       = exit_key
+            if exit_key in all_locations:
+                player["location"] = exit_key
+                current_location   = all_locations[exit_key]
+                location_key       = exit_key
+                location_changed   = True
+                visited = player.setdefault("visited_locations", ["ashen_courtyard"])
+                if exit_key not in visited:
+                    visited.append(exit_key)
             break
 
     # Combat initiation
@@ -312,7 +356,7 @@ VISUAL: [scene description for image generation]"""
             "image_base64": generate_scene_image(client, visual_prompt, player.get("avatar_description", "")),
             "status":       player["status"],
             "location":     current_location["name"],
-            "state":        player_to_state(player),
+            "state":        player_to_state(player, player_id),
             "combat_event": "start",
         }
 
@@ -326,7 +370,7 @@ VISUAL: [scene description for image generation]"""
 WORLD HISTORY: {world_state['world_history']}
 LOCATION: {current_location['name']}
 DESCRIPTION: {current_location['description']}
-CURRENT STATE FLAGS: {current_location.get('state', {})}
+CURRENT STATE: {_format_state_for_prompt(current_location.get('state', {}))}
 NPCS HERE: {[f"{k}: {v['name']} (disposition: {v.get('disposition',0)}, status: {v.get('status','alive')})" for k,v in current_location.get('npcs',{}).items()]}
 LOCATION HISTORY: {current_location.get('history', [])[-5:]}
 
@@ -339,10 +383,10 @@ RECENT ACTIONS: {player['history'][-5:]}
 
 PLAYER ACTION: {action}
 
-Respond with vivid narrative (2-3 sentences)."""
+Respond with vivid narrative (2-3 sentences). Do NOT include any game mechanic notations, inventory updates, state updates, or bracketed annotations in your response — pure prose only."""
 
     narrative = "[The void is silent — no AI connected]"
-    mutation  = {"env_damage": 0, "visual": "", "state_changes": {}, "npc_id": "", "npc_delta": 0, "npc_memory": "", "history": ""}
+    mutation  = {"env_damage": 0, "visual": "", "state_changes": [], "items_gained": [], "npc_id": "", "npc_delta": 0, "npc_memory": "", "history": ""}
 
     if client:
         # Call 1: narrative
@@ -350,28 +394,73 @@ Respond with vivid narrative (2-3 sentences)."""
         narrative = response.text or "[The void is silent — no AI connected]"
 
         # Call 2: structured mutations
-        mutation_prompt = f"""Given this game action and its narrative, extract the world state changes.
+        mutation_prompt = f"""You are extracting world state changes from a dark fantasy RPG action.
 
 LOCATION: {current_location['name']}
-CURRENT STATE FLAGS: {current_location.get('state', {})}
+PLAYER: {player['name']}
+CURRENT STATE: {_format_state_for_prompt(current_location.get('state', {}))}
 NPCS HERE: {list(current_location.get('npcs', {}).keys())}
 PLAYER ACTION: {action}
 NARRATIVE: {narrative}
 
-Extract what changed."""
+Record any physical changes to the environment. If the player touched, broke, moved, marked, or damaged anything — record it.
+Only skip truly trivial actions with zero physical effect (looking around, standing still).
+
+For each state_change entry:
+- key: snake_case descriptor, e.g. smashed_fountain, name_carved_north_wall, scorched_floor
+- value: current state string, e.g. "smashed", "carved", "scorched", "broken", "open"
+- description: one sentence including the player's name — what happened
+- stages: decay progression if applicable e.g. ["intact","cracked","rubble"] — empty list if permanent
+- stage_duration_seconds: seconds per stage. 0 = permanent.
+
+Stage duration guide: broken stone=14400 (4h/stage), broken furniture=0 (permanent), scorched marks=0 (permanent), spilled liquid=1800 (30 min/stage).
+
+items_gained: items the player physically picked up during this action. Each needs id (snake_case), name (display name), description (flavor text noting what it is and where it came from, e.g. "A brittle index finger pried from the dead soldier in the Ashen Courtyard"). Empty list if nothing was taken.
+
+For countable resources (fingers on a body, coins in a pouch, arrows in a quiver):
+- On first access, create a state entry tracking the count, e.g. dead_soldier_fingers_remaining="9" (humans have 10 fingers, deduct already taken ones from existing state)
+- Decrement the count each time one is taken via a state_change
+- If the count is already "0" in the current state, do NOT add to items_gained — nothing left to take
+
+The history field: one sentence in third person with the player's name. Empty string if nothing notable happened."""
 
         mutation_schema = Schema(
             type=Type.OBJECT,
             properties={
-                "env_damage":    Schema(type=Type.INTEGER, description="HP damage from environment, 0 if none"),
-                "visual":        Schema(type=Type.STRING,  description="One sentence scene description for image generation"),
-                "state_changes": Schema(type=Type.OBJECT,  description="State flags that changed, e.g. broken_table:true. Invent new keys freely."),
-                "npc_id":        Schema(type=Type.STRING,  description="NPC id that was affected, empty string if none"),
-                "npc_delta":     Schema(type=Type.INTEGER, description="Disposition change for the NPC, 0 if none"),
-                "npc_memory":    Schema(type=Type.STRING,  description="Memory to append to NPC, empty string if none"),
-                "history":       Schema(type=Type.STRING,  description="One sentence for location history log, empty string if nothing significant"),
+                "env_damage": Schema(type=Type.INTEGER, description="HP damage from environment (falling, traps, fire), 0 if none"),
+                "visual":     Schema(type=Type.STRING,  description="One sentence scene description for image generation"),
+                "state_changes": Schema(
+                    type=Type.ARRAY,
+                    description="List of consequential world state changes. Include anything that physically alters the space.",
+                    items=Schema(
+                        type=Type.OBJECT,
+                        properties={
+                            "key":                    Schema(type=Type.STRING,  description="Snake_case key, e.g. broken_east_wall, dented_pillar"),
+                            "value":                  Schema(type=Type.STRING,  description="Current state value, e.g. broken, dented, scorched, open"),
+                            "description":            Schema(type=Type.STRING,  description="One sentence: what changed and who caused it"),
+                            "stages":                 Schema(type=Type.ARRAY, items=Schema(type=Type.STRING), description="Ordered decay stages e.g. [intact, cracked, rubble]. Empty list if permanent."),
+                            "stage_duration_seconds": Schema(type=Type.INTEGER, description="Seconds per stage transition. 0 means permanent."),
+                        }
+                    )
+                ),
+                "items_gained": Schema(
+                    type=Type.ARRAY,
+                    description="Items the player picked up. Empty if none.",
+                    items=Schema(
+                        type=Type.OBJECT,
+                        properties={
+                            "id":          Schema(type=Type.STRING, description="Snake_case item id, e.g. finger_bone, rusty_coin"),
+                            "name":        Schema(type=Type.STRING, description="Display name, e.g. 'Index Finger Bone'"),
+                            "description": Schema(type=Type.STRING, description="Flavor text with provenance, e.g. 'A brittle index finger taken from the dead soldier in the Ashen Courtyard'"),
+                        }
+                    )
+                ),
+                "npc_id":     Schema(type=Type.STRING,  description="NPC id that was affected, empty string if none"),
+                "npc_delta":  Schema(type=Type.INTEGER, description="Disposition change for the NPC, 0 if none"),
+                "npc_memory": Schema(type=Type.STRING,  description="Memory to append to NPC, empty string if none"),
+                "history":    Schema(type=Type.STRING,  description="One sentence for location history log in third person, empty string if nothing significant"),
             },
-            required=["env_damage", "visual", "state_changes", "npc_id", "npc_delta", "npc_memory", "history"]
+            required=["env_damage", "visual", "state_changes", "items_gained", "npc_id", "npc_delta", "npc_memory", "history"]
         )
 
         try:
@@ -384,7 +473,6 @@ Extract what changed."""
                 )
             )
             mutation = json.loads(mut_response.text)
-            print(f"=== MUTATION ===\n{mutation}\n================")
         except Exception as e:
             print(f"Mutation extraction failed: {e}")
 
@@ -393,12 +481,47 @@ Extract what changed."""
     # ── Apply world state mutations ────────────────────────────────────────────
     location_dirty = False
 
-    state_changes = mutation.get("state_changes", {})
-    if isinstance(state_changes, dict) and state_changes:
-        if "state" not in current_location:
-            current_location["state"] = {}
-        current_location["state"].update(state_changes)
-        location_dirty = True
+    state_changes = mutation.get("state_changes", [])
+    if isinstance(state_changes, list):
+        for change in state_changes:
+            if not isinstance(change, dict):
+                continue
+            key = change.get("key", "").strip()
+            if not key:
+                continue
+            if "state" not in current_location:
+                current_location["state"] = {}
+            stages        = change.get("stages", [])
+            stage_duration = int(change.get("stage_duration_seconds", 0))
+            value         = change.get("value", "true")
+            description   = change.get("description", "")
+            if stages and len(stages) > 1:
+                stage_index = stages.index(value) if value in stages else 0
+                current_location["state"][key] = {
+                    "value":         value,
+                    "description":   description,
+                    "set_at":        time.time(),
+                    "stages":        stages,
+                    "stage_index":   stage_index,
+                    "stage_duration": stage_duration,
+                }
+            else:
+                current_location["state"][key] = {
+                    "value":       value,
+                    "description": description,
+                    "set_at":      time.time(),
+                    "permanent":   True,
+                }
+            location_dirty = True
+
+    items_gained = mutation.get("items_gained", [])
+    if isinstance(items_gained, list):
+        for item in items_gained:
+            if isinstance(item, str) and item:
+                player["inventory"].append(item)
+            elif isinstance(item, dict) and item.get("id"):
+                item["source_location"] = location_key
+                player["inventory"].append(item)
 
     npc_id     = mutation.get("npc_id", "")
     npc_delta  = mutation.get("npc_delta", 0)
@@ -412,8 +535,28 @@ Extract what changed."""
 
     history_entry = mutation.get("history", "")
     if history_entry:
-        current_location.setdefault("history", []).append(f"[{player['name']}] {history_entry}")
+        current_location.setdefault("history", []).append(history_entry)
+        current_location["history"] = current_location["history"][-30:]
         location_dirty = True
+
+    # ── Reference image: generate once per location, reuse for all visitors ──────
+    visual_prompt = mutation.get("visual", "")
+    ref_image     = current_location.get("reference_image", "")
+
+    if location_changed:
+        if ref_image:
+            scene_img = ref_image
+        else:
+            loc_prompt = f"{current_location.get('name', '')}: {current_location.get('description', '')}"
+            scene_img  = generate_scene_image(client, loc_prompt, player.get("avatar_description", ""))
+            if scene_img:
+                current_location["reference_image"] = scene_img
+                location_dirty = True
+    else:
+        scene_img = generate_scene_image(client, visual_prompt, player.get("avatar_description", ""))
+        if scene_img and not ref_image:
+            current_location["reference_image"] = scene_img
+            location_dirty = True
 
     if location_dirty:
         save_location(location_key, current_location)
@@ -439,13 +582,58 @@ Extract what changed."""
 
     result = {
         "text":         display_text,
-        "image_base64": generate_scene_image(client, mutation.get("visual", ""), player.get("avatar_description", "")),
+        "image_base64": scene_img,
         "status":       player["status"],
         "location":     current_location["name"],
-        "state":        player_to_state(player),
+        "state":        player_to_state(player, player_id),
         "env_damage":   env_damage,
     }
     if combat_event:
         result["combat_event"] = combat_event
     result.update(extra_data)
     return result
+
+
+# ── /travel ────────────────────────────────────────────────────────────────────
+
+@app.post("/travel")
+async def fast_travel(request: TravelRequest):
+    player = get_player(request.player_id)
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
+    if player.get("combat_state", {}).get("active"):
+        raise HTTPException(status_code=400, detail="Cannot fast travel during combat.")
+
+    destination = request.destination
+    visited     = player.get("visited_locations", [])
+
+    if destination not in visited:
+        raise HTTPException(status_code=403, detail="You have not been to that location yet.")
+
+    all_locations    = get_all_locations()
+    current_location = all_locations.get(destination)
+    if not current_location:
+        raise HTTPException(status_code=404, detail="Location not found.")
+
+    player["location"] = destination
+    ref_image          = current_location.get("reference_image", "")
+    location_dirty     = False
+
+    if not ref_image and client:
+        loc_prompt = f"{current_location.get('name', destination)}: {current_location.get('description', '')}"
+        ref_image  = generate_scene_image(client, loc_prompt, player.get("avatar_description", ""))
+        if ref_image:
+            current_location["reference_image"] = ref_image
+            location_dirty = True
+
+    if location_dirty:
+        save_location(destination, current_location)
+
+    save_player(request.player_id, player)
+
+    return {
+        "text":         f"You travel swiftly to {current_location.get('name', destination)}.",
+        "image_base64": ref_image,
+        "location":     current_location.get("name", destination),
+        "state":        player_to_state(player, request.player_id),
+    }
