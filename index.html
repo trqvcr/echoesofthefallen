@@ -153,37 +153,38 @@
         function updateUI() {
             if(!gameState) return;
             
-            // House & Class
-            document.getElementById('ui-house-name').innerText = `House ${gameState.house_name}`;
-            
-            // HP
+            document.getElementById('ui-house-name').innerText = `House ${gameState.house_name || gameState.name || "Unknown"}`;
             document.getElementById('stat-hp').innerText = `${gameState.hp} / ${gameState.max_hp}`;
-            const hpPct = (gameState.hp / gameState.max_hp) * 100;
-            document.getElementById('hp-bar-fill').style.width = hpPct + '%';
             
-            // Attributes
+            const hpPct = (gameState.hp / gameState.max_hp) * 100;
+            document.getElementById('hp-bar-fill').style.width = Math.max(0, Math.min(100, hpPct)) + '%';
+            
             const stats = ['str', 'agi', 'con', 'arc'];
             stats.forEach(s => {
-                const val = gameState[s] || 0;
+                const val = gameState[s] || gameState[['strength','agility','constitution','arcane'][stats.indexOf(s)]];
                 document.getElementById(`stat-${s}`).innerText = val;
-                document.getElementById(`bar-${s}`).style.width = (val * 5) + '%'; 
+                document.getElementById(`bar-${s}`).style.width = Math.min(100, val * 5) + '%'; 
             });
 
-            // Inventory
-            document.getElementById('inventory-list').innerHTML = gameState.inventory.length ? 
+            document.getElementById('inventory-list').innerHTML = (gameState.inventory && gameState.inventory.length) ? 
                 gameState.inventory.map(i => `<li>• ${i}</li>`).join('') : "<li>• Nothing but hope</li>";
         }
 
-        // --- 3. INITIAL LOAD ---
+        // --- 3. INITIAL LOAD (WITH AUTO-HEALING MEMORY) ---
         window.onload = () => {
             const activeHouse = sessionStorage.getItem('playerName') || 'Wanderer';
-            
-            // Check for existing save
             const saved = localStorage.getItem(`echoes_save_${activeHouse}`);
-            if(saved) {
-                gameState = JSON.parse(saved);
-            } else {
-                // Fresh start
+            
+            try {
+                if (saved && saved !== "undefined") {
+                    gameState = JSON.parse(saved);
+                    if (!gameState || !gameState.hp) throw new Error("Corrupted state pointer");
+                } else {
+                    throw new Error("No valid memory state found");
+                }
+            } catch (e) {
+                console.warn("Auto-healing corrupted save file:", e);
+                // Construct a fresh generic state so the thread doesn't die
                 gameState = {
                     house_name: activeHouse,
                     current_room: "ashen_courtyard",
@@ -193,6 +194,7 @@
                     dead_ancestors: [],
                     current_enemy: null
                 };
+                localStorage.setItem(`echoes_save_${activeHouse}`, JSON.stringify(gameState));
             }
             updateUI();
         };
@@ -200,7 +202,7 @@
         // --- 4. ABANDON LEGACY ---
         function abandonLegacy() {
             if (confirm("Are you sure you want to end this lineage? All current progress for this House will be lost forever.")) {
-                const activeHouse = gameState ? gameState.house_name : sessionStorage.getItem('playerName');
+                const activeHouse = gameState ? (gameState.house_name || gameState.name) : sessionStorage.getItem('playerName');
                 
                 if (activeHouse) {
                     localStorage.removeItem(`echoes_save_${activeHouse}`);
@@ -216,7 +218,6 @@
             const actionText = input.value.trim();
             if (!actionText || !gameState) return;
 
-            // Player Log
             const pMsg = document.createElement('p');
             pMsg.className = "text-green-500/80 font-mono text-xs opacity-60 italic";
             pMsg.innerHTML = `› ${actionText}`;
@@ -226,24 +227,30 @@
             input.disabled = true;
             
             try {
-                // Using relative path for Vercel deployment compatibility
+                const safePlayerId = sessionStorage.getItem('playerId') || (gameState.house_name || "wanderer").toLowerCase().replace(/\s+/g, '_');
+
                 const response = await fetch('/action', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        player_id: gameState.house_name,
+                        player_id: safePlayerId,
                         action: actionText,
-                        state: gameState
+                        state: gameState 
                     })
                 });
 
                 const data = await response.json();
+                
+                if (!response.ok) {
+                    const errorDetail = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+                    throw new Error(errorDetail || "The void rejected your action.");
+                }
+
                 gameState = data.state;
-                localStorage.setItem(`echoes_save_${gameState.house_name}`, JSON.stringify(gameState));
+                localStorage.setItem(`echoes_save_${gameState.house_name || gameState.name}`, JSON.stringify(gameState));
                 
                 updateUI();
                 
-                // Story Response
                 const sMsg = document.createElement('p');
                 sMsg.className = "text-gray-300 leading-relaxed msg-fade";
                 sMsg.innerText = data.text;
@@ -256,7 +263,7 @@
             } catch (e) {
                 const err = document.createElement('p');
                 err.className = "text-red-500 text-xs";
-                err.innerText = "The connection to the server was severed.";
+                err.innerText = `System Error: ${e.message}`;
                 log.appendChild(err);
             } finally {
                 input.disabled = false;
