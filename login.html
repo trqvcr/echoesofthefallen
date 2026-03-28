@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Echoes of the Fallen</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Crimson+Text:ital,wght@0,400;1,400&display=swap');
+
+        body {
+            background-color: #030609;
+            font-family: 'Crimson Text', serif;
+        }
+
+        .title-font { font-family: 'Cinzel', serif; }
+
+        .stars {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 0;
+        }
+
+        .star {
+            position: absolute;
+            width: 2px; height: 2px;
+            background: white;
+            border-radius: 50%;
+            animation: twinkle var(--duration) ease-in-out infinite;
+            opacity: 0;
+        }
+
+        @keyframes twinkle {
+            0%, 100% { opacity: 0; }
+            50% { opacity: var(--max-opacity); }
+        }
+
+        .ember {
+            position: absolute;
+            width: 3px; height: 3px;
+            border-radius: 50%;
+            background: #a855f7;
+            animation: float var(--duration) ease-in-out infinite;
+            opacity: 0;
+            filter: blur(1px);
+        }
+
+        @keyframes float {
+            0% { transform: translateY(100vh) translateX(0); opacity: 0; }
+            10% { opacity: 0.8; }
+            90% { opacity: 0.4; }
+            100% { transform: translateY(-20px) translateX(var(--drift)); opacity: 0; }
+        }
+
+        @keyframes glow {
+            0%, 100% { text-shadow: 0 0 20px rgba(168,85,247,0.4), 0 0 40px rgba(168,85,247,0.2); }
+            50% { text-shadow: 0 0 40px rgba(168,85,247,0.8), 0 0 80px rgba(168,85,247,0.4), 0 0 120px rgba(168,85,247,0.2); }
+        }
+
+        .title-glow { animation: glow 3s ease-in-out infinite; }
+
+        .rune-line {
+            background: linear-gradient(90deg, transparent, #7c3aed, #a855f7, #7c3aed, transparent);
+            height: 1px;
+        }
+
+        .name-input {
+            background: rgba(15, 10, 25, 0.8);
+            border: 1px solid rgba(139, 92, 246, 0.4);
+            color: #e2d9f3;
+            transition: all 0.3s ease;
+            font-family: 'Cinzel', serif;
+            letter-spacing: 0.1em;
+        }
+
+        .name-input:focus {
+            outline: none;
+            border-color: rgba(168, 85, 247, 0.8);
+            box-shadow: 0 0 20px rgba(168, 85, 247, 0.3), inset 0 0 20px rgba(168, 85, 247, 0.05);
+        }
+
+        .name-input::placeholder {
+            color: rgba(139, 92, 246, 0.4);
+            font-style: italic;
+        }
+
+        .enter-btn {
+            background: linear-gradient(135deg, #4c1d95, #7c3aed);
+            border: 1px solid rgba(168, 85, 247, 0.5);
+            font-family: 'Cinzel', serif;
+            letter-spacing: 0.15em;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .enter-btn::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .enter-btn:hover::before { left: 100%; }
+        .enter-btn:hover {
+            background: linear-gradient(135deg, #5b21b6, #9333ea);
+            box-shadow: 0 0 30px rgba(168, 85, 247, 0.5);
+            transform: translateY(-1px);
+        }
+        .enter-btn:active { transform: translateY(0); }
+
+        @keyframes fadeOut {
+            to { opacity: 0; transform: scale(1.05); }
+        }
+        .fade-out { animation: fadeOut 0.8s ease forwards; }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fade-in-up { animation: fadeInUp 1s ease forwards; }
+        .delay-1 { animation-delay: 0.3s; opacity: 0; }
+        .delay-2 { animation-delay: 0.6s; opacity: 0; }
+        .delay-3 { animation-delay: 0.9s; opacity: 0; }
+        .delay-4 { animation-delay: 1.2s; opacity: 0; }
+
+        .class-btn {
+            transition: all 0.25s ease;
+            cursor: pointer;
+            background: rgba(10, 5, 20, 0.6);
+        }
+
+        .class-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 15px rgba(168, 85, 247, 0.3);
+        }
+
+        .class-btn.selected {
+            border-color: #a855f7 !important;
+            background: rgba(168, 85, 247, 0.15);
+            box-shadow: 0 0 20px rgba(168, 85, 247, 0.25);
+        }
+
+        .stat-bar {
+            height: 4px;
+            border-radius: 2px;
+            background: rgba(255,255,255,0.08);
+            overflow: hidden;
+        }
+
+        .stat-fill {
+            height: 100%;
+            border-radius: 2px;
+            background: linear-gradient(90deg, #7c3aed, #a855f7);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center overflow-hidden">
+
+    <div class="stars" id="stars"></div>
+
+    <div id="login-card" class="relative z-10 flex flex-col items-center text-center px-8 py-10 max-w-xl w-full">
+
+        <div class="fade-in-up delay-1 mb-4 text-5xl">👑</div>
+
+        <h1 class="title-font title-glow fade-in-up delay-1 text-5xl font-black text-white mb-2 tracking-widest uppercase">
+            Echoes
+        </h1>
+        <h2 class="title-font fade-in-up delay-1 text-xl font-normal text-purple-400 tracking-[0.5em] uppercase mb-6">
+            of the Fallen
+        </h2>
+
+        <div class="rune-line w-full mb-6 fade-in-up delay-2"></div>
+
+        <p class="fade-in-up delay-2 text-gray-400 italic text-lg leading-relaxed mb-6">
+            Three hundred years after the Shattering, the ruins of Valdris still whisper the names of those who dared seek the Crown's shards.
+            <br><br>
+            <span class="text-purple-300">What name shall the void remember?</span>
+        </p>
+
+        <!-- Name input -->
+        <div class="fade-in-up delay-3 w-full mb-6">
+            <input
+                type="text"
+                id="name-input"
+                class="name-input w-full px-6 py-4 rounded text-center text-lg"
+                placeholder="Enter your name..."
+                maxlength="24"
+            />
+        </div>
+
+        <!-- Class selector — 2x2 grid -->
+        <div class="fade-in-up delay-3 w-full mb-6">
+            <p class="title-font text-gray-500 text-xs tracking-widest uppercase mb-3">Choose Your Lineage</p>
+            <div class="grid grid-cols-2 gap-3">
+
+                <!-- Ashen Knight -->
+                <button onclick="selectClass('ashen_knight')" id="class-ashen_knight" class="class-btn rounded border border-gray-700 p-4 text-left">
+                    <div class="text-2xl mb-2">⚔️</div>
+                    <div class="title-font text-gray-200 text-sm mb-1">Ashen Knight</div>
+                    <div class="text-gray-500 text-xs mb-3">Heavily armored survivor of the old royal guard. Brute force and endurance.</div>
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">STR</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:80%"></div></div></div>
+                        <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">AGI</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:30%"></div></div></div>
+                        <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">CON</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:70%"></div></div></div>
+                        <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">ARC</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:20%"></div></div></div>
+                    </div>
+                </button>
+
+                <!-- Void Drifter -->
+                <button onclick="selectClass('void_drifter')" id="class-void_drifter" class="class-btn rounded border border-gray-700 p-4 text-left">
+                    <div class="text-2xl mb-2">🗡️</div>
+                    <div class="title-font text-gray-200 text-sm mb-1">Void Drifter</div>
+                    <div class="text-gray-500 text-xs mb-3">A rogue who survived the cataclysm in shadows. Blindingly fast and lethal.</div>
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">STR</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:50%"></div></div></div>
+                        <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">AGI</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:90%"></div></div></div>
+                        <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">CON</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:40%"></div></div></div>
+                        <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">ARC</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:20%"></div></div></div>
+                    </div>
+                </button>
+
+                <!-- Rune-Scribe -->
+                <button onclick="selectClass('rune_scribe')" id="class-rune_scribe" class="class-btn rounded border border-gray-700 p-4 text-left">
+                    <div class="text-2xl mb-2">📜</div>
+                    <div class="title-font text-gray-200 text-sm mb-1">Rune-Scribe</div>
+                    <div class="text-gray-500 text-xs mb-3">A scholar wielding the shattered magic that destroyed the world. Glass cannon.</div>
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">STR</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:20%"></div></div></div>
+                        <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">AGI</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:40%"></div></div></div>
+                        <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">CON</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:40%"></div></div></div>
+                        <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">ARC</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:100%"></div></div></div>
+                    </div>
+                </button>
+
+                <!-- Void Ranger -->
+                <button onclick="selectClass('void_ranger')" id="class-void_ranger" class="class-btn rounded border border-gray-700 p-4 text-left">
+                    <div class="text-2xl mb-2">🏹</div>
+                    <div class="title-font text-gray-200 text-sm mb-1">Void Ranger</div>
+                    <div class="text-gray-500 text-xs mb-3">A spectral archer channeling Void energy through their bow. Deadly at range.</div>
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">STR</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:30%"></div></div></div>
+                        <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">AGI</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:100%"></div></div></div>
+                        <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">CON</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:30%"></div></div></div>
+                        <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">ARC</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:40%"></div></div></div>
+                    </div>
+                </button>
+
+            </div>
+        </div>
+
+        <!-- Enter button -->
+        <button onclick="enterGame()" class="enter-btn fade-in-up delay-4 w-full py-4 text-white rounded text-sm uppercase">
+            Enter the Void
+        </button>
+
+        <div class="rune-line w-full mt-8 fade-in-up delay-4"></div>
+        <p class="fade-in-up delay-4 text-gray-700 text-xs mt-4 title-font tracking-widest">
+            YOUR DEATH WILL NOT BE FORGOTTEN
+        </p>
+    </div>
+
+    <script>
+        // Stars
+        const starsContainer = document.getElementById('stars');
+        for (let i = 0; i < 120; i++) {
+            const star = document.createElement('div');
+            star.className = 'star';
+            star.style.cssText = `
+                left: ${Math.random() * 100}%;
+                top: ${Math.random() * 100}%;
+                --duration: ${2 + Math.random() * 4}s;
+                --max-opacity: ${0.3 + Math.random() * 0.7};
+                animation-delay: ${Math.random() * 4}s;
+                width: ${Math.random() > 0.8 ? 3 : 2}px;
+                height: ${Math.random() > 0.8 ? 3 : 2}px;
+            `;
+            starsContainer.appendChild(star);
+        }
+
+        // Embers
+        for (let i = 0; i < 15; i++) {
+            const ember = document.createElement('div');
+            ember.className = 'ember';
+            ember.style.cssText = `
+                left: ${Math.random() * 100}%;
+                bottom: 0;
+                --duration: ${6 + Math.random() * 8}s;
+                --drift: ${-50 + Math.random() * 100}px;
+                animation-delay: ${Math.random() * 8}s;
+            `;
+            starsContainer.appendChild(ember);
+        }
+
+        // Class selection
+        let selectedClass = 'ashen_knight';
+        selectClass('ashen_knight');
+
+        function selectClass(cls) {
+            selectedClass = cls;
+            document.querySelectorAll('.class-btn').forEach(b => b.classList.remove('selected'));
+            document.getElementById(`class-${cls}`).classList.add('selected');
+        }
+
+        document.getElementById('name-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') enterGame();
+        });
+
+        function enterGame() {
+            const name = document.getElementById('name-input').value.trim();
+            if (!name) {
+                const input = document.getElementById('name-input');
+                input.style.borderColor = '#ef4444';
+                input.placeholder = 'The void demands a name...';
+                input.focus();
+                return;
+            }
+            sessionStorage.setItem('playerName', name);
+            sessionStorage.setItem('playerClass', selectedClass);
+            document.getElementById('login-card').classList.add('fade-out');
+            setTimeout(() => { window.location.href = 'index.html'; }, 800);
+        }
+    </script>
+</body>
+</html>
