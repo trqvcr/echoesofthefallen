@@ -288,25 +288,64 @@ RECENT ACTIONS: {player['history'][-5:]}
 
 PLAYER ACTION: {action}
 
-Respond with vivid narrative (2-3 sentences). Then on a new line:
+Respond with vivid narrative (2-3 sentences). Then on new lines:
+ENV_DAMAGE: [integer 0-999 — non-zero ONLY if the action directly causes physical harm: falling, self-inflicted wounds, environmental hazards, touching dangerous objects. Use 0 for all normal exploration, movement, talking, or inspecting.]
 VISUAL: [one sentence describing the scene for image generation]"""
 
     narrative = "[The void is silent — no AI connected]"
+    raw_text  = ""
     if client:
         response  = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
-        narrative = response.text or "[The void is silent — no AI connected]"
+        raw_text  = response.text or ""
+        narrative = raw_text or "[The void is silent — no AI connected]"
+
+    def parse_tag(tag, text, default):
+        for line in text.splitlines():
+            if line.strip().startswith(f"{tag}:"):
+                return line.split(":", 1)[1].strip()
+        return default
+
+    try:
+        env_damage = int(parse_tag("ENV_DAMAGE", raw_text, "0"))
+        env_damage = max(0, env_damage)
+    except ValueError:
+        env_damage = 0
 
     display_text = "\n".join(
         line for line in narrative.splitlines()
-        if not line.strip().startswith("VISUAL:")
+        if not line.strip().startswith("ENV_DAMAGE:")
+        and not line.strip().startswith("VISUAL:")
     ).strip()
 
-    save_player(player_id, player)
+    combat_event = None
+    extra_data   = {}
 
-    return {
+    if env_damage > 0:
+        player["hp"] = max(0, player["hp"] - env_damage)
+        player["milestones"]["total_damage_absorbed"] += env_damage
+
+        if player["hp"] <= 0:
+            player["status"] = "dead"
+            player["hp"]     = 0
+            combat_event     = "death"
+            save_player(player_id, player)
+            descendant, descendant_id, ancestor = _handle_death(player, player_id)
+            extra_data = {"ancestor": ancestor, "descendant_id": descendant_id}
+            player = descendant
+        else:
+            save_player(player_id, player)
+    else:
+        save_player(player_id, player)
+
+    result = {
         "text":         display_text,
         "image_base64": "",
         "status":       player["status"],
         "location":     current_location["name"],
         "state":        player_to_state(player),
+        "env_damage":   env_damage,
     }
+    if combat_event:
+        result["combat_event"] = combat_event
+    result.update(extra_data)
+    return result

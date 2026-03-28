@@ -590,6 +590,8 @@
         function showDeathScreen(data) {
             const screen = document.getElementById('death-screen');
             screen.classList.add('active');
+            document.getElementById('action-input').disabled = true;
+            document.getElementById('submit-btn').disabled   = true;
 
             if (data.ancestor) {
                 document.getElementById('death-killed-by').innerText =
@@ -611,6 +613,9 @@
 
         function continueAsHeir() {
             document.getElementById('death-screen').classList.remove('active');
+            document.getElementById('action-input').disabled = false;
+            document.getElementById('submit-btn').disabled   = false;
+            document.getElementById('action-input').focus();
             if (descendantId && gameState) {
                 gameState.player_id = descendantId;
                 sessionStorage.setItem('playerId', descendantId);
@@ -706,6 +711,14 @@
                 sMsg.className = "text-gray-300 leading-relaxed msg-fade";
                 sMsg.innerText = data.text;
                 log.appendChild(sMsg);
+
+                // Environmental damage flash
+                if (data.env_damage > 0 && data.combat_event !== 'death') {
+                    const dMsg = document.createElement('p');
+                    dMsg.className = "text-red-400 title-font text-xs tracking-widest msg-fade";
+                    dMsg.innerText = `⚠ You took ${data.env_damage} damage.`;
+                    log.appendChild(dMsg);
+                }
 
                 // Combat event messages
                 if (data.combat_event === 'victory') {

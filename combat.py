@@ -117,7 +117,7 @@ def _handle_death(player: dict, player_id: str) -> tuple:
 
     descendant_id = player_id + "_heir"
     descendant = {
-        "name":             player["name"] + "'s Heir",
+        "name":             player["name"] + " Heir",
         "password_hash":    player.get("password_hash", ""),
         "race":             player["race"],
         "subrace":          None,
