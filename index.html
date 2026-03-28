@@ -68,7 +68,7 @@
                 </div>
             </div>
 
-            <div class="sidebar-box rounded-lg p-5 flex-1">
+            <div class="sidebar-box rounded-lg p-5 flex-1 flex flex-col">
                 <h3 class="title-font text-[10px] text-purple-500 tracking-[0.3em] uppercase mb-6 border-b border-purple-900/30 pb-2">Attributes</h3>
                 
                 <div class="space-y-5">
@@ -99,10 +99,18 @@
                 </div>
 
                 <h3 class="title-font text-[10px] text-purple-500 tracking-[0.3em] uppercase mt-10 mb-4 border-b border-purple-900/30 pb-2">Possessions</h3>
-                <ul id="inventory-list" class="text-xs space-y-2 text-gray-500 italic">
+                
+                <ul id="inventory-list" class="text-xs space-y-2 text-gray-500 italic flex-1">
                     <li>• Rusted Broadsword</li>
                 </ul>
-            </div>
+
+                <div class="mt-auto pt-4 border-t border-purple-900/20">
+                    <button onclick="abandonLegacy()" class="w-full title-font text-[9px] text-gray-600 hover:text-red-500 transition-colors uppercase tracking-[0.2em]">
+                        Abandon Legacy
+                    </button>
+                </div>
+            </div> 
+            
         </div>
 
         <div class="flex-1 flex flex-col bg-gray-900 border border-purple-900/40 rounded-lg shadow-[0_0_40px_rgba(88,28,135,0.2)] overflow-hidden">
@@ -158,7 +166,7 @@
             stats.forEach(s => {
                 const val = gameState[s] || gameState[['strength','agility','constitution','arcane'][stats.indexOf(s)]];
                 document.getElementById(`stat-${s}`).innerText = val;
-                document.getElementById(`bar-${s}`).style.width = (val * 5) + '%'; // 20 points max * 5 = 100%
+                document.getElementById(`bar-${s}`).style.width = (val * 5) + '%'; 
             });
 
             // Inventory
@@ -169,7 +177,6 @@
         // --- 3. INITIAL LOAD ---
         window.onload = () => {
             const activeHouse = sessionStorage.getItem('playerName') || 'Wanderer';
-            const activeClass = sessionStorage.getItem('playerClass') || 'ashen_knight';
             
             // Check for existing save
             const saved = localStorage.getItem(`echoes_save_${activeHouse}`);
@@ -190,7 +197,21 @@
             updateUI();
         };
 
-        // --- 4. ACTION LOOP ---
+        // --- 4. ABANDON LEGACY ---
+        function abandonLegacy() {
+            if (confirm("Are you sure you want to end this lineage? All current progress for this House will be lost forever.")) {
+                const activeHouse = gameState ? gameState.house_name : sessionStorage.getItem('playerName');
+                
+                if (activeHouse) {
+                    localStorage.removeItem(`echoes_save_${activeHouse}`);
+                }
+                
+                sessionStorage.clear();
+                window.location.href = '/';
+            }
+        }
+
+        // --- 5. ACTION LOOP ---
         async function sendAction() {
             const actionText = input.value.trim();
             if (!actionText || !gameState) return;
@@ -205,7 +226,8 @@
             input.disabled = true;
             
             try {
-                const response = await fetch('http://localhost:8000/action', {
+                // Using relative path for Vercel deployment compatibility
+                const response = await fetch('/action', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
