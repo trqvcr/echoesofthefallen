@@ -7,39 +7,63 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Crimson+Text:ital,wght@0,400;1,400&display=swap');
-
-        body { 
-            font-family: 'Crimson Text', serif; 
-            background-color: #030609;
-        }
+        body { font-family: 'Crimson Text', serif; background-color: #030609; }
         .title-font { font-family: 'Cinzel', serif; }
-
         #narrative-log::-webkit-scrollbar { width: 4px; }
         #narrative-log::-webkit-scrollbar-track { background: transparent; }
         #narrative-log::-webkit-scrollbar-thumb { background: #4c1d95; border-radius: 2px; }
-
         .stat-bar-bg { background: rgba(255,255,255,0.05); border: 1px solid rgba(139, 92, 246, 0.1); }
         #hp-bar-fill { transition: width 0.5s ease; box-shadow: 0 0 10px rgba(220, 38, 38, 0.4); }
-        
-        .action-row {
-            background: rgba(5, 3, 15, 0.9);
-            border-top: 1px solid rgba(139, 92, 246, 0.2);
-        }
-
-        @keyframes msgFadeIn {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+        .action-row { background: rgba(5, 3, 15, 0.9); border-top: 1px solid rgba(139, 92, 246, 0.2); }
+        @keyframes msgFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .msg-fade { animation: msgFadeIn 0.4s ease forwards; }
-        
-        .sidebar-box {
-            background: rgba(15, 10, 25, 0.6);
-            border: 1px solid rgba(139, 92, 246, 0.2);
-            backdrop-filter: blur(10px);
+        .sidebar-box { background: rgba(15, 10, 25, 0.6); border: 1px solid rgba(139, 92, 246, 0.2); backdrop-filter: blur(10px); }
+        #enemy-hp-fill { transition: width 0.5s ease; box-shadow: 0 0 10px rgba(220, 38, 38, 0.4); }
+
+        /* Death screen */
+        #death-screen {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 100;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
         }
+        #death-screen.active { display: flex; }
+        @keyframes deathFade { from { opacity: 0; } to { opacity: 1; } }
+        .death-fade { animation: deathFade 2s ease forwards; }
+
+        /* Combat banner pulse */
+        @keyframes combatPulse {
+            0%, 100% { border-color: rgba(220, 38, 38, 0.4); }
+            50% { border-color: rgba(220, 38, 38, 0.9); }
+        }
+        #combat-banner { animation: combatPulse 2s ease-in-out infinite; }
     </style>
 </head>
 <body class="text-gray-200 min-h-screen flex items-center justify-center p-4">
+
+    <!-- Death Screen -->
+    <div id="death-screen">
+        <div class="death-fade max-w-lg">
+            <div class="text-6xl mb-6">💀</div>
+            <h1 class="title-font text-4xl text-red-500 mb-2 tracking-widest">YOU HAVE FALLEN</h1>
+            <p id="death-killed-by" class="text-gray-500 italic mb-8">Slain by the void.</p>
+            
+            <div class="border border-red-900/40 rounded p-6 mb-8 text-left bg-red-950/10">
+                <h3 class="title-font text-xs text-red-400 tracking-widest uppercase mb-4">Your Legacy</h3>
+                <div id="lineage-display" class="space-y-2 text-sm text-gray-400"></div>
+            </div>
+
+            <p class="text-purple-400 italic mb-6">Your heir rises from the ashes. The world remembers what you did.</p>
+            <button onclick="continueAsHeir()" class="title-font text-sm uppercase tracking-widest px-8 py-4 bg-purple-900 hover:bg-purple-700 text-white rounded transition-all">
+                Rise as Heir
+            </button>
+        </div>
+    </div>
 
     <div class="w-full max-w-6xl flex gap-6 h-[90vh]">
 
@@ -54,7 +78,6 @@
                         <p id="class-display" class="text-gray-500 text-xs italic"></p>
                     </div>
                 </div>
-                
                 <div class="space-y-2">
                     <div class="flex justify-between text-xs title-font tracking-tighter">
                         <span class="text-red-400">VITALITY</span>
@@ -68,36 +91,34 @@
 
             <div class="sidebar-box rounded-lg p-5 flex-1 flex flex-col">
                 <h3 class="title-font text-[10px] text-purple-500 tracking-[0.3em] uppercase mb-6 border-b border-purple-900/30 pb-2">Attributes</h3>
-                
                 <div class="space-y-5">
                     <div class="space-y-1">
                         <div class="flex justify-between text-xs uppercase tracking-widest text-gray-400">
                             <span>Strength</span><span id="stat-str" class="text-orange-400">0</span>
                         </div>
-                        <div class="stat-bar-bg h-1 w-full rounded-full"><div id="bar-str" class="h-full bg-orange-600/50" style="width: 0%"></div></div>
+                        <div class="stat-bar-bg h-1 w-full rounded-full"><div id="bar-str" class="h-full bg-orange-600/50" style="width:0%"></div></div>
                     </div>
                     <div class="space-y-1">
                         <div class="flex justify-between text-xs uppercase tracking-widest text-gray-400">
                             <span>Agility</span><span id="stat-agi" class="text-blue-400">0</span>
                         </div>
-                        <div class="stat-bar-bg h-1 w-full rounded-full"><div id="bar-agi" class="h-full bg-blue-600/50" style="width: 0%"></div></div>
+                        <div class="stat-bar-bg h-1 w-full rounded-full"><div id="bar-agi" class="h-full bg-blue-600/50" style="width:0%"></div></div>
                     </div>
                     <div class="space-y-1">
                         <div class="flex justify-between text-xs uppercase tracking-widest text-gray-400">
                             <span>Constitution</span><span id="stat-con" class="text-green-400">0</span>
                         </div>
-                        <div class="stat-bar-bg h-1 w-full rounded-full"><div id="bar-con" class="h-full bg-green-600/50" style="width: 0%"></div></div>
+                        <div class="stat-bar-bg h-1 w-full rounded-full"><div id="bar-con" class="h-full bg-green-600/50" style="width:0%"></div></div>
                     </div>
                     <div class="space-y-1">
                         <div class="flex justify-between text-xs uppercase tracking-widest text-gray-400">
                             <span>Arcane</span><span id="stat-arc" class="text-purple-400">0</span>
                         </div>
-                        <div class="stat-bar-bg h-1 w-full rounded-full"><div id="bar-arc" class="h-full bg-purple-600/50" style="width: 0%"></div></div>
+                        <div class="stat-bar-bg h-1 w-full rounded-full"><div id="bar-arc" class="h-full bg-purple-600/50" style="width:0%"></div></div>
                     </div>
                 </div>
 
                 <h3 class="title-font text-[10px] text-purple-500 tracking-[0.3em] uppercase mt-10 mb-4 border-b border-purple-900/30 pb-2">Possessions</h3>
-                
                 <ul id="inventory-list" class="text-xs space-y-2 text-gray-500 italic flex-1">
                     <li>• Nothing but hope</li>
                 </ul>
@@ -108,13 +129,13 @@
                     </button>
                 </div>
             </div> 
-            
         </div>
 
         <!-- Main Panel -->
         <div class="flex-1 flex flex-col bg-gray-900 border border-purple-900/40 rounded-lg shadow-[0_0_40px_rgba(88,28,135,0.2)] overflow-hidden">
             
-            <div class="relative h-64 bg-gray-950 border-b border-purple-900/30 flex items-center justify-center overflow-hidden flex-shrink-0">
+            <!-- Scene Image -->
+            <div class="relative h-48 bg-gray-950 border-b border-purple-900/30 flex items-center justify-center overflow-hidden flex-shrink-0">
                 <img id="scene-image" src="" class="object-cover w-full h-full opacity-0 absolute inset-0 transition-opacity duration-1000">
                 <div id="image-placeholder" class="flex flex-col items-center gap-2 text-gray-800">
                     <span class="text-5xl">🌑</span>
@@ -132,10 +153,28 @@
                     </div>
             </div>
 
+            <!-- Combat Banner -->
+            <div id="combat-banner" class="hidden flex-shrink-0 bg-red-950/30 border-b border-red-900/40 px-6 py-3">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="title-font text-xs text-red-400 tracking-widest uppercase">⚔ Combat</span>
+                    <span id="combat-enemy-name" class="title-font text-xs text-gray-300 uppercase tracking-widest"></span>
+                    <span id="combat-round" class="title-font text-xs text-gray-600 tracking-widest"></span>
+                </div>
+                <div class="w-full h-2 stat-bar-bg rounded-full overflow-hidden">
+                    <div id="enemy-hp-fill" class="h-full bg-red-800 rounded-full" style="width:100%"></div>
+                </div>
+                <div class="flex justify-between mt-1">
+                    <span class="text-[10px] text-gray-600">Enemy HP</span>
+                    <span id="enemy-hp-text" class="text-[10px] text-red-400"></span>
+                </div>
+            </div>
+
+            <!-- Narrative Log -->
             <div id="narrative-log" class="flex-1 p-8 overflow-y-auto space-y-6 min-h-0">
                 <p class="text-purple-400 italic title-font text-sm tracking-widest text-center">— THE VOID STIRS. YOUR LEGACY BEGINS. —</p>
             </div>
 
+            <!-- Action Row -->
             <div class="action-row p-5 flex gap-4 items-center flex-shrink-0">
                 <span class="text-purple-700 title-font text-xl">›</span>
                 <input type="text" id="action-input" placeholder="What is your command?" 
@@ -147,31 +186,10 @@
         </div>
     </div>
 
-    <div id="levelup-modal" class="hidden fixed inset-0 bg-black/90 z-50 flex items-center justify-center backdrop-blur-sm">
-        <div class="bg-gray-900 border border-purple-500/50 p-8 rounded-lg max-w-md w-full text-center shadow-[0_0_50px_rgba(168,85,247,0.2)]">
-            <h2 class="title-font text-3xl text-purple-400 mb-2 tracking-widest uppercase">Level Up</h2>
-            <p class="text-gray-400 italic mb-6">Your survival has sharpened you. Choose a path of growth.</p>
-            
-            <div class="grid grid-cols-2 gap-4">
-                <button onclick="sendLevelUp('str')" class="border border-orange-900/50 bg-orange-950/20 hover:bg-orange-900/40 text-orange-400 p-3 rounded transition-colors uppercase title-font tracking-wider text-sm">
-                    Strength
-                </button>
-                <button onclick="sendLevelUp('agi')" class="border border-blue-900/50 bg-blue-950/20 hover:bg-blue-900/40 text-blue-400 p-3 rounded transition-colors uppercase title-font tracking-wider text-sm">
-                    Agility
-                </button>
-                <button onclick="sendLevelUp('con')" class="border border-green-900/50 bg-green-950/20 hover:bg-green-900/40 text-green-400 p-3 rounded transition-colors uppercase title-font tracking-wider text-sm">
-                    Constitution
-                </button>
-                <button onclick="sendLevelUp('arc')" class="border border-purple-900/50 bg-purple-950/20 hover:bg-purple-900/40 text-purple-400 p-3 rounded transition-colors uppercase title-font tracking-wider text-sm">
-                    Arcane
-                </button>
-            </div>
-        </div>
-    </div>
-
     <script>
-        // --- STATE ---
-        let gameState = null;
+        let gameState    = null;
+        let descendantId = null;
+
         const log   = document.getElementById('narrative-log');
         const input = document.getElementById('action-input');
         const btn   = document.getElementById('submit-btn');
@@ -183,21 +201,18 @@
             void_ranger:   '🏹',
         };
 
-        // --- UPDATE UI ---
+        // ── Update UI ──────────────────────────────────────────────────────────
         function updateUI() {
             if (!gameState) return;
 
-            // House name & class
             document.getElementById('ui-house-name').innerText = `House ${gameState.house_name}`;
             document.getElementById('class-display').innerText = (gameState.class || '').replace(/_/g, ' ');
             document.getElementById('class-icon').innerText    = CLASS_ICONS[gameState.class] || '⚔️';
 
-            // HP
             document.getElementById('stat-hp').innerText = `${gameState.hp} / ${gameState.max_hp}`;
             const hpPct = Math.max(0, (gameState.hp / gameState.max_hp) * 100);
             document.getElementById('hp-bar-fill').style.width = hpPct + '%';
 
-            // Attributes
             const statMap = {
                 str: { el: 'stat-str', bar: 'bar-str' },
                 agi: { el: 'stat-agi', bar: 'bar-agi' },
@@ -210,13 +225,11 @@
                 document.getElementById(ids.bar).style.width = Math.min(val * 5, 100) + '%';
             });
 
-            // Inventory
             const inv = gameState.inventory || [];
             document.getElementById('inventory-list').innerHTML = inv.length
                 ? inv.map(i => `<li>• ${i.replace(/_/g, ' ')}</li>`).join('')
                 : '<li>• Nothing but hope</li>';
 
-            // Location
             if (gameState.location) {
                 document.getElementById('location-display').innerText =
                     gameState.location.replace(/_/g, ' ').toUpperCase();
@@ -226,70 +239,8 @@
             if (gameState.xp >= gameState.xp_to_next_level) {
                 document.getElementById('levelup-modal').classList.remove('hidden');
             }
-
-            updateExits();
         }
 
-        // --- GRAPH TRAVERSAL & UI ---
-        async function updateExits() {
-            if (!gameState) return;
-            
-            try {
-                // Fetch the Graph
-                const res = await fetch('/map.json');
-                const mapData = await res.json();
-                
-                // Current Node
-                const currentRoom = mapData[gameState.location] || {};
-                const edges = currentRoom.exits || []; // Edges to other Nodes
-                
-                const container = document.getElementById('exit-buttons');
-                if (!container) return;
-                
-                container.innerHTML = ''; 
-                
-                if (edges.length === 0) {
-                    container.innerHTML = '<span class="text-gray-600 italic text-xs">A dead end...</span>';
-                }
-
-                edges.forEach(nodeId => {
-                    const targetNode = mapData[nodeId] || {};
-                    const btn = document.createElement('button');
-                    
-                    // Use the Node's actual display name, or format its ID
-                    const label = (targetNode.name || nodeId.replace(/_/g, ' ')).toUpperCase();
-                    
-                    // ── LOCK LOGIC ──
-                    // If the node requires a specific boss/item to enter:
-                    let isLocked = false;
-                    if (targetNode.state && targetNode.state.requires_key) {
-                        // Check if player has the key in inventory
-                        if (!gameState.inventory.includes(targetNode.state.requires_key)) {
-                            isLocked = true;
-                        }
-                    }
-
-                    if (isLocked) {
-                        // Render Locked Node
-                        btn.className = "px-3 py-1 bg-gray-950 border border-gray-800 text-gray-600 title-font text-[10px] rounded cursor-not-allowed tracking-wider flex items-center gap-1";
-                        btn.innerHTML = `🔒 <span>${label}</span>`;
-                        btn.title = "This path is sealed.";
-                    } else {
-                        // Render Open Node
-                        btn.className = "px-3 py-1 bg-purple-950/30 border border-purple-900/40 hover:bg-purple-800/40 text-purple-300 title-font text-[10px] rounded transition-all tracking-wider";
-                        btn.innerText = label;
-                        btn.onclick = () => {
-                            input.value = `move to ${label.toLowerCase()}`;
-                            sendAction();
-                        };
-                    }
-                    
-                    container.appendChild(btn);
-                });
-            } catch (e) {
-                console.error("Failed to load map graph:", e);
-            }
-        }
         // --- INITIAL LOAD ---
         window.onload = () => {
             const playerId   = sessionStorage.getItem('playerId');
@@ -309,7 +260,7 @@
             }
         };
 
-        // --- ABANDON LEGACY ---
+        // ── Abandon Legacy ─────────────────────────────────────────────────────
         function abandonLegacy() {
             if (confirm("Are you sure you want to end this lineage? All current progress for this House will be lost forever.")) {
                 const playerName = gameState ? gameState.house_name : sessionStorage.getItem('playerName');
@@ -319,44 +270,11 @@
             }
         }
 
-        // --- LEVEL UP LOGIC ---
-        async function sendLevelUp(stat) {
-            try {
-                const response = await fetch('/levelup', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        player_id: gameState.player_id,
-                        stat_to_increase: stat
-                    })
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    gameState = data.state;
-                    localStorage.setItem(`echoes_save_${gameState.house_name}`, JSON.stringify(gameState));
-                    
-                    document.getElementById('levelup-modal').classList.add('hidden');
-                    updateUI();
-
-                    // Drop a cool message in the chat
-                    const sysMsg = document.createElement('p');
-                    sysMsg.className = "text-yellow-500 font-black title-font text-sm tracking-widest text-center mt-4 mb-4 msg-fade";
-                    sysMsg.innerText = `✦ LEVEL ${gameState.level} REACHED: ${stat.toUpperCase()} INCREASED ✦`;
-                    log.appendChild(sysMsg);
-                    log.scrollTop = log.scrollHeight;
-                }
-            } catch (e) {
-                console.error("Level up failed:", e);
-            }
-        }
-
-        // --- ACTION LOOP ---
+        // ── Action Loop ────────────────────────────────────────────────────────
         async function sendAction() {
             const actionText = input.value.trim();
             if (!actionText || !gameState) return;
 
-            // Show player input
             const pMsg = document.createElement('p');
             pMsg.className = "text-green-500/80 font-mono text-xs opacity-60 italic";
             pMsg.innerText = `› ${actionText}`;
@@ -368,9 +286,9 @@
 
             try {
                 const response = await fetch('/action', {
-                    method: 'POST',
+                    method:  'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
+                    body:    JSON.stringify({
                         player_id: gameState.player_id,
                         action:    actionText,
                         state:     gameState
@@ -384,7 +302,6 @@
 
                 const data = await response.json();
 
-                // Sync state from backend
                 if (data.state) {
                     gameState = data.state;
                     localStorage.setItem(`echoes_save_${gameState.house_name}`, JSON.stringify(gameState));
@@ -392,11 +309,26 @@
 
                 updateUI();
 
-                // Show narrative
+                // Narrative message
                 const sMsg = document.createElement('p');
                 sMsg.className = "text-gray-300 leading-relaxed msg-fade";
                 sMsg.innerText = data.text;
                 log.appendChild(sMsg);
+
+                // Combat event messages
+                if (data.combat_event === 'victory') {
+                    const vMsg = document.createElement('p');
+                    vMsg.className = "text-yellow-500 title-font text-xs tracking-widest msg-fade";
+                    vMsg.innerText = `⚔ Victory! Your enemy has fallen.`;
+                    log.appendChild(vMsg);
+                } else if (data.combat_event === 'death') {
+                    showDeathScreen(data);
+                } else if (data.combat_event === 'fled') {
+                    const fMsg = document.createElement('p');
+                    fMsg.className = "text-blue-400 title-font text-xs tracking-widest msg-fade";
+                    fMsg.innerText = `You escaped.`;
+                    log.appendChild(fMsg);
+                }
 
                 log.scrollTop = log.scrollHeight;
 
