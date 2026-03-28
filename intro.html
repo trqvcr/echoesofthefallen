@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Echoes of the Fallen — The Shattering</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Crimson+Text:ital,wght@0,400;1,400&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #000;
+            color: #fff;
+            font-family: 'Crimson Text', serif;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            cursor: default;
+        }
+        .title-font { font-family: 'Cinzel', serif; }
+
+        /* ── Video background ── */
+        #bg-video {
+            position: fixed;
+            inset: 0;
+            width: 100%; height: 100%;
+            object-fit: cover;
+            opacity: 0;
+            transition: opacity 2s ease;
+            z-index: 0;
+        }
+        #bg-video.visible { opacity: 0.55; }
+
+        /* ── Vignette overlay ── */
+        #vignette {
+            position: fixed; inset: 0; z-index: 1;
+            background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.85) 100%);
+            pointer-events: none;
+        }
+
+        /* ── Ambient particle field ── */
+        #particles {
+            position: fixed; inset: 0; z-index: 1;
+            pointer-events: none;
+        }
+        .particle {
+            position: absolute;
+            border-radius: 50%;
+            animation: drift var(--dur) ease-in-out infinite var(--delay);
+            opacity: 0;
+        }
+        @keyframes drift {
+            0%   { opacity: 0; transform: translateY(0) scale(0.8); }
+            20%  { opacity: var(--max-op); }
+            80%  { opacity: var(--max-op); }
+            100% { opacity: 0; transform: translateY(-60px) scale(1.1); }
+        }
+
+        /* ── Phase: TITLE CARD ── */
+        #phase-title {
+            position: fixed; inset: 0; z-index: 10;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            opacity: 0;
+            transition: opacity 1.5s ease;
+        }
+        #phase-title.show { opacity: 1; }
+
+        /* ── Phase: TEXT CRAWL ── */
+        #phase-crawl {
+            position: fixed; inset: 0; z-index: 10;
+            display: flex; align-items: flex-end; justify-content: center;
+            perspective: 300px;
+            opacity: 0;
+            transition: opacity 1s ease;
+        }
+        #phase-crawl.show { opacity: 1; }
+
+        #crawl-viewport {
+            width: 100%; max-width: 680px;
+            transform: rotateX(20deg);
+            transform-origin: bottom center;
+            overflow: hidden;
+            height: 100vh;
+            position: relative;
+        }
+
+        #crawl-text {
+            position: absolute;
+            bottom: -120%;
+            width: 100%;
+            padding: 0 2rem 20rem;
+            text-align: center;
+            animation: crawlScroll var(--crawl-duration, 55s) linear forwards;
+        }
+        #crawl-text.paused { animation-play-state: paused; }
+
+        @keyframes crawlScroll {
+            from { bottom: -120%; }
+            to   { bottom: 130%; }
+        }
+
+        .crawl-chapter {
+            font-family: 'Cinzel', serif;
+            font-size: 0.6rem;
+            letter-spacing: 0.5em;
+            color: #6d28d9;
+            text-transform: uppercase;
+            margin-bottom: 0.4rem;
+            margin-top: 2.5rem;
+        }
+        .crawl-title {
+            font-family: 'Cinzel', serif;
+            font-size: 1.25rem;
+            color: #c4b5fd;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            margin-bottom: 1.2rem;
+        }
+        .crawl-body {
+            font-family: 'Crimson Text', serif;
+            font-size: 1.1rem;
+            color: #d1d5db;
+            line-height: 1.8;
+            margin-bottom: 0.5rem;
+        }
+        .crawl-emphasis {
+            color: #f9a8d4;
+            font-style: italic;
+        }
+        .crawl-divider {
+            color: #4c1d95;
+            letter-spacing: 0.5em;
+            font-family: 'Cinzel', serif;
+            font-size: 0.7rem;
+            margin: 1.5rem 0;
+        }
+
+        /* Fade mask at top of crawl */
+        #crawl-fade-top {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            height: 30vh;
+            background: linear-gradient(to bottom, #000 0%, transparent 100%);
+            z-index: 11;
+            pointer-events: none;
+        }
+        #crawl-fade-bottom {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            height: 25vh;
+            background: linear-gradient(to top, #000 0%, transparent 100%);
+            z-index: 11;
+            pointer-events: none;
+        }
+
+        /* ── Phase: ENTER ── */
+        #phase-enter {
+            position: fixed; inset: 0; z-index: 10;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            opacity: 0;
+            transition: opacity 2s ease;
+            pointer-events: none;
+        }
+        #phase-enter.show { opacity: 1; pointer-events: all; }
+
+        @keyframes glowPulse {
+            0%, 100% { text-shadow: 0 0 20px rgba(139,92,246,0.4); }
+            50%       { text-shadow: 0 0 50px rgba(139,92,246,0.9), 0 0 80px rgba(139,92,246,0.3); }
+        }
+        #enter-btn {
+            animation: glowPulse 3s ease-in-out infinite;
+            transition: all 0.3s ease;
+        }
+        #enter-btn:hover {
+            background: rgba(88,28,135,0.8);
+            transform: scale(1.05);
+        }
+
+        /* ── Skip button ── */
+        #skip-btn {
+            position: fixed;
+            bottom: 2rem; right: 2rem;
+            z-index: 50;
+            font-family: 'Cinzel', serif;
+            font-size: 0.65rem;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            color: #4b5563;
+            cursor: pointer;
+            transition: color 0.2s;
+            background: none;
+            border: none;
+        }
+        #skip-btn:hover { color: #9ca3af; }
+
+        /* ── Video loading indicator ── */
+        #video-status {
+            position: fixed;
+            top: 1.5rem; left: 50%; transform: translateX(-50%);
+            z-index: 50;
+            font-family: 'Cinzel', serif;
+            font-size: 0.55rem;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            color: #4c1d95;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+        #video-status.show { opacity: 1; }
+
+        /* ── Scanline overlay for cinematic feel ── */
+        #scanlines {
+            position: fixed; inset: 0; z-index: 2;
+            background: repeating-linear-gradient(
+                to bottom,
+                transparent 0px, transparent 3px,
+                rgba(0,0,0,0.03) 3px, rgba(0,0,0,0.03) 4px
+            );
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Veo background video -->
+    <video id="bg-video" autoplay muted loop playsinline></video>
+
+    <!-- Overlays -->
+    <div id="vignette"></div>
+    <div id="scanlines"></div>
+    <canvas id="particles"></canvas>
+
+    <!-- Crawl fade masks -->
+    <div id="crawl-fade-top"></div>
+    <div id="crawl-fade-bottom"></div>
+
+    <!-- Video generation status indicator -->
+    <div id="video-status">Forging vision through the void...</div>
+
+    <!-- Skip button -->
+    <button id="skip-btn" onclick="skipToEnter()">Skip ›</button>
+
+    <!-- ── PHASE 1: Title card ── -->
+    <div id="phase-title">
+        <div style="font-size: 0.55rem; letter-spacing: 0.8em; color: #4c1d95; font-family: 'Cinzel', serif; text-transform: uppercase; margin-bottom: 1.5rem;">
+            Three hundred years ago
+        </div>
+        <div style="font-family: 'Cinzel', serif; font-size: clamp(2rem, 6vw, 4.5rem); font-weight: 900; color: #fff; letter-spacing: 0.1em; text-transform: uppercase; line-height: 1.1;">
+            Echoes of the Fallen
+        </div>
+        <div style="width: 160px; height: 1px; background: linear-gradient(90deg, transparent, #7c3aed, transparent); margin: 1.5rem auto;"></div>
+        <div style="font-family: 'Crimson Text', serif; font-size: 1rem; color: #6b7280; font-style: italic; letter-spacing: 0.05em;">
+            The Shattering
+        </div>
+    </div>
+
+    <!-- ── PHASE 2: Text crawl ── -->
+    <div id="phase-crawl">
+        <div id="crawl-viewport">
+            <div id="crawl-text">
+
+                <div class="crawl-divider">✦ ✦ ✦</div>
+
+                <div class="crawl-chapter">Prologue</div>
+                <div class="crawl-title">The King Who Reached Too Far</div>
+
+                <p class="crawl-body">
+                    Three hundred years before your birth, King Aldros Vael ruled the island of Ashenmere
+                    from the Shattered Spire — a tower so tall it pierced the clouds above the Void Wastes.
+                </p>
+                <p class="crawl-body">
+                    He was not a cruel king. He was a <span class="crawl-emphasis">frightened</span> one.
+                    Terrified of death, he commissioned his scholars to find a path to immortality through
+                    the void — the ancient darkness that underlies all things.
+                </p>
+                <p class="crawl-body">
+                    They found it. They told him it would cost everything. He paid it anyway.
+                </p>
+
+                <div class="crawl-divider">— —</div>
+
+                <div class="crawl-chapter">The Ritual</div>
+                <div class="crawl-title">The Night of the Shattering</div>
+
+                <p class="crawl-body">
+                    On the night of the dark moon, Aldros performed the Rite of Unbinding at the Void Altar
+                    in the heart of the Wastes. Seven shards of crystallised void energy. Seven sacrifices.
+                    One king who wanted to live forever.
+                </p>
+                <p class="crawl-body">
+                    The void answered. But not with the gift he asked for.
+                </p>
+                <p class="crawl-body">
+                    The rift tore open. The island cracked from coast to coast.
+                    His body dissolved — not into death, but into the void itself.
+                    <span class="crawl-emphasis">Aldros Vael became the Void Entity.</span>
+                    Something vast. Something hungry. Something that remembered being human,
+                    and hated that it did.
+                </p>
+
+                <div class="crawl-divider">— —</div>
+
+                <div class="crawl-chapter">The Present</div>
+                <div class="crawl-title">The Awakened</div>
+
+                <p class="crawl-body">
+                    The rift never fully closed. For three centuries it has bled void energy into Ashenmere —
+                    corrupting the land, twisting the creatures, driving the survivors into walled settlements
+                    at the coast while the interior became something else entirely.
+                </p>
+                <p class="crawl-body">
+                    And now a cult has formed in the darkness.
+                </p>
+                <p class="crawl-body">
+                    They call themselves <span class="crawl-emphasis">The Awakened</span>. They believe Aldros
+                    was not destroyed but imprisoned — that the rift is a cage, not a wound. They have spent
+                    decades hunting the seven Ritual Shards scattered across the island when the Shattering
+                    tore them apart.
+                </p>
+                <p class="crawl-body">
+                    They have found most of them. They intend to finish what Aldros started.
+                </p>
+
+                <div class="crawl-divider">— —</div>
+
+                <div class="crawl-chapter">Your Role</div>
+                <div class="crawl-title">An Heir Rises</div>
+
+                <p class="crawl-body">
+                    Your house has stood on this island for generations. Whatever your ancestors did —
+                    or failed to do — the void remembers. It always remembers.
+                </p>
+                <p class="crawl-body">
+                    You are not the first of your line to fight this darkness. You will not be the last.
+                    Death here is not an ending — it is a handoff. Your heir carries the legacy forward.
+                </p>
+                <p class="crawl-body">
+                    The corruption rises. The cult moves closer to completion. A woman in the Ashen Flagon
+                    knows things she will not yet say. And somewhere in the Void Wastes,
+                    the Entity waits — patient as the dark between stars.
+                </p>
+
+                <div class="crawl-divider">✦ ✦ ✦</div>
+
+                <p class="crawl-body" style="color: #c4b5fd; font-style: italic; font-size: 1.2rem; margin-top: 1rem;">
+                    The void remembers your house.<br>
+                    Now show it why that matters.
+                </p>
+
+                <div style="height: 8rem;"></div>
+
+            </div><!-- crawl-text -->
+        </div><!-- crawl-viewport -->
+    </div><!-- phase-crawl -->
+
+    <!-- ── PHASE 3: Enter ── -->
+    <div id="phase-enter">
+        <div style="font-family: 'Cinzel', serif; font-size: 0.6rem; letter-spacing: 0.6em; color: #4c1d95; text-transform: uppercase; margin-bottom: 2rem;">
+            The island awaits
+        </div>
+        <button id="enter-btn" onclick="enterGame()"
+            style="font-family: 'Cinzel', serif; font-size: 0.75rem; letter-spacing: 0.4em; text-transform: uppercase;
+                   color: #c4b5fd; padding: 1.25rem 3rem; border: 1px solid rgba(139,92,246,0.5);
+                   background: rgba(88,28,135,0.2); cursor: pointer; border-radius: 2px;">
+            Enter the World
+        </button>
+        <div style="font-family: 'Crimson Text', serif; font-size: 0.85rem; color: #374151; font-style: italic; margin-top: 1.5rem;">
+            Your house awaits its heir.
+        </div>
+    </div>
+
+    <script>
+        // ── State ─────────────────────────────────────────────────────────────
+        const PHASES = ['title', 'crawl', 'enter'];
+        let currentPhase = 0;
+        let crawlTimer   = null;
+        let phaseTimers  = [];
+        let videoPolling = null;
+        const CRAWL_DURATION = 55; // seconds
+
+        // ── Particles ─────────────────────────────────────────────────────────
+        function initParticles() {
+            const canvas = document.getElementById('particles');
+            const ctx    = canvas.getContext('2d');
+            canvas.width  = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            const particles = Array.from({ length: 60 }, () => ({
+                x:    Math.random() * canvas.width,
+                y:    Math.random() * canvas.height,
+                size: Math.random() * 2 + 0.5,
+                vx:   (Math.random() - 0.5) * 0.3,
+                vy:   -(Math.random() * 0.5 + 0.1),
+                life: Math.random(),
+                maxLife: Math.random() * 0.4 + 0.1,
+                color: Math.random() > 0.5 ? `rgba(139,92,246,` : `rgba(220,38,38,`,
+            }));
+
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                particles.forEach(p => {
+                    p.life += 0.004;
+                    if (p.life > 1) {
+                        p.life = 0;
+                        p.x = Math.random() * canvas.width;
+                        p.y = canvas.height + 10;
+                    }
+                    const alpha = p.life < 0.2  ? p.life / 0.2 :
+                                  p.life > 0.8  ? (1 - p.life) / 0.2 : 1;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fillStyle = p.color + (alpha * p.maxLife) + ')';
+                    ctx.fill();
+                    p.x += p.vx;
+                    p.y += p.vy;
+                });
+                requestAnimationFrame(draw);
+            }
+            draw();
+        }
+
+        // ── Video loading ─────────────────────────────────────────────────────
+        async function setupVideo() {
+            // Kick off generation in background (no-op if already done)
+            try { await fetch('/generate-intro', { method: 'POST' }); } catch (_) {}
+
+            // Poll until ready
+            videoPolling = setInterval(async () => {
+                try {
+                    const r = await fetch('/intro-status');
+                    const d = await r.json();
+                    if (d.status === 'ready') {
+                        clearInterval(videoPolling);
+                        loadVideo();
+                    } else if (d.status === 'generating') {
+                        document.getElementById('video-status').classList.add('show');
+                    } else if (d.status === 'error' || d.status === 'no_client') {
+                        clearInterval(videoPolling);
+                        document.getElementById('video-status').classList.remove('show');
+                    }
+                } catch (_) {}
+            }, 5000);
+
+            // Also try immediately
+            try {
+                const r = await fetch('/intro-status');
+                const d = await r.json();
+                if (d.status === 'ready') {
+                    clearInterval(videoPolling);
+                    loadVideo();
+                }
+            } catch (_) {}
+        }
+
+        function loadVideo() {
+            const vid = document.getElementById('bg-video');
+            vid.src = '/intro-video';
+            vid.oncanplay = () => {
+                vid.classList.add('visible');
+                document.getElementById('video-status').classList.remove('show');
+            };
+            vid.load();
+        }
+
+        // ── Phase management ──────────────────────────────────────────────────
+        function showPhase(name) {
+            // Hide all phases
+            PHASES.forEach(p => {
+                const el = document.getElementById(`phase-${p}`);
+                el.classList.remove('show');
+            });
+            const el = document.getElementById(`phase-${name}`);
+            requestAnimationFrame(() => el.classList.add('show'));
+        }
+
+        function startCrawl() {
+            showPhase('crawl');
+            const crawlEl = document.getElementById('crawl-text');
+            crawlEl.style.setProperty('--crawl-duration', CRAWL_DURATION + 's');
+            // When crawl animation ends, advance to enter phase
+            crawlEl.addEventListener('animationend', () => {
+                advanceToEnter();
+            }, { once: true });
+        }
+
+        function advanceToEnter() {
+            clearAllTimers();
+            showPhase('enter');
+        }
+
+        function clearAllTimers() {
+            phaseTimers.forEach(clearTimeout);
+            phaseTimers = [];
+        }
+
+        function skipToEnter() {
+            clearAllTimers();
+            if (videoPolling) clearInterval(videoPolling);
+            advanceToEnter();
+        }
+
+        function enterGame() {
+            window.location.href = '/game';
+        }
+
+        // ── Init ──────────────────────────────────────────────────────────────
+        window.onload = () => {
+            initParticles();
+            setupVideo();
+
+            // Phase 1: title card — show immediately
+            showPhase('title');
+
+            // After 4s: fade title and start crawl
+            phaseTimers.push(setTimeout(() => {
+                const title = document.getElementById('phase-title');
+                title.style.transition = 'opacity 1.5s ease';
+                title.style.opacity    = '0';
+                setTimeout(startCrawl, 1500);
+            }, 4000));
+        };
+    </script>
+</body>
+</html>

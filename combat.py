@@ -428,11 +428,12 @@ VISUAL: [one sentence describing the combat scene]"""
             current_location["npcs"][enemy_id]["portrait"] = npc_portrait
             save_location(location_key, current_location)
 
-    visual_tag       = parse_tag("VISUAL", raw_text)
-    enemy_description = enemy_data.get("description", "")
+    visual_tag        = parse_tag("VISUAL", raw_text)
+    enemy_description = "" if combat_event == "victory" else enemy_data.get("description", "")
+    avatar_prompt     = player.get("avatar_visual_prompt", player.get("avatar_description", ""))
     scene_img = generate_scene_image(
         client, visual_tag,
-        player.get("avatar_description", ""),
+        avatar_prompt,
         npc_description=enemy_description,
     )
 

@@ -15,3 +15,6 @@ migrate.py
 saves.json
 # Mac OS junk files (if applicable)
 .DS_Store
+
+# Generated media assets
+*.mp4

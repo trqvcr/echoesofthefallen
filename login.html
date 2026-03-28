@@ -492,7 +492,7 @@
         }
 
         // ── Shared: save session and redirect ─────────────────────────────
-        function startSession(data, name) {
+        function startSession(data, name, isNew = false) {
             const { avatar_portrait, ...lean } = data.state || {};
             localStorage.setItem(`echoes_save_${name}`, JSON.stringify(lean));
             sessionStorage.setItem('playerName',  name);
@@ -500,7 +500,7 @@
             sessionStorage.setItem('playerRace',  data.state.race);
             sessionStorage.setItem('playerId',    data.player_id);
             document.getElementById('login-card').classList.add('fade-out');
-            setTimeout(() => { window.location.href = '/game'; }, 800);
+            setTimeout(() => { window.location.href = isNew ? '/intro' : '/game'; }, 800);
         }
 
         // ── Register ───────────────────────────────────────────────────────
@@ -548,7 +548,7 @@
 
                 if (!response.ok) throw new Error(data.detail || 'Registration failed');
 
-                startSession(data, name);
+                startSession(data, name, true);
 
             } catch (err) {
                 btn.textContent = 'Enter the Void';

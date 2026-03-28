@@ -1,6 +1,7 @@
 import time
 
 from db import save_location
+from story import CORRUPTION_TICK_RATE, check_corruption_thresholds, CORRUPTION_MILESTONE_FLAGS
 
 
 def tick_world(all_locations: dict) -> dict:
@@ -62,3 +63,30 @@ def tick_world(all_locations: dict) -> dict:
         save_location(key, all_locations[key])
 
     return all_locations
+
+
+def tick_corruption(world_state: dict) -> tuple:
+    """
+    Passively increases void corruption each action call.
+    Returns (updated_world_state, list_of_event_ids_to_fire).
+    Also sets corruption milestone flags when thresholds are crossed.
+    """
+    story        = world_state.setdefault("story", {})
+    old_corrupt  = float(story.get("corruption", 0.0))
+    fired_events = story.setdefault("fired_events", [])
+    flags        = story.setdefault("flags", {})
+
+    new_corrupt = min(100.0, old_corrupt + CORRUPTION_TICK_RATE)
+    story["corruption"] = new_corrupt
+
+    # Set milestone flags
+    for threshold, flag in CORRUPTION_MILESTONE_FLAGS.items():
+        if old_corrupt < threshold <= new_corrupt and not flags.get(flag):
+            flags[flag] = True
+
+    events_to_fire = check_corruption_thresholds(old_corrupt, new_corrupt, fired_events)
+    for event_id in events_to_fire:
+        fired_events.append(event_id)
+
+    world_state["story"] = story
+    return world_state, events_to_fire
