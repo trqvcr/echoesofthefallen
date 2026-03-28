@@ -463,7 +463,8 @@
         }
 
         // ── WORLD MAP — DATA ──────────────────────────────────────────────────
-        let mapData = null; // loaded from /map.json
+        let mapData    = null; // loaded from /map.json
+        let mapBgImage = null; // loaded from /map-bg.jpg
 
         // SVG grid-to-pixel conversion (grid: x 0-12, y 0-6; viewBox 0 0 900 560)
         const MAP_PAD_X = 70, MAP_PAD_Y = 55;
@@ -548,8 +549,16 @@
 
         async function loadMapData() {
             try {
-                const res = await fetch('/map.json');
-                mapData = await res.json();
+                const [mapRes] = await Promise.all([
+                    fetch('/map.json'),
+                    new Promise(resolve => {
+                        const img = new Image();
+                        img.onload  = () => { mapBgImage = img; resolve(); };
+                        img.onerror = () => resolve();
+                        img.src = '/map-bg.jpg';
+                    }),
+                ]);
+                mapData = await mapRes.json();
                 buildMiniMap(gameState && gameState.location);
             } catch(e) {
                 console.warn('Failed to load map data', e);
@@ -557,15 +566,14 @@
         }
 
         // ── WORLD MAP — RENDERING ─────────────────────────────────────────────
-        let isMapOpen    = false;
-        let canvasBuilt  = false; // star-field canvas (built once)
+        let isMapOpen = false;
 
         function toggleMap() {
             const modal = document.getElementById('world-map-modal');
             isMapOpen = !isMapOpen;
             if (isMapOpen) {
                 modal.classList.add('open');
-                if (!canvasBuilt) { drawMapCanvas(); canvasBuilt = true; }
+                drawMapCanvas(); // always redraw so fog-of-war reflects latest explored areas
                 buildMapSVG();
                 if (gameState && gameState.location) syncMapLocation(gameState.location);
             } else {
@@ -591,43 +599,97 @@
             const canvas = document.getElementById('map-canvas');
             canvas.width  = canvas.offsetWidth  || 900;
             canvas.height = canvas.offsetHeight || 560;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#040210';
+            const ctx    = canvas.getContext('2d');
+            const sx     = canvas.width  / 900;
+            const sy     = canvas.height / 560;
+
+            ctx.fillStyle = '#030108';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            for (let i = 0; i < 300; i++) {
-                const x = Math.random() * canvas.width, y = Math.random() * canvas.height;
-                const r = Math.random() * 1.3, a = 0.1 + Math.random() * 0.7;
-                ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(200,180,255,${a})`; ctx.fill();
-            }
-            const patches = [
-                // Ashen Ruins (left): purple-grey mist
-                {x:190, y:360, rx:260, ry:220, c:'rgba(45,15,75,0.22)'},
-                // Saltmarsh (right): amber warmth
-                {x:710, y:390, rx:230, ry:190, c:'rgba(65,25,0,0.24)'},
-                // Void Wastes (top right): blood-red
-                {x:630, y:125, rx:240, ry:130, c:'rgba(90,5,5,0.32)'},
-                // Void Bridge (center): cold void-blue
-                {x:450, y:280, rx:110, ry:75,  c:'rgba(8,18,60,0.22)'},
-                // Sunken Library (bottom left): dark teal void-water
-                {x:190, y:435, rx:90,  ry:60,  c:'rgba(5,28,25,0.28)'},
-            ];
-            patches.forEach(p => {
-                const g = ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,Math.max(p.rx,p.ry));
-                g.addColorStop(0, p.c); g.addColorStop(1,'rgba(0,0,0,0)');
-                ctx.save();
-                ctx.scale(p.rx/Math.max(p.rx,p.ry), p.ry/Math.max(p.rx,p.ry));
-                ctx.fillStyle = g; ctx.beginPath();
-                ctx.arc(p.x/(p.rx/Math.max(p.rx,p.ry)), p.y/(p.ry/Math.max(p.rx,p.ry)), Math.max(p.rx,p.ry), 0, Math.PI*2);
-                ctx.fill(); ctx.restore();
-            });
-            ctx.strokeStyle = 'rgba(100,50,180,0.08)'; ctx.lineWidth = 1;
-            for (let i = 0; i < 8; i++) {
-                ctx.beginPath();
-                let cx = Math.random()*canvas.width, cy = Math.random()*canvas.height;
-                ctx.moveTo(cx, cy);
-                for (let j = 0; j < 4; j++) { cx += (Math.random()-0.5)*120; cy += (Math.random()-0.5)*120; ctx.lineTo(cx,cy); }
-                ctx.stroke();
+
+            if (mapBgImage) {
+                // ── Draw generated map image ───────────────────────────────────
+                ctx.globalAlpha = 0.9;
+                ctx.drawImage(mapBgImage, 0, 0, canvas.width, canvas.height);
+                ctx.globalAlpha = 1.0;
+
+                // ── Fog of war: dark overlay with reveal circles ───────────────
+                const visited = new Set((gameState && gameState.visited_locations) || []);
+                const known   = new Set(visited);
+                if (mapData) {
+                    visited.forEach(key => {
+                        const loc = mapData[key];
+                        if (loc && loc.exits) loc.exits.forEach(e => { if (mapData[e]) known.add(e); });
+                    });
+                }
+
+                // Build fog canvas with cutouts for known locations
+                const fog = document.createElement('canvas');
+                fog.width  = canvas.width;
+                fog.height = canvas.height;
+                const fc = fog.getContext('2d');
+                fc.fillStyle = 'rgba(2,0,6,0.93)';
+                fc.fillRect(0, 0, fog.width, fog.height);
+
+                if (mapData) {
+                    fc.globalCompositeOperation = 'destination-out';
+                    known.forEach(key => {
+                        const loc = mapData[key];
+                        if (!loc || loc.x === null || loc.x === undefined) return;
+                        const p  = gridToSvg(loc.x, loc.y);
+                        const cx = p.x * sx, cy = p.y * sy;
+                        const r  = visited.has(key) ? 85 * Math.min(sx, sy)
+                                                     : 48 * Math.min(sx, sy);
+                        const g  = fc.createRadialGradient(cx, cy, 0, cx, cy, r);
+                        g.addColorStop(0,   'rgba(0,0,0,1)');
+                        g.addColorStop(0.65,'rgba(0,0,0,0.7)');
+                        g.addColorStop(1,   'rgba(0,0,0,0)');
+                        fc.fillStyle = g;
+                        fc.beginPath(); fc.arc(cx, cy, r, 0, Math.PI * 2); fc.fill();
+                    });
+                }
+                ctx.drawImage(fog, 0, 0);
+
+                // Subtle dark vignette at edges
+                const vg = ctx.createRadialGradient(
+                    canvas.width/2, canvas.height/2, canvas.height * 0.3,
+                    canvas.width/2, canvas.height/2, canvas.height * 0.85
+                );
+                vg.addColorStop(0, 'rgba(0,0,0,0)');
+                vg.addColorStop(1, 'rgba(0,0,0,0.55)');
+                ctx.fillStyle = vg;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Very subtle star overlay
+                for (let i = 0; i < 60; i++) {
+                    const x = Math.random()*canvas.width, y = Math.random()*canvas.height;
+                    ctx.beginPath(); ctx.arc(x, y, Math.random()*0.9, 0, Math.PI*2);
+                    ctx.fillStyle = `rgba(200,180,255,${0.08+Math.random()*0.25})`; ctx.fill();
+                }
+
+            } else {
+                // ── Fallback: star field + color patches ──────────────────────
+                for (let i = 0; i < 300; i++) {
+                    const x = Math.random()*canvas.width, y = Math.random()*canvas.height;
+                    const r = Math.random()*1.3, a = 0.1+Math.random()*0.7;
+                    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2);
+                    ctx.fillStyle = `rgba(200,180,255,${a})`; ctx.fill();
+                }
+                const patches = [
+                    {x:190,y:360,rx:260,ry:220,c:'rgba(45,15,75,0.22)'},
+                    {x:710,y:390,rx:230,ry:190,c:'rgba(65,25,0,0.24)'},
+                    {x:630,y:125,rx:240,ry:130,c:'rgba(90,5,5,0.32)'},
+                    {x:450,y:280,rx:110,ry:75, c:'rgba(8,18,60,0.22)'},
+                    {x:190,y:435,rx:90, ry:60, c:'rgba(5,28,25,0.28)'},
+                ];
+                patches.forEach(p => {
+                    const g = ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,Math.max(p.rx,p.ry));
+                    g.addColorStop(0, p.c); g.addColorStop(1,'rgba(0,0,0,0)');
+                    ctx.save();
+                    ctx.scale(p.rx/Math.max(p.rx,p.ry), p.ry/Math.max(p.rx,p.ry));
+                    ctx.fillStyle = g; ctx.beginPath();
+                    ctx.arc(p.x/(p.rx/Math.max(p.rx,p.ry)), p.y/(p.ry/Math.max(p.rx,p.ry)), Math.max(p.rx,p.ry), 0, Math.PI*2);
+                    ctx.fill(); ctx.restore();
+                });
             }
         }
 
@@ -640,21 +702,25 @@
                 return `${Math.round(p.x)},${Math.round(p.y)}`;
             }
 
-            // ── Region fills ──────────────────────────────────────────────────
-            const regionG = svgEl('g', {id:'terrain-regions', opacity:'1'});
-            [
-                { pts:[gp(-0.5,-0.5),gp(3.8,-0.5),gp(5.5,1.2),gp(5.2,3.2),gp(5.2,6.5),gp(-0.5,6.5)].join(' '),
-                  fill:'rgba(22,8,38,0.72)' },                                    // Ashen Ruins (left)
-                { pts:[gp(3.8,-0.5),gp(12.5,-0.5),gp(12.5,2.8),gp(8,2.8),gp(7,2),gp(5.5,1.2),gp(3.8,-0.5)].join(' '),
-                  fill:'rgba(40,0,0,0.78)' },                                     // Void Wastes (top right)
-                { pts:[gp(8,2.8),gp(12.5,2.8),gp(12.5,6.5),gp(8,6.5)].join(' '),
-                  fill:'rgba(38,14,0,0.72)' },                                    // Saltmarsh (right)
-                { pts:[gp(5.2,3.2),gp(8,3),gp(8,6.5),gp(5.2,6.5)].join(' '),
-                  fill:'rgba(14,8,24,0.65)' },                                    // Center scrubland
-            ].forEach(r => regionG.appendChild(svgEl('polygon', {points:r.pts, fill:r.fill, stroke:'none'})));
-            svg.appendChild(regionG);
+            // ── Region fills (only when no generated background image) ────────
+            if (!mapBgImage) {
+                const regionG = svgEl('g', {id:'terrain-regions'});
+                [
+                    { pts:[gp(-0.5,-0.5),gp(3.8,-0.5),gp(5.5,1.2),gp(5.2,3.2),gp(5.2,6.5),gp(-0.5,6.5)].join(' '),
+                      fill:'rgba(22,8,38,0.72)' },
+                    { pts:[gp(3.8,-0.5),gp(12.5,-0.5),gp(12.5,2.8),gp(8,2.8),gp(7,2),gp(5.5,1.2),gp(3.8,-0.5)].join(' '),
+                      fill:'rgba(40,0,0,0.78)' },
+                    { pts:[gp(8,2.8),gp(12.5,2.8),gp(12.5,6.5),gp(8,6.5)].join(' '),
+                      fill:'rgba(38,14,0,0.72)' },
+                    { pts:[gp(5.2,3.2),gp(8,3),gp(8,6.5),gp(5.2,6.5)].join(' '),
+                      fill:'rgba(14,8,24,0.65)' },
+                ].forEach(r => regionG.appendChild(svgEl('polygon', {points:r.pts, fill:r.fill, stroke:'none'})));
+                svg.appendChild(regionG);
+            }
 
-            // ── Terrain details ───────────────────────────────────────────────
+            // ── Terrain details (only when no generated background image) ────
+            if (mapBgImage) { /* skip SVG terrain — background image has it */ }
+            else {
             const detailG = svgEl('g', {id:'terrain-details'});
 
             // Dead trees (Ashen Ruins)
@@ -724,6 +790,7 @@
             });
 
             svg.appendChild(detailG);
+            } // end else (no bg image)
 
             // ── NPC dots (visited locations only) ─────────────────────────────
             const npcG = svgEl('g', {id:'npc-indicators'});

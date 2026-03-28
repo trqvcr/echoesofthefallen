@@ -46,6 +46,14 @@ async def serve_game():
 async def health():
     return {"status": "ok"}
 
+@app.get("/map-bg.jpg")
+async def serve_map_bg():
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "map_bg.jpg")
+    if os.path.exists(path):
+        return FileResponse(path, media_type="image/jpeg")
+    raise HTTPException(status_code=404, detail="Map background not generated yet. Run generate_map_bg.py")
+
+
 @app.get("/map.json")
 async def serve_map():
     locs = get_all_locations()
