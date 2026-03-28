@@ -22,3 +22,7 @@ class ActionRequest(BaseModel):
 class RiseRequest(BaseModel):
     player_id: str
     heir_name: str
+
+class AvatarRequest(BaseModel):
+    player_id: str
+    description: str

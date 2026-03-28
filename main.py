@@ -8,11 +8,11 @@ from google import genai
 from google.genai.types import GenerateImagesConfig
 from dotenv import load_dotenv
 
-from models import RegisterRequest, LoginRequest, ActionRequest, RiseRequest
+from models import RegisterRequest, LoginRequest, ActionRequest, RiseRequest, AvatarRequest
 from db import get_player, save_player, get_world, get_all_locations, save_location, hash_password
 from enemies import tick_spawns
 from combat import player_to_state, _start_combat, process_combat_turn, _make_ancestor_record, build_heir
-from images import generate_scene_image
+from images import generate_scene_image, generate_avatar_portrait
 import base64;
 
 load_dotenv()
@@ -175,6 +175,27 @@ async def rise_as_heir(request: RiseRequest):
     return {"player_id": player_id, "state": player_to_state(heir)}
 
 
+# ── /avatar ────────────────────────────────────────────────────────────────────
+
+@app.post("/avatar")
+async def set_avatar(request: AvatarRequest):
+    player = get_player(request.player_id)
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
+
+    description = request.description.strip()
+    if not description:
+        raise HTTPException(status_code=400, detail="Description cannot be empty")
+
+    portrait = generate_avatar_portrait(client, description)
+
+    player["avatar_description"] = description
+    player["avatar_portrait"]    = portrait
+    save_player(request.player_id, player)
+
+    return {"portrait": portrait, "state": player_to_state(player)}
+
+
 # ── /action ────────────────────────────────────────────────────────────────────
 
 @app.post("/action")
@@ -288,7 +309,7 @@ VISUAL: [scene description for image generation]"""
 
         return {
             "text":         display_text,
-            "image_base64": generate_scene_image(client, visual_prompt),
+            "image_base64": generate_scene_image(client, visual_prompt, player.get("avatar_description", "")),
             "status":       player["status"],
             "location":     current_location["name"],
             "state":        player_to_state(player),
@@ -413,7 +434,7 @@ HISTORY: [one sentence to append to this location's history log — or none]"""
 
     result = {
         "text":         display_text,
-        "image_base64": generate_scene_image(client, parse_tag("VISUAL", raw_text)),
+        "image_base64": generate_scene_image(client, parse_tag("VISUAL", raw_text), player.get("avatar_description", "")),
         "status":       player["status"],
         "location":     current_location["name"],
         "state":        player_to_state(player),

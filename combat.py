@@ -200,7 +200,9 @@ def player_to_state(player: dict) -> dict:
         "milestones":       player.get("milestones", {}),
         "lineage":          player.get("lineage", []),
         "reputation":       player.get("reputation", {}),
-        "combat_state":     player.get("combat_state", {"active": False}),
+        "combat_state":        player.get("combat_state", {"active": False}),
+        "avatar_description":  player.get("avatar_description", ""),
+        "avatar_portrait":     player.get("avatar_portrait", ""),
     }
 
 
@@ -366,7 +368,7 @@ VISUAL: [one sentence describing the combat scene]"""
 
     return {
         "text":         display_text,
-        "image_base64": generate_scene_image(client, parse_tag("VISUAL", raw_text)),
+        "image_base64": generate_scene_image(client, parse_tag("VISUAL", raw_text), player.get("avatar_description", "")),
         "status":       player["status"],
         "location":     current_location_name,
         "state":        player_to_state(player),

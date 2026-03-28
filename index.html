@@ -129,6 +129,35 @@
 </head>
 <body class="text-gray-200 min-h-screen flex items-center justify-center p-4">
 
+    <!-- Avatar Creation Screen -->
+    <div id="avatar-screen" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.97);z-index:110;flex-direction:column;align-items:center;justify-content:center;padding:2rem;">
+        <div class="death-fade max-w-lg w-full text-center">
+            <div class="text-5xl mb-4">🪬</div>
+            <h1 class="title-font text-3xl text-purple-400 mb-2 tracking-widest">FORGE YOUR VISAGE</h1>
+            <p class="text-gray-500 italic mb-6 text-sm">Describe your appearance. The void will remember.</p>
+
+            <div id="avatar-portrait-wrap" class="hidden mb-6 mx-auto w-48 h-48 rounded-full overflow-hidden border-2 border-purple-700">
+                <img id="avatar-portrait-preview" src="" class="w-full h-full object-cover">
+            </div>
+
+            <textarea id="avatar-desc-input" rows="3" maxlength="200"
+                placeholder="e.g. A tall elven warrior with silver hair, glowing violet eyes, and obsidian plate armor etched with void runes..."
+                class="w-full bg-black border border-purple-900 text-gray-200 title-font text-sm px-4 py-3 rounded mb-3 focus:outline-none focus:border-purple-500 resize-none"></textarea>
+
+            <div class="flex gap-3 justify-center">
+                <button onclick="generateAvatarPreview()" id="avatar-visualize-btn"
+                    class="title-font text-xs uppercase tracking-widest px-6 py-3 bg-purple-900 hover:bg-purple-700 text-white rounded transition-all">
+                    Visualize
+                </button>
+                <button onclick="confirmAvatar()" id="avatar-confirm-btn" disabled
+                    class="title-font text-xs uppercase tracking-widest px-6 py-3 bg-gray-800 text-gray-500 rounded transition-all cursor-not-allowed">
+                    Enter the World
+                </button>
+            </div>
+            <p id="avatar-error" class="text-red-500 text-xs mt-3 hidden"></p>
+        </div>
+    </div>
+
     <!-- Death Screen -->
     <div id="death-screen">
         <div class="death-fade max-w-lg">
@@ -183,7 +212,10 @@
             
             <div class="sidebar-box rounded-lg p-5">
                 <div class="flex items-center gap-3 mb-4">
-                    <span id="class-icon" class="text-3xl">⚔️</span>
+                    <div id="avatar-thumb-wrap" class="w-12 h-12 rounded-full overflow-hidden border border-purple-700 flex-shrink-0 flex items-center justify-center bg-gray-900">
+                        <img id="avatar-thumb" src="" class="w-full h-full object-cover hidden">
+                        <span id="class-icon" class="text-3xl">⚔️</span>
+                    </div>
                     <div>
                         <h2 id="ui-house-name" class="title-font text-purple-400 text-sm tracking-widest uppercase">House ---</h2>
                         <p id="class-display" class="text-gray-500 text-xs italic"></p>
@@ -323,6 +355,17 @@
             document.getElementById('ui-house-name').innerText = `House ${gameState.house_name}`;
             document.getElementById('class-display').innerText = (gameState.class || '').replace(/_/g, ' ');
             document.getElementById('class-icon').innerText    = CLASS_ICONS[gameState.class] || '⚔️';
+
+            const thumb = document.getElementById('avatar-thumb');
+            const icon  = document.getElementById('class-icon');
+            if (gameState.avatar_portrait) {
+                thumb.src = gameState.avatar_portrait;
+                thumb.classList.remove('hidden');
+                icon.classList.add('hidden');
+            } else {
+                thumb.classList.add('hidden');
+                icon.classList.remove('hidden');
+            }
 
             document.getElementById('stat-hp').innerText = `${gameState.hp} / ${gameState.max_hp}`;
             const hpPct = Math.max(0, (gameState.hp / gameState.max_hp) * 100);
@@ -679,6 +722,54 @@
         }
 
         // ── Initial Load ───────────────────────────────────────────────────────
+        // ── Avatar Creation ────────────────────────────────────────────────────
+        async function generateAvatarPreview() {
+            const desc    = document.getElementById('avatar-desc-input').value.trim();
+            const errEl   = document.getElementById('avatar-error');
+            const btn     = document.getElementById('avatar-visualize-btn');
+            const confirm = document.getElementById('avatar-confirm-btn');
+            if (!desc) { errEl.textContent = 'Describe your appearance first.'; errEl.classList.remove('hidden'); return; }
+            errEl.classList.add('hidden');
+            btn.disabled = true;
+            btn.textContent = 'Visualizing...';
+
+            try {
+                const res = await fetch('/avatar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ player_id: sessionStorage.getItem('playerId'), description: desc })
+                });
+                if (!res.ok) throw new Error((await res.json().catch(()=>({}))).detail || 'Failed');
+                const data = await res.json();
+
+                if (data.portrait) {
+                    const preview = document.getElementById('avatar-portrait-preview');
+                    const wrap    = document.getElementById('avatar-portrait-wrap');
+                    preview.src = data.portrait;
+                    wrap.classList.remove('hidden');
+                }
+
+                if (data.state) {
+                    gameState = data.state;
+                    localStorage.setItem(`echoes_save_${gameState.house_name}`, JSON.stringify(gameState));
+                }
+
+                confirm.disabled = false;
+                confirm.className = confirm.className.replace('bg-gray-800 text-gray-500 cursor-not-allowed', 'bg-purple-900 hover:bg-purple-700 text-white cursor-pointer');
+            } catch(e) {
+                errEl.textContent = e.message;
+                errEl.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Visualize';
+            }
+        }
+
+        function confirmAvatar() {
+            document.getElementById('avatar-screen').style.display = 'none';
+            updateUI();
+        }
+
         window.onload = () => {
             const playerId   = sessionStorage.getItem('playerId');
             const playerName = sessionStorage.getItem('playerName');
@@ -692,6 +783,10 @@
             if (saved) {
                 gameState = JSON.parse(saved);
                 updateUI();
+                if (!gameState.avatar_description) {
+                    const av = document.getElementById('avatar-screen');
+                    av.style.display = 'flex';
+                }
             } else {
                 window.location.href = '/';
             }
