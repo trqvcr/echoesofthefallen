@@ -349,8 +349,9 @@
             }
 
             // Trigger Level Up Modal if ready
-            if (gameState.xp >= gameState.xp_to_next_level) {
-                document.getElementById('levelup-modal').classList.remove('hidden');
+            const levelupModal = document.getElementById('levelup-modal');
+            if (levelupModal && gameState.xp >= gameState.xp_to_next_level) {
+                levelupModal.classList.remove('hidden');
             }
         }
 
