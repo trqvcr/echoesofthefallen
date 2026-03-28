@@ -1,20 +1,28 @@
 {
-  "Aether_Wharf": {
-    "name": "The Aether Wharf",
-    "description": "A floating dock made of splintered white wood. A rusted skiff sways over the endless violet void below.",
-    "exits": { "north": "Sky_Bridge" },
-    "enemies": []
+  "ashen_courtyard": {
+    "description": "A crumbling plaza of blackened stone. Ash drifts like snow. Three archways lead deeper into the ruins. A dead soldier slumps against a shattered fountain.",
+    "exits": ["void_bridge", "ruined_keep"],
+    "history": [],
+    "npcs": {}
   },
-  "Sky_Bridge": {
-    "name": "The Shattered Sky Bridge",
-    "description": "A stone bridge that has snapped in the middle. Magic blue sparks leap across the gap.",
-    "exits": { "south": "Aether_Wharf", "north": "Ruined_Keep" },
-    "enemies": [ { "name": "Void Wraith", "hp": 15, "atk": 4 } ]
+  "void_bridge": {
+    "description": "A narrow stone bridge spanning an endless dark chasm. The air hums with unstable Void energy. Strange runes glow faintly along the railings.",
+    "exits": ["ashen_courtyard", "ruined_keep"],
+    "history": [],
+    "npcs": {}
   },
-  "Ruined_Keep": {
-    "name": "The Ruined Keep",
-    "description": "The crumbling remains of a throne room. A shattered crown sits on a pedestal of bone.",
-    "exits": { "south": "Sky_Bridge" },
-    "enemies": []
+  "ruined_keep": {
+    "description": "The remains of a great fortress. The throne room ceiling has collapsed, letting in a pale sky. A Void-touched wolf prowls among the rubble.",
+    "exits": ["void_bridge", "ashen_courtyard"],
+    "history": [],
+    "npcs": {
+      "void_wolf": {
+        "name": "Void-Touched Wolf",
+        "disposition": -100,
+        "hp": 20,
+        "atk": 5,
+        "memory": []
+      }
+    }
   }
 }
