@@ -14,12 +14,10 @@
         }
         .title-font { font-family: 'Cinzel', serif; }
 
-        /* Scrollbar styling */
         #narrative-log::-webkit-scrollbar { width: 4px; }
         #narrative-log::-webkit-scrollbar-track { background: transparent; }
         #narrative-log::-webkit-scrollbar-thumb { background: #4c1d95; border-radius: 2px; }
 
-        /* HP & Stat Bars */
         .stat-bar-bg { background: rgba(255,255,255,0.05); border: 1px solid rgba(139, 92, 246, 0.1); }
         #hp-bar-fill { transition: width 0.5s ease; box-shadow: 0 0 10px rgba(220, 38, 38, 0.4); }
         
@@ -28,7 +26,6 @@
             border-top: 1px solid rgba(139, 92, 246, 0.2);
         }
 
-        /* Narrative animations */
         @keyframes msgFadeIn {
             from { opacity: 0; transform: translateY(8px); }
             to { opacity: 1; transform: translateY(0); }
@@ -46,6 +43,7 @@
 
     <div class="w-full max-w-6xl flex gap-6 h-[90vh]">
 
+        <!-- Sidebar -->
         <div class="w-72 flex flex-col gap-4 flex-shrink-0">
             
             <div class="sidebar-box rounded-lg p-5">
@@ -53,7 +51,7 @@
                     <span id="class-icon" class="text-3xl">⚔️</span>
                     <div>
                         <h2 id="ui-house-name" class="title-font text-purple-400 text-sm tracking-widest uppercase">House ---</h2>
-                        <p id="class-display" class="text-gray-500 text-xs italic">Ashen Knight</p>
+                        <p id="class-display" class="text-gray-500 text-xs italic"></p>
                     </div>
                 </div>
                 
@@ -101,7 +99,7 @@
                 <h3 class="title-font text-[10px] text-purple-500 tracking-[0.3em] uppercase mt-10 mb-4 border-b border-purple-900/30 pb-2">Possessions</h3>
                 
                 <ul id="inventory-list" class="text-xs space-y-2 text-gray-500 italic flex-1">
-                    <li>• Rusted Broadsword</li>
+                    <li>• Nothing but hope</li>
                 </ul>
 
                 <div class="mt-auto pt-4 border-t border-purple-900/20">
@@ -113,6 +111,7 @@
             
         </div>
 
+        <!-- Main Panel -->
         <div class="flex-1 flex flex-col bg-gray-900 border border-purple-900/40 rounded-lg shadow-[0_0_40px_rgba(88,28,135,0.2)] overflow-hidden">
             
             <div class="relative h-64 bg-gray-950 border-b border-purple-900/30 flex items-center justify-center overflow-hidden flex-shrink-0">
@@ -123,7 +122,7 @@
                 </div>
                 <div class="absolute bottom-4 left-4 bg-gray-950/80 px-3 py-1 border border-purple-900/40 rounded">
                     <span class="text-[10px] title-font text-purple-500 uppercase tracking-widest mr-2">Location:</span>
-                    <span id="location-display" class="text-[10px] title-font text-gray-300 uppercase tracking-widest">Ashen Courtyard</span>
+                    <span id="location-display" class="text-[10px] title-font text-gray-300 uppercase tracking-widest">---</span>
                 </div>
             </div>
 
@@ -143,136 +142,151 @@
     </div>
 
     <script>
-        // --- 1. STATE & UI REFS ---
+        // --- STATE ---
         let gameState = null;
-        const log = document.getElementById('narrative-log');
+        const log   = document.getElementById('narrative-log');
         const input = document.getElementById('action-input');
-        const btn = document.getElementById('submit-btn');
+        const btn   = document.getElementById('submit-btn');
 
-        // --- 2. UPDATE UI FUNCTION ---
-        function updateUI() {
-            if(!gameState) return;
-            
-            document.getElementById('ui-house-name').innerText = `House ${gameState.house_name || gameState.name || "Unknown"}`;
-            document.getElementById('stat-hp').innerText = `${gameState.hp} / ${gameState.max_hp}`;
-            
-            const hpPct = (gameState.hp / gameState.max_hp) * 100;
-            document.getElementById('hp-bar-fill').style.width = Math.max(0, Math.min(100, hpPct)) + '%';
-            
-            const stats = ['str', 'agi', 'con', 'arc'];
-            stats.forEach(s => {
-                const val = gameState[s] || gameState[['strength','agility','constitution','arcane'][stats.indexOf(s)]];
-                document.getElementById(`stat-${s}`).innerText = val;
-                document.getElementById(`bar-${s}`).style.width = Math.min(100, val * 5) + '%'; 
-            });
-
-            document.getElementById('inventory-list').innerHTML = (gameState.inventory && gameState.inventory.length) ? 
-                gameState.inventory.map(i => `<li>• ${i}</li>`).join('') : "<li>• Nothing but hope</li>";
-        }
-
-        // --- 3. INITIAL LOAD (WITH AUTO-HEALING MEMORY) ---
-        window.onload = () => {
-            const activeHouse = sessionStorage.getItem('playerName') || 'Wanderer';
-            const saved = localStorage.getItem(`echoes_save_${activeHouse}`);
-            
-            try {
-                if (saved && saved !== "undefined") {
-                    gameState = JSON.parse(saved);
-                    if (!gameState || !gameState.hp) throw new Error("Corrupted state pointer");
-                } else {
-                    throw new Error("No valid memory state found");
-                }
-            } catch (e) {
-                console.warn("Auto-healing corrupted save file:", e);
-                // Construct a fresh generic state so the thread doesn't die
-                gameState = {
-                    house_name: activeHouse,
-                    current_room: "ashen_courtyard",
-                    hp: 55, max_hp: 55,
-                    strength: 8, agility: 3, constitution: 7, arcane: 2,
-                    inventory: ["Rusted Sword"],
-                    dead_ancestors: [],
-                    current_enemy: null
-                };
-                localStorage.setItem(`echoes_save_${activeHouse}`, JSON.stringify(gameState));
-            }
-            updateUI();
+        const CLASS_ICONS = {
+            ashen_knight: '⚔️',
+            void_drifter:  '🗡️',
+            rune_scribe:   '📜',
+            void_ranger:   '🏹',
         };
 
-        // --- 4. ABANDON LEGACY ---
+        // --- UPDATE UI ---
+        function updateUI() {
+            if (!gameState) return;
+
+            // House name & class
+            document.getElementById('ui-house-name').innerText = `House ${gameState.house_name}`;
+            document.getElementById('class-display').innerText = (gameState.class || '').replace(/_/g, ' ');
+            document.getElementById('class-icon').innerText    = CLASS_ICONS[gameState.class] || '⚔️';
+
+            // HP
+            document.getElementById('stat-hp').innerText = `${gameState.hp} / ${gameState.max_hp}`;
+            const hpPct = Math.max(0, (gameState.hp / gameState.max_hp) * 100);
+            document.getElementById('hp-bar-fill').style.width = hpPct + '%';
+
+            // Attributes
+            const statMap = {
+                str: { el: 'stat-str', bar: 'bar-str' },
+                agi: { el: 'stat-agi', bar: 'bar-agi' },
+                con: { el: 'stat-con', bar: 'bar-con' },
+                arc: { el: 'stat-arc', bar: 'bar-arc' },
+            };
+            Object.entries(statMap).forEach(([key, ids]) => {
+                const val = gameState[key] || 0;
+                document.getElementById(ids.el).innerText    = val;
+                document.getElementById(ids.bar).style.width = Math.min(val * 5, 100) + '%';
+            });
+
+            // Inventory
+            const inv = gameState.inventory || [];
+            document.getElementById('inventory-list').innerHTML = inv.length
+                ? inv.map(i => `<li>• ${i.replace(/_/g, ' ')}</li>`).join('')
+                : '<li>• Nothing but hope</li>';
+
+            // Location
+            if (gameState.location) {
+                document.getElementById('location-display').innerText =
+                    gameState.location.replace(/_/g, ' ').toUpperCase();
+            }
+        }
+
+        // --- INITIAL LOAD ---
+        window.onload = () => {
+            const playerId   = sessionStorage.getItem('playerId');
+            const playerName = sessionStorage.getItem('playerName');
+
+            if (!playerId || !playerName) {
+                window.location.href = '/';
+                return;
+            }
+
+            const saved = localStorage.getItem(`echoes_save_${playerName}`);
+            if (saved) {
+                gameState = JSON.parse(saved);
+                updateUI();
+            } else {
+                window.location.href = '/';
+            }
+        };
+
+        // --- ABANDON LEGACY ---
         function abandonLegacy() {
             if (confirm("Are you sure you want to end this lineage? All current progress for this House will be lost forever.")) {
-                const activeHouse = gameState ? (gameState.house_name || gameState.name) : sessionStorage.getItem('playerName');
-                
-                if (activeHouse) {
-                    localStorage.removeItem(`echoes_save_${activeHouse}`);
-                }
-                
+                const playerName = gameState ? gameState.house_name : sessionStorage.getItem('playerName');
+                if (playerName) localStorage.removeItem(`echoes_save_${playerName}`);
                 sessionStorage.clear();
                 window.location.href = '/';
             }
         }
 
-        // --- 5. ACTION LOOP ---
+        // --- ACTION LOOP ---
         async function sendAction() {
             const actionText = input.value.trim();
             if (!actionText || !gameState) return;
 
+            // Show player input
             const pMsg = document.createElement('p');
             pMsg.className = "text-green-500/80 font-mono text-xs opacity-60 italic";
-            pMsg.innerHTML = `› ${actionText}`;
+            pMsg.innerText = `› ${actionText}`;
             log.appendChild(pMsg);
-            
-            input.value = '';
-            input.disabled = true;
-            
-            try {
-                const safePlayerId = sessionStorage.getItem('playerId') || (gameState.house_name || "wanderer").toLowerCase().replace(/\s+/g, '_');
 
+            input.value    = '';
+            input.disabled = true;
+            btn.disabled   = true;
+
+            try {
                 const response = await fetch('/action', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        player_id: safePlayerId,
-                        action: actionText,
-                        state: gameState 
+                        player_id: gameState.player_id,
+                        action:    actionText,
+                        state:     gameState
                     })
                 });
 
-                const data = await response.json();
-                
                 if (!response.ok) {
-                    const errorDetail = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
-                    throw new Error(errorDetail || "The void rejected your action.");
+                    const err = await response.json().catch(() => ({ detail: 'Unknown server error' }));
+                    throw new Error(err.detail || 'Server error');
                 }
 
-                gameState = data.state;
-                localStorage.setItem(`echoes_save_${gameState.house_name || gameState.name}`, JSON.stringify(gameState));
-                
+                const data = await response.json();
+
+                // Sync state from backend
+                if (data.state) {
+                    gameState = data.state;
+                    localStorage.setItem(`echoes_save_${gameState.house_name}`, JSON.stringify(gameState));
+                }
+
                 updateUI();
-                
+
+                // Show narrative
                 const sMsg = document.createElement('p');
                 sMsg.className = "text-gray-300 leading-relaxed msg-fade";
                 sMsg.innerText = data.text;
                 log.appendChild(sMsg);
-                
-                if(data.location) document.getElementById('location-display').innerText = data.location;
-                
+
                 log.scrollTop = log.scrollHeight;
 
             } catch (e) {
                 const err = document.createElement('p');
-                err.className = "text-red-500 text-xs";
+                err.className = "text-red-500 text-xs msg-fade";
                 err.innerText = `System Error: ${e.message}`;
                 log.appendChild(err);
             } finally {
                 input.disabled = false;
+                btn.disabled   = false;
                 input.focus();
             }
         }
 
         btn.addEventListener('click', sendAction);
-        input.addEventListener('keypress', (e) => { if(e.key === 'Enter') sendAction(); });
+        input.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendAction(); });
     </script>
 </body>
 </html>

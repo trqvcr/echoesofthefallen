@@ -69,5 +69,147 @@
       "ashen_ruins": 0,
       "void_wastes": 0
     }
+  },
+  "weeww": {
+    "name": "weeww",
+    "race": "human",
+    "subrace": null,
+    "class": "ashen_knight",
+    "subclass": null,
+    "status": "alive",
+    "history": [
+      "greetings",
+      "i approach the the monument"
+    ],
+    "location": "ashen_courtyard",
+    "hp": 55,
+    "max_hp": 55,
+    "stamina": 10,
+    "max_stamina": 10,
+    "mana": 4,
+    "max_mana": 4,
+    "xp": 0,
+    "xp_to_next_level": 100,
+    "level": 1,
+    "attributes": {
+      "STR": 8,
+      "AGI": 3,
+      "CON": 7,
+      "ARC": 2
+    },
+    "derived_stats": {
+      "max_hp": 55,
+      "atk": 10,
+      "def": 3,
+      "dodge_chance": 6
+    },
+    "skills": {
+      "shield_bash": {
+        "level": 1,
+        "xp": 0,
+        "modifications": []
+      },
+      "iron_stance": {
+        "level": 1,
+        "xp": 0,
+        "modifications": []
+      }
+    },
+    "inventory": [
+      "rusted_broadsword",
+      "chainmail"
+    ],
+    "equipped": {
+      "weapon": "rusted_broadsword",
+      "armor": "chainmail",
+      "accessory": null
+    },
+    "milestones": {
+      "bosses_defeated": [],
+      "total_kills": 0,
+      "total_damage_dealt": 0,
+      "total_damage_absorbed": 0,
+      "times_nearly_died": 0,
+      "skill_modifications_used": 0,
+      "subclass_unlocked": false,
+      "subrace_unlocked": false
+    },
+    "lineage": [],
+    "reputation": {
+      "saltmarsh": 0,
+      "ashen_ruins": 0,
+      "void_wastes": 0
+    }
+  },
+  "wef": {
+    "name": "wef",
+    "race": "human",
+    "subrace": null,
+    "class": "ashen_knight",
+    "subclass": null,
+    "status": "alive",
+    "history": [
+      "bello",
+      "i want to toss away my broadsword. im a fist fighter"
+    ],
+    "location": "ashen_courtyard",
+    "hp": 55,
+    "max_hp": 55,
+    "stamina": 10,
+    "max_stamina": 10,
+    "mana": 4,
+    "max_mana": 4,
+    "xp": 0,
+    "xp_to_next_level": 100,
+    "level": 1,
+    "attributes": {
+      "STR": 8,
+      "AGI": 3,
+      "CON": 7,
+      "ARC": 2
+    },
+    "derived_stats": {
+      "max_hp": 55,
+      "atk": 10,
+      "def": 3,
+      "dodge_chance": 6
+    },
+    "skills": {
+      "shield_bash": {
+        "level": 1,
+        "xp": 0,
+        "modifications": []
+      },
+      "iron_stance": {
+        "level": 1,
+        "xp": 0,
+        "modifications": []
+      }
+    },
+    "inventory": [
+      "rusted_broadsword",
+      "chainmail"
+    ],
+    "equipped": {
+      "weapon": "rusted_broadsword",
+      "armor": "chainmail",
+      "accessory": null
+    },
+    "milestones": {
+      "bosses_defeated": [],
+      "total_kills": 0,
+      "total_damage_dealt": 0,
+      "total_damage_absorbed": 0,
+      "times_nearly_died": 0,
+      "skill_modifications_used": 0,
+      "subclass_unlocked": false,
+      "subrace_unlocked": false
+    },
+    "lineage": [],
+    "reputation": {
+      "saltmarsh": 0,
+      "ashen_ruins": 0,
+      "void_wastes": 0
+    }
   }
 }

@@ -10,5 +10,7 @@ __pycache__/
 *.pyc
 *.pyo
 
+
+saves.json
 # Mac OS junk files (if applicable)
 .DS_Store
