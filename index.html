@@ -8,7 +8,10 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Crimson+Text:ital,wght@0,400;1,400&display=swap');
 
-        body { font-family: 'Crimson Text', serif; }
+        body { 
+            font-family: 'Crimson Text', serif; 
+            background-color: #030609;
+        }
         .title-font { font-family: 'Cinzel', serif; }
 
         /* Scrollbar styling */
@@ -16,229 +19,231 @@
         #narrative-log::-webkit-scrollbar-track { background: transparent; }
         #narrative-log::-webkit-scrollbar-thumb { background: #4c1d95; border-radius: 2px; }
 
-        /* Typing cursor effect on latest message */
-        .latest-msg::after {
-            content: '|';
-            animation: blink 1s infinite;
-            color: #a855f7;
-        }
-        @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0; }
-        }
-
-        /* HP bar */
-        #hp-bar-fill {
-            transition: width 0.5s ease, background-color 0.5s ease;
-        }
-
-        /* Input glow */
-        #action-input:focus { outline: none; }
-
+        /* HP & Stat Bars */
+        .stat-bar-bg { background: rgba(255,255,255,0.05); border: 1px solid rgba(139, 92, 246, 0.1); }
+        #hp-bar-fill { transition: width 0.5s ease; box-shadow: 0 0 10px rgba(220, 38, 38, 0.4); }
+        
         .action-row {
             background: rgba(5, 3, 15, 0.9);
             border-top: 1px solid rgba(139, 92, 246, 0.2);
         }
 
-        /* Fade in new messages */
+        /* Narrative animations */
         @keyframes msgFadeIn {
             from { opacity: 0; transform: translateY(8px); }
             to { opacity: 1; transform: translateY(0); }
         }
         .msg-fade { animation: msgFadeIn 0.4s ease forwards; }
-
-        /* Scene image fade */
-        #scene-image { transition: opacity 0.5s ease; }
+        
+        .sidebar-box {
+            background: rgba(15, 10, 25, 0.6);
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            backdrop-filter: blur(10px);
+        }
     </style>
 </head>
-<body class="bg-gray-950 text-gray-200 min-h-screen flex flex-col items-center justify-center p-4">
+<body class="text-gray-200 min-h-screen flex items-center justify-center p-4">
 
-    <div class="w-full max-w-3xl flex flex-col h-[90vh] bg-gray-900 border border-purple-900/40 rounded-lg shadow-[0_0_40px_rgba(88,28,135,0.3)] overflow-hidden">
+    <div class="w-full max-w-6xl flex gap-6 h-[90vh]">
 
-        <!-- Scene image panel -->
-        <div class="relative h-56 bg-gray-950 border-b border-purple-900/30 flex items-center justify-center overflow-hidden flex-shrink-0">
-            <img id="scene-image" src="" alt="" class="object-cover w-full h-full opacity-0 absolute inset-0">
-            <div id="image-placeholder" class="flex flex-col items-center gap-2 text-gray-700">
-                <span class="text-4xl">🌑</span>
-                <span class="title-font text-xs tracking-widest uppercase">The void awaits</span>
-            </div>
-        </div>
-
-        <!-- Status bar -->
-        <div class="flex items-center justify-between px-5 py-2 bg-gray-950/80 border-b border-purple-900/20 flex-shrink-0">
-            <!-- Player info -->
-            <div class="flex items-center gap-3">
-                <span id="class-icon" class="text-lg">⚔️</span>
-                <div>
-                    <div id="player-name-display" class="title-font text-purple-300 text-xs tracking-wider"></div>
-                    <div id="class-display" class="text-gray-600 text-xs"></div>
+        <div class="w-72 flex flex-col gap-4 flex-shrink-0">
+            
+            <div class="sidebar-box rounded-lg p-5">
+                <div class="flex items-center gap-3 mb-4">
+                    <span id="class-icon" class="text-3xl">⚔️</span>
+                    <div>
+                        <h2 id="ui-house-name" class="title-font text-purple-400 text-sm tracking-widest uppercase">House ---</h2>
+                        <p id="class-display" class="text-gray-500 text-xs italic">Ashen Knight</p>
+                    </div>
                 </div>
-            </div>
-
-            <!-- HP bar -->
-            <div class="flex items-center gap-3">
-                <div class="flex flex-col items-end">
-                    <span id="hp-text" class="text-red-400 text-xs title-font"></span>
-                    <div class="w-28 h-2 bg-gray-800 rounded-full overflow-hidden mt-1">
-                        <div id="hp-bar-fill" class="h-full bg-red-600 rounded-full" style="width:100%"></div>
+                
+                <div class="space-y-2">
+                    <div class="flex justify-between text-xs title-font tracking-tighter">
+                        <span class="text-red-400">VITALITY</span>
+                        <span id="stat-hp" class="text-gray-400">0 / 0</span>
+                    </div>
+                    <div class="w-full h-2 stat-bar-bg rounded-full overflow-hidden">
+                        <div id="hp-bar-fill" class="h-full bg-red-700 w-full"></div>
                     </div>
                 </div>
             </div>
 
-            <!-- Location -->
-            <div class="text-right">
-                <div class="text-gray-600 text-xs title-font tracking-widest uppercase">Location</div>
-                <div id="location-display" class="text-purple-400 text-xs"></div>
+            <div class="sidebar-box rounded-lg p-5 flex-1">
+                <h3 class="title-font text-[10px] text-purple-500 tracking-[0.3em] uppercase mb-6 border-b border-purple-900/30 pb-2">Attributes</h3>
+                
+                <div class="space-y-5">
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-xs uppercase tracking-widest text-gray-400">
+                            <span>Strength</span><span id="stat-str" class="text-orange-400">0</span>
+                        </div>
+                        <div class="stat-bar-bg h-1 w-full rounded-full"><div id="bar-str" class="h-full bg-orange-600/50" style="width: 0%"></div></div>
+                    </div>
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-xs uppercase tracking-widest text-gray-400">
+                            <span>Agility</span><span id="stat-agi" class="text-blue-400">0</span>
+                        </div>
+                        <div class="stat-bar-bg h-1 w-full rounded-full"><div id="bar-agi" class="h-full bg-blue-600/50" style="width: 0%"></div></div>
+                    </div>
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-xs uppercase tracking-widest text-gray-400">
+                            <span>Constitution</span><span id="stat-con" class="text-green-400">0</span>
+                        </div>
+                        <div class="stat-bar-bg h-1 w-full rounded-full"><div id="bar-con" class="h-full bg-green-600/50" style="width: 0%"></div></div>
+                    </div>
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-xs uppercase tracking-widest text-gray-400">
+                            <span>Arcane</span><span id="stat-arc" class="text-purple-400">0</span>
+                        </div>
+                        <div class="stat-bar-bg h-1 w-full rounded-full"><div id="bar-arc" class="h-full bg-purple-600/50" style="width: 0%"></div></div>
+                    </div>
+                </div>
+
+                <h3 class="title-font text-[10px] text-purple-500 tracking-[0.3em] uppercase mt-10 mb-4 border-b border-purple-900/30 pb-2">Possessions</h3>
+                <ul id="inventory-list" class="text-xs space-y-2 text-gray-500 italic">
+                    <li>• Rusted Broadsword</li>
+                </ul>
             </div>
         </div>
 
-        <!-- Narrative log -->
-        <div id="narrative-log" class="flex-1 p-6 overflow-y-auto space-y-4 min-h-0">
-            <p class="text-purple-500 italic title-font text-sm tracking-wide">— The void stirs. Your story begins. —</p>
-        </div>
+        <div class="flex-1 flex flex-col bg-gray-900 border border-purple-900/40 rounded-lg shadow-[0_0_40px_rgba(88,28,135,0.2)] overflow-hidden">
+            
+            <div class="relative h-64 bg-gray-950 border-b border-purple-900/30 flex items-center justify-center overflow-hidden flex-shrink-0">
+                <img id="scene-image" src="" class="object-cover w-full h-full opacity-0 absolute inset-0 transition-opacity duration-1000">
+                <div id="image-placeholder" class="flex flex-col items-center gap-2 text-gray-800">
+                    <span class="text-5xl">🌑</span>
+                    <span class="title-font text-[10px] tracking-[0.5em] uppercase">Visualizing the Beyond</span>
+                </div>
+                <div class="absolute bottom-4 left-4 bg-gray-950/80 px-3 py-1 border border-purple-900/40 rounded">
+                    <span class="text-[10px] title-font text-purple-500 uppercase tracking-widest mr-2">Location:</span>
+                    <span id="location-display" class="text-[10px] title-font text-gray-300 uppercase tracking-widest">Ashen Courtyard</span>
+                </div>
+            </div>
 
-        <!-- Input row -->
-        <div class="action-row p-4 flex gap-3 items-center flex-shrink-0">
-            <span class="text-purple-700 title-font text-lg">›</span>
-            <input
-                type="text"
-                id="action-input"
-                placeholder="What do you do?"
-                class="flex-1 bg-transparent text-green-400 placeholder-gray-700 font-mono text-sm border-none outline-none"
-            />
-            <button id="submit-btn"
-                class="title-font text-xs tracking-widest uppercase px-4 py-2 bg-purple-900 hover:bg-purple-700 text-white rounded transition-all">
-                Act
-            </button>
+            <div id="narrative-log" class="flex-1 p-8 overflow-y-auto space-y-6 min-h-0">
+                <p class="text-purple-400 italic title-font text-sm tracking-widest text-center">— THE VOID STIRS. YOUR LEGACY BEGINS. —</p>
+            </div>
+
+            <div class="action-row p-5 flex gap-4 items-center flex-shrink-0">
+                <span class="text-purple-700 title-font text-xl">›</span>
+                <input type="text" id="action-input" placeholder="What is your command?" 
+                       class="flex-1 bg-transparent text-green-400 placeholder-gray-800 font-mono text-sm border-none outline-none">
+                <button id="submit-btn" class="title-font text-[10px] tracking-widest uppercase px-6 py-3 bg-purple-900 hover:bg-purple-700 text-white rounded transition-all">
+                    ACT
+                </button>
+            </div>
         </div>
     </div>
 
     <script>
-        // ── 1. Read session from login page ──────────────────────────────
-        const playerName  = sessionStorage.getItem('playerName')  || 'wanderer';
-        const playerClass = sessionStorage.getItem('playerClass') || 'ashen_knight';
-        const playerId    = playerName.toLowerCase().replace(/\s+/g, '_');
+        // --- 1. STATE & UI REFS ---
+        let gameState = null;
+        const log = document.getElementById('narrative-log');
+        const input = document.getElementById('action-input');
+        const btn = document.getElementById('submit-btn');
 
-        // If no session, redirect to login
-        if (!sessionStorage.getItem('playerName')) {
-            window.location.href = 'login.html';
+        // --- 2. UPDATE UI FUNCTION ---
+        function updateUI() {
+            if(!gameState) return;
+            
+            // House & Class
+            document.getElementById('ui-house-name').innerText = `House ${gameState.house_name}`;
+            
+            // HP
+            document.getElementById('stat-hp').innerText = `${gameState.hp} / ${gameState.max_hp}`;
+            const hpPct = (gameState.hp / gameState.max_hp) * 100;
+            document.getElementById('hp-bar-fill').style.width = hpPct + '%';
+            
+            // Attributes
+            const stats = ['str', 'agi', 'con', 'arc'];
+            stats.forEach(s => {
+                const val = gameState[s] || gameState[['strength','agility','constitution','arcane'][stats.indexOf(s)]];
+                document.getElementById(`stat-${s}`).innerText = val;
+                document.getElementById(`bar-${s}`).style.width = (val * 5) + '%'; // 20 points max * 5 = 100%
+            });
+
+            // Inventory
+            document.getElementById('inventory-list').innerHTML = gameState.inventory.length ? 
+                gameState.inventory.map(i => `<li>• ${i}</li>`).join('') : "<li>• Nothing but hope</li>";
         }
 
-        // ── 2. Class metadata ─────────────────────────────────────────────
-        const CLASS_META = {
-            ashen_knight: { icon: '⚔️',  label: 'Ashen Knight' },
-            void_drifter: { icon: '🗡️',  label: 'Void Drifter' },
-            rune_scribe:  { icon: '📜',  label: 'Rune-Scribe'  },
-            void_ranger:  { icon: '🏹',  label: 'Void Ranger'  },
+        // --- 3. INITIAL LOAD ---
+        window.onload = () => {
+            const activeHouse = sessionStorage.getItem('playerName') || 'Wanderer';
+            const activeClass = sessionStorage.getItem('playerClass') || 'ashen_knight';
+            
+            // Check for existing save
+            const saved = localStorage.getItem(`echoes_save_${activeHouse}`);
+            if(saved) {
+                gameState = JSON.parse(saved);
+            } else {
+                // Fresh start
+                gameState = {
+                    house_name: activeHouse,
+                    current_room: "ashen_courtyard",
+                    hp: 55, max_hp: 55,
+                    strength: 8, agility: 3, constitution: 7, arcane: 2,
+                    inventory: ["Rusted Sword"],
+                    dead_ancestors: [],
+                    current_enemy: null
+                };
+            }
+            updateUI();
         };
 
-        // ── 3. UI refs ────────────────────────────────────────────────────
-        const log         = document.getElementById('narrative-log');
-        const input       = document.getElementById('action-input');
-        const btn         = document.getElementById('submit-btn');
-        const hpText      = document.getElementById('hp-text');
-        const hpBar       = document.getElementById('hp-bar-fill');
-        const locationEl  = document.getElementById('location-display');
-        const nameEl      = document.getElementById('player-name-display');
-        const classEl     = document.getElementById('class-display');
-        const classIcon   = document.getElementById('class-icon');
-        const sceneImg    = document.getElementById('scene-image');
-        const placeholder = document.getElementById('image-placeholder');
-
-        // ── 4. Init UI ────────────────────────────────────────────────────
-        const meta = CLASS_META[playerClass] || CLASS_META['ashen_knight'];
-        nameEl.textContent    = playerName;
-        classEl.textContent   = meta.label;
-        classIcon.textContent = meta.icon;
-        locationEl.textContent = 'Ashen Courtyard';
-        updateHP(30, 30);
-
-        function updateHP(current, max) {
-            hpText.textContent = `HP ${current} / ${max}`;
-            const pct = Math.max(0, (current / max) * 100);
-            hpBar.style.width = pct + '%';
-            hpBar.style.backgroundColor = pct > 50 ? '#dc2626' : pct > 25 ? '#ea580c' : '#991b1b';
-        }
-
-        function formatLocation(loc) {
-            return loc.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-        }
-
-        function addMessage(text, color = 'text-gray-300') {
-            // Remove cursor from previous latest
-            document.querySelectorAll('.latest-msg').forEach(el => el.classList.remove('latest-msg'));
-            const p = document.createElement('p');
-            p.className = `${color} leading-relaxed msg-fade`;
-            p.textContent = text;
-            log.appendChild(p);
-            log.scrollTop = log.scrollHeight;
-            return p;
-        }
-
-        // ── 5. Core action ────────────────────────────────────────────────
+        // --- 4. ACTION LOOP ---
         async function sendAction() {
             const actionText = input.value.trim();
-            if (!actionText) return;
+            if (!actionText || !gameState) return;
 
-            addMessage(`› ${actionText}`, 'text-green-500 opacity-80 font-mono text-sm');
+            // Player Log
+            const pMsg = document.createElement('p');
+            pMsg.className = "text-green-500/80 font-mono text-xs opacity-60 italic";
+            pMsg.innerHTML = `› ${actionText}`;
+            log.appendChild(pMsg);
+            
             input.value = '';
             input.disabled = true;
-            btn.disabled = true;
-            btn.textContent = '...';
-
-            // Thinking indicator
-            const thinking = addMessage('The void considers your action...', 'text-gray-600 italic text-sm');
-
+            
             try {
                 const response = await fetch('http://localhost:8000/action', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        player_id: playerId,
-                        player_class: playerClass,
-                        action: actionText
+                        player_id: gameState.house_name,
+                        action: actionText,
+                        state: gameState
                     })
                 });
 
                 const data = await response.json();
-                thinking.remove();
+                gameState = data.state;
+                localStorage.setItem(`echoes_save_${gameState.house_name}`, JSON.stringify(gameState));
+                
+                updateUI();
+                
+                // Story Response
+                const sMsg = document.createElement('p');
+                sMsg.className = "text-gray-300 leading-relaxed msg-fade";
+                sMsg.innerText = data.text;
+                log.appendChild(sMsg);
+                
+                if(data.location) document.getElementById('location-display').innerText = data.location;
+                
+                log.scrollTop = log.scrollHeight;
 
-                // Narrative
-                addMessage(data.text, 'text-gray-200');
-
-                // Update status
-                if (data.location) locationEl.textContent = formatLocation(data.location);
-                if (data.hp !== undefined) updateHP(data.hp, data.max_hp);
-
-                // Update image
-                if (data.image_base64) {
-                    sceneImg.src = `data:image/png;base64,${data.image_base64}`;
-                    sceneImg.style.opacity = '1';
-                    placeholder.style.display = 'none';
-                }
-
-                // Death
-                if (data.status === 'dead') {
-                    addMessage('☠ You have fallen. Your lineage will carry on...', 'text-red-500 title-font');
-                    input.disabled = true;
-                    btn.disabled = true;
-                    return;
-                }
-
-            } catch (err) {
-                thinking.remove();
-                addMessage('Error reaching the server. Is uvicorn running?', 'text-red-500 text-sm');
+            } catch (e) {
+                const err = document.createElement('p');
+                err.className = "text-red-500 text-xs";
+                err.innerText = "The connection to the server was severed.";
+                log.appendChild(err);
+            } finally {
+                input.disabled = false;
+                input.focus();
             }
-
-            input.disabled = false;
-            btn.disabled = false;
-            btn.textContent = 'Act';
-            input.focus();
         }
 
-        // ── 6. Events ─────────────────────────────────────────────────────
         btn.addEventListener('click', sendAction);
-        input.addEventListener('keypress', e => { if (e.key === 'Enter') sendAction(); });
+        input.addEventListener('keypress', (e) => { if(e.key === 'Enter') sendAction(); });
     </script>
 </body>
 </html>
