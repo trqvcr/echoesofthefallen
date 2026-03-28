@@ -284,6 +284,11 @@
                 </div>
             </div>
 
+            <!-- Scene Image -->
+            <div id="scene-image-wrap" class="hidden flex-shrink-0 w-full" style="max-height:220px;overflow:hidden;">
+                <img id="scene-image" src="" alt="" class="w-full object-cover object-center" style="max-height:220px;">
+            </div>
+
             <!-- Narrative Log -->
             <div id="narrative-log" class="flex-1 p-8 overflow-y-auto space-y-6 min-h-0">
                 <p class="text-purple-400 italic title-font text-sm tracking-widest text-center">— THE VOID STIRS. YOUR LEGACY BEGINS. —</p>
@@ -739,6 +744,14 @@
                 }
 
                 updateUI();
+
+                // Scene image
+                if (data.image_base64) {
+                    const wrap = document.getElementById('scene-image-wrap');
+                    const img  = document.getElementById('scene-image');
+                    img.src = data.image_base64;
+                    wrap.classList.remove('hidden');
+                }
 
                 // Narrative message
                 const sMsg = document.createElement('p');

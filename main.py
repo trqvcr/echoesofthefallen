@@ -12,6 +12,7 @@ from models import RegisterRequest, LoginRequest, ActionRequest, RiseRequest
 from db import get_player, save_player, get_world, get_all_locations, save_location, hash_password
 from enemies import tick_spawns
 from combat import player_to_state, _start_combat, process_combat_turn, _make_ancestor_record, build_heir
+from images import generate_scene_image
 import base64;
 
 load_dotenv()
@@ -203,33 +204,6 @@ async def handle_action(request: ActionRequest):
             request.player_id, skill_defs
         )
 
-def _generate_scene_image(visual_prompt: str) -> str:
-    """Takes a visual prompt, calls Imagen 3, and returns a base64 Data URI."""
-    if not client or not visual_prompt or visual_prompt == "[none]":
-        return ""
-        
-    try:
-        # Note: Depending on your exact GenAI SDK version, the model name might be 'imagen-3.0-generate-001'
-        result = client.models.generate_images(
-            model='imagen-3.0-generate-001',
-            prompt=visual_prompt,
-            config=GenerateImagesConfig(
-                number_of_images=1,
-                aspect_ratio="16:9", # Perfect for your UI banner
-                output_mime_type="image/jpeg"
-            )
-        )
-        
-        if result.generated_images:
-            img_bytes = result.generated_images[0].image.image_bytes
-            b64_str = base64.b64encode(img_bytes).decode('utf-8')
-            return f"data:image/jpeg;base64,{b64_str}"
-            
-    except Exception as e:
-        print(f"Image generation failed: {e}")
-        
-    return ""
-
 # ── Exploration Handler ────────────────────────────────────────────────────────
 
 async def _process_exploration(
@@ -293,10 +267,16 @@ Then output EXACTLY on a new line:
 VISUAL: [scene description for image generation]"""
 
         narrative = "[Combat begins]"
+        raw_text  = ""
         if client:
-            response  = client.models.generate_content(model="gemini-2.5-flash", contents=combat_prompt)
-            narrative = response.text or "[Combat begins]"
+            response = client.models.generate_content(model="gemini-2.5-flash", contents=combat_prompt)
+            raw_text = response.text or ""
+            narrative = raw_text or "[Combat begins]"
 
+        visual_prompt = next(
+            (l.split(":", 1)[1].strip() for l in raw_text.splitlines() if l.strip().startswith("VISUAL:")),
+            ""
+        )
         display_text = "\n".join(
             line for line in narrative.splitlines()
             if not line.strip().startswith("VISUAL:")
@@ -308,7 +288,7 @@ VISUAL: [scene description for image generation]"""
 
         return {
             "text":         display_text,
-            "image_base64": "",
+            "image_base64": generate_scene_image(client, visual_prompt),
             "status":       player["status"],
             "location":     current_location["name"],
             "state":        player_to_state(player),
@@ -433,7 +413,7 @@ HISTORY: [one sentence to append to this location's history log — or none]"""
 
     result = {
         "text":         display_text,
-        "image_base64": "",
+        "image_base64": generate_scene_image(client, parse_tag("VISUAL", raw_text)),
         "status":       player["status"],
         "location":     current_location["name"],
         "state":        player_to_state(player),

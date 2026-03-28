@@ -3,6 +3,7 @@ import time
 from typing import Optional
 
 from db import get_world, save_player, save_location
+from images import generate_scene_image
 
 
 # ── Damage Calculators ─────────────────────────────────────────────────────────
@@ -365,7 +366,7 @@ VISUAL: [one sentence describing the combat scene]"""
 
     return {
         "text":         display_text,
-        "image_base64": "",
+        "image_base64": generate_scene_image(client, parse_tag("VISUAL", raw_text)),
         "status":       player["status"],
         "location":     current_location_name,
         "state":        player_to_state(player),
