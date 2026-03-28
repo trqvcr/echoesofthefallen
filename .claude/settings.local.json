@@ -15,7 +15,9 @@
       "Bash(grep -rn localStorage.setItem /Users/trevortan/Code/echoesofthefallen/ --include=*.html --include=*.js)",
       "Bash(ls:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git fetch:*)",
+      "Bash(git push:*)"
     ]
   }
 }
