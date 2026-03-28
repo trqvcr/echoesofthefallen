@@ -6,6 +6,46 @@ from db import get_world, save_player, save_location
 from images import generate_scene_image, generate_npc_portrait
 
 
+# ── Skill Definition Resolver ──────────────────────────────────────────────────
+
+def _resolve_all_skill_defs(world_skill_defs: dict, player_skills: dict) -> dict:
+    """Merge world skill defs with any player-side overrides (forged/custom skills)."""
+    merged = dict(world_skill_defs)
+    for sid, sdata in player_skills.items():
+        if sdata.get("forged") or sdata.get("custom"):
+            merged[sid] = sdata
+    return merged
+
+
+# ── Status Effect Helpers ──────────────────────────────────────────────────────
+
+def _sum_effect(effects: list, effect_type: str) -> int:
+    """Sum the value of all active effects of a given type."""
+    return sum(e["value"] for e in effects if e["type"] == effect_type)
+
+
+def _has_effect(effects: list, effect_type: str) -> bool:
+    return any(e["type"] == effect_type for e in effects)
+
+
+def _add_effect(effects: list, effect_type: str, value: int, duration: int) -> list:
+    """Add or refresh an effect. Replaces existing effect of same type if present."""
+    effects = [e for e in effects if e["type"] != effect_type]
+    if duration > 0:
+        effects.append({"type": effect_type, "value": value, "turns_remaining": duration})
+    return effects
+
+
+def _tick_effects(effects: list) -> list:
+    """Decrement all durations and remove expired effects."""
+    ticked = []
+    for e in effects:
+        remaining = e["turns_remaining"] - 1
+        if remaining > 0:
+            ticked.append({**e, "turns_remaining": remaining})
+    return ticked
+
+
 # ── Damage Calculators ─────────────────────────────────────────────────────────
 
 def _calc_player_damage_range(player: dict, skill_id: Optional[str], skill_defs: dict) -> tuple:
@@ -14,7 +54,7 @@ def _calc_player_damage_range(player: dict, skill_id: Optional[str], skill_defs:
 
     if skill_id and skill_id in skill_defs:
         skill     = skill_defs[skill_id]
-        base_dmg  = skill["base_damage"]
+        base_dmg  = skill.get("base_damage", 0)
         scale_key = skill.get("scales_with", "STR")
         scale_val = attrs.get(scale_key, 0)
         min_dmg   = max(1, base_dmg + scale_val // 2)
@@ -69,10 +109,15 @@ def _end_combat(player: dict, outcome: str, all_locations: dict, location_key: s
             loc["npcs"][enemy_id]["died_at"] = time.time()
             save_location(location_key, loc)
 
+        # Grant forge charge for boss kills (enemies with xp_reward >= 20)
+        if cs.get("enemy_xp", 0) >= 20:
+            player["forge_charges"] = player.get("forge_charges", 0) + 1
+
         if enemy_id not in player["milestones"]["bosses_defeated"]:
             player["milestones"]["bosses_defeated"].append(enemy_id)
 
-        if player["xp"] >= player["xp_to_next_level"]:
+        # Level up
+        while player["xp"] >= player["xp_to_next_level"]:
             player["level"]            += 1
             player["xp"]               -= player["xp_to_next_level"]
             player["xp_to_next_level"]  = int(player["xp_to_next_level"] * 1.5)
@@ -85,9 +130,29 @@ def _end_combat(player: dict, outcome: str, all_locations: dict, location_key: s
             player["derived_stats"]["atk"]          = attrs["STR"] + 2
             player["derived_stats"]["def"]          = attrs["CON"] // 2
             player["derived_stats"]["dodge_chance"] = attrs["AGI"] * 2
-            player["max_hp"]   = player["derived_stats"]["max_hp"]
-            player["max_mana"] = attrs["ARC"] * 2
+            player["max_hp"]    = player["derived_stats"]["max_hp"]
+            player["max_mana"]  = attrs["ARC"] * 2
+            # Restore resources on level up
+            player["stamina"]   = player["max_stamina"]
+            player["mana"]      = player["max_mana"]
 
+            # Every 3 levels offer a skill choice from advanced pool
+            if player["level"] % 3 == 0 and not player.get("pending_skill_offer"):
+                try:
+                    world_state  = get_world()
+                    pools        = world_state.get("class_skill_pools", {})
+                    class_pool   = pools.get(player["class"], {})
+                    advanced     = class_pool.get("advanced", [])
+                    owned        = set(player.get("skills", {}).keys())
+                    available    = [s for s in advanced if s not in owned]
+                    if available:
+                        offer = random.sample(available, min(3, len(available)))
+                        player["pending_skill_offer"] = offer
+                except Exception:
+                    pass
+
+    # Restore some stamina after combat
+    player["stamina"] = min(player["max_stamina"], player.get("stamina", 0) + 3)
     player["combat_state"] = {"active": False}
     return player
 
@@ -193,28 +258,30 @@ def _ensure_location_visited(player: dict) -> list:
 def player_to_state(player: dict, player_id: str = None) -> dict:
     attrs = player.get("attributes", {})
     if player_id is None:
-        player_id = player["name"].lower().replace(" ", "_")
+        player_id = player.get("name", "unknown").lower().replace(" ", "_")
+    con = attrs.get("CON", 0)
+    arc = attrs.get("ARC", 0)
     return {
-        "house_name":       player["name"],
+        "house_name":       player.get("name", ""),
         "player_id":        player_id,
-        "race":             player["race"],
-        "class":            player["class"],
-        "status":           player["status"],
-        "location":         player["location"],
-        "hp":               player["hp"],
-        "max_hp":           player["max_hp"],
-        "stamina":          player["stamina"],
-        "max_stamina":      player["max_stamina"],
-        "mana":             player["mana"],
-        "max_mana":         player["max_mana"],
-        "level":            player["level"],
-        "xp":               player["xp"],
-        "xp_to_next_level": player["xp_to_next_level"],
+        "race":             player.get("race", ""),
+        "class":            player.get("class", ""),
+        "status":           player.get("status", "alive"),
+        "location":         player.get("location", "ashen_courtyard"),
+        "hp":               player.get("hp", 20 + con * 5),
+        "max_hp":           player.get("max_hp", 20 + con * 5),
+        "stamina":          player.get("stamina", 10),
+        "max_stamina":      player.get("max_stamina", 10),
+        "mana":             player.get("mana", arc * 2),
+        "max_mana":         player.get("max_mana", arc * 2),
+        "level":            player.get("level", 1),
+        "xp":               player.get("xp", 0),
+        "xp_to_next_level": player.get("xp_to_next_level", 100),
         "str":              attrs.get("STR", 0),
         "agi":              attrs.get("AGI", 0),
-        "con":              attrs.get("CON", 0),
-        "arc":              attrs.get("ARC", 0),
-        "inventory":        player["inventory"],
+        "con":              con,
+        "arc":              arc,
+        "inventory":        player.get("inventory", []),
         "equipped":         player.get("equipped", {}),
         "skills":           player.get("skills", {}),
         "milestones":       player.get("milestones", {}),
@@ -223,8 +290,10 @@ def player_to_state(player: dict, player_id: str = None) -> dict:
         "combat_state":        player.get("combat_state", {"active": False}),
         "avatar_description":  player.get("avatar_description", ""),
         "avatar_portrait":     player.get("avatar_portrait", ""),
-        "visited_locations":   _ensure_location_visited(player),
-        "travel_progress":     player.get("travel_progress", {}),
+        "visited_locations":    _ensure_location_visited(player),
+        "travel_progress":      player.get("travel_progress", {}),
+        "forge_charges":        player.get("forge_charges", 0),
+        "pending_skill_offer":  player.get("pending_skill_offer", None),
     }
 
 
@@ -237,18 +306,73 @@ async def process_combat_turn(
     cs    = player["combat_state"]
     attrs = player["attributes"]
 
-    skill_used = None
+    # Ensure status effect containers exist
+    cs.setdefault("player_effects", [])
+    cs.setdefault("enemy_effects",  [])
+    cs.setdefault("skill_cooldowns", {})
+
+    # ── Tick DoT effects at round start ───────────────────────────────────────
+    dot_damage = sum(
+        e["value"] for e in cs["enemy_effects"]
+        if e["type"] in ("poison", "bleed")
+    )
+    if dot_damage:
+        cs["enemy_hp"] = max(0, cs["enemy_hp"] - dot_damage)
+
+    # Early victory from DoT
+    if cs["enemy_hp"] <= 0:
+        victory_loot = list(cs.get("enemy_loot", []))
+        victory_xp   = cs.get("enemy_xp", 0)
+        player = _end_combat(player, "victory", all_locations, location_key)
+        save_player(player_id, player)
+        dot_msg = f"The poison does its work. {cs.get('enemy_name','The enemy')} collapses."
+        return {
+            "text": dot_msg, "image_base64": "", "npc_portrait": "",
+            "status": player["status"],
+            "location": current_location.get("name", location_key),
+            "state": player_to_state(player, player_id),
+            "combat_event": "victory",
+            "player_dmg": dot_damage, "enemy_dmg": 0,
+            "victory_loot": victory_loot, "victory_xp": victory_xp,
+        }
+
+    all_skill_defs = _resolve_all_skill_defs(skill_defs, player.get("skills", {}))
+
+    # ── Skill detection ───────────────────────────────────────────────────────
+    skill_used          = None
+    skill_blocked_msg   = ""
     for skill_id in player["skills"].keys():
-        skill_name = skill_defs.get(skill_id, {}).get("name", skill_id).lower()
+        sdef       = all_skill_defs.get(skill_id, {})
+        skill_name = sdef.get("name", skill_id).lower()
         if skill_id.replace("_", " ") in action.lower() or skill_name in action.lower():
             skill_used = skill_id
             break
 
-    if skill_used and skill_used in player["skills"]:
+    if skill_used:
+        cd = cs["skill_cooldowns"].get(skill_used, 0)
+        if cd > 0:
+            skill_blocked_msg = f"({all_skill_defs[skill_used].get('name', skill_used)} on cooldown: {cd} turns)"
+            skill_used = None
+        else:
+            sdef         = all_skill_defs.get(skill_used, {})
+            mana_cost    = sdef.get("mana_cost", 0)
+            stamina_cost = sdef.get("stamina_cost", 0)
+            if player["mana"] < mana_cost:
+                skill_blocked_msg = f"(Not enough mana for {sdef.get('name','skill')}: need {mana_cost})"
+                skill_used = None
+            elif player["stamina"] < stamina_cost:
+                skill_blocked_msg = f"(Not enough stamina for {sdef.get('name','skill')}: need {stamina_cost})"
+                skill_used = None
+
+    if skill_used:
+        sdef = all_skill_defs[skill_used]
+        player["mana"]    = max(0, player["mana"]    - sdef.get("mana_cost", 0))
+        player["stamina"] = max(0, player["stamina"] - sdef.get("stamina_cost", 0))
         player["skills"][skill_used]["xp"] += 1
         if player["skills"][skill_used]["xp"] >= 10 * player["skills"][skill_used]["level"]:
             player["skills"][skill_used]["xp"]    = 0
             player["skills"][skill_used]["level"] += 1
+        cs["skill_cooldowns"][skill_used] = sdef.get("cooldown_turns", 0)
 
     flee_attempt = any(w in action.lower() for w in ["flee", "run", "escape", "retreat"])
 
@@ -263,29 +387,60 @@ async def process_combat_turn(
         player["history"] = player["history"][-20:]
         save_player(player_id, player)
         return {
-            "text":         f"{player['name']} chose death over defeat. The void claims another soul.",
-            "image_base64": "",
-            "status":       "dead",
-            "location":     current_location.get("name", location_key),
-            "state":        player_to_state(player, player_id),
-            "combat_event": "death",
-            "player_dmg":   0,
-            "enemy_dmg":    0,
-            "ancestor":     _make_ancestor_record(player),
-            "player_id":    player_id,
+            "text": f"{player['name']} chose death over defeat. The void claims another soul.",
+            "image_base64": "", "status": "dead",
+            "location": current_location.get("name", location_key),
+            "state": player_to_state(player, player_id),
+            "combat_event": "death", "player_dmg": 0, "enemy_dmg": 0,
+            "ancestor": _make_ancestor_record(player), "player_id": player_id,
         }
 
-    p_min, p_max = _calc_player_damage_range(player, skill_used, skill_defs)
-    e_min, e_max = _calc_enemy_damage_range({"atk": cs["enemy_atk"]}, player["derived_stats"]["def"])
+    # ── Gather active effect modifiers ────────────────────────────────────────
+    enemy_atk_eff  = max(1, cs["enemy_atk"] - _sum_effect(cs["enemy_effects"], "weaken"))
+    enemy_stunned  = _has_effect(cs["enemy_effects"], "stun")
+    player_crit    = _sum_effect(cs["player_effects"], "crit")
+    player_expose  = _sum_effect(cs["player_effects"], "expose")
+    player_dodge_b = _sum_effect(cs["player_effects"], "dodge")
+    player_block   = _sum_effect(cs["player_effects"], "block")   # % reduction
+    player_shield  = _sum_effect(cs["player_effects"], "shield")  # flat absorb
 
-    player_speed = attrs.get("AGI", 0) + random.randint(1, 6)
+    p_min, p_max = _calc_player_damage_range(player, skill_used, all_skill_defs)
+    p_max_eff    = p_max + player_crit + player_expose
+
+    e_min, e_max = _calc_enemy_damage_range({"atk": enemy_atk_eff}, player["derived_stats"]["def"])
+    if enemy_stunned:
+        e_min, e_max = 0, 0
+
+    player_speed = attrs.get("AGI", 0) + random.randint(1, 6) + (player_dodge_b // 10)
     enemy_speed  = random.randint(1, 8)
     player_first = cs["turn"] == "player" or player_speed >= enemy_speed
 
+    # ── Build Gemini prompt ───────────────────────────────────────────────────
     skill_info = ""
-    if skill_used and skill_used in skill_defs:
-        sd = skill_defs[skill_used]
-        skill_info = f"SKILL USED: {sd['name']} — {sd['description']} | base_dmg: {sd['base_damage']} effect: {sd['effect']}"
+    if skill_used:
+        sd = all_skill_defs[skill_used]
+        skill_info = (
+            f"SKILL USED: {sd['name']} — {sd['description']}\n"
+            f"  base_dmg: {sd.get('base_damage',0)} | effect: {sd.get('effect','none')} "
+            f"(value: {sd.get('effect_value',0)}, duration: {sd.get('effect_duration',0)} turns)\n"
+            f"  cost: {sd.get('mana_cost',0)} mana / {sd.get('stamina_cost',0)} stamina"
+        )
+    if skill_blocked_msg:
+        skill_info += f"\nSKILL BLOCKED: {skill_blocked_msg} — player attacks normally instead."
+
+    active_effects_str = ""
+    if cs["player_effects"]:
+        active_effects_str += "PLAYER ACTIVE EFFECTS: " + ", ".join(
+            f"{e['type']}({e['turns_remaining']}t)" for e in cs["player_effects"]
+        ) + "\n"
+    if cs["enemy_effects"]:
+        active_effects_str += "ENEMY ACTIVE EFFECTS: " + ", ".join(
+            f"{e['type']}({e['turns_remaining']}t)" for e in cs["enemy_effects"]
+        ) + "\n"
+    if dot_damage:
+        active_effects_str += f"POISON/BLEED DEALT {dot_damage} damage to enemy this round.\n"
+    if enemy_stunned:
+        active_effects_str += "ENEMY IS STUNNED — cannot act this round.\n"
 
     combat_prompt = f"""You are a dark fantasy dungeon master for 'Echoes of the Fallen'.
 This is ROUND {cs['round']} of combat.
@@ -295,21 +450,22 @@ LOCATION: {current_location['name']}
 PLAYER: {player['name']} | {player['race']} {player['class']}
 HP: {player['hp']}/{player['max_hp']} | Stamina: {player['stamina']}/{player['max_stamina']} | Mana: {player['mana']}/{player['max_mana']}
 STR:{attrs['STR']} AGI:{attrs['AGI']} CON:{attrs['CON']} ARC:{attrs['ARC']}
-PLAYER DAMAGE RANGE THIS TURN: {p_min} to {p_max}
+PLAYER DAMAGE RANGE THIS TURN: {p_min} to {p_max_eff}
 {skill_info}
 
 ENEMY: {cs['enemy_name']}
-HP: {cs['enemy_hp']}/{cs['enemy_max_hp']} | ATK: {cs['enemy_atk']} DEF: {cs['enemy_def']}
+HP: {cs['enemy_hp']}/{cs['enemy_max_hp']} | ATK: {enemy_atk_eff} DEF: {cs['enemy_def']}
 ENEMY DAMAGE RANGE THIS TURN: {e_min} to {e_max}
 
+{active_effects_str}
 PLAYER ACTION: {action}
 FLEE ATTEMPT: {flee_attempt}
 PLAYER GOES FIRST: {player_first}
 
-Narrate this combat round vividly (3-4 sentences). Be specific about what happens.
+Narrate this combat round vividly (3-4 sentences). Reflect any active effects in the narration.
 Then output EXACTLY these tags on separate lines:
-PLAYER_DAMAGE: [integer — scale by action effectiveness. Normal attack = {p_min}-{p_max}. Weak/silly actions (tickle, poke, slap, gentle push) = 1 to {max(1, p_min//2)}. Powerful/skilled strike = up to {p_max + 3}. Miss or fled = 0]
-ENEMY_DAMAGE: [integer between {e_min} and {e_max}, or 0 if enemy missed or player fled successfully]
+PLAYER_DAMAGE: [integer — normal = {p_min}-{p_max_eff}. Weak/silly = 1 to {max(1,p_min//2)}. Miss or fled = 0]
+ENEMY_DAMAGE: [integer {e_min}-{e_max}, or 0 if stunned/missed/fled]
 SKILL_USED: [skill_id or none]
 FLEE_OUTCOME: [none / success / fail / captured]
 VISUAL: [one sentence describing the combat scene]"""
@@ -328,14 +484,17 @@ VISUAL: [one sentence describing the combat scene]"""
         return default
 
     try:
-        player_dmg = max(0, int(parse_tag("PLAYER_DAMAGE", raw_text, str(random.randint(p_min, p_max)))))
+        player_dmg = max(0, int(parse_tag("PLAYER_DAMAGE", raw_text, str(random.randint(p_min, p_max_eff)))))
     except ValueError:
-        player_dmg = random.randint(p_min, p_max)
+        player_dmg = random.randint(p_min, p_max_eff)
 
     try:
-        enemy_dmg = int(parse_tag("ENEMY_DAMAGE", raw_text, str(random.randint(e_min, e_max))))
+        enemy_dmg = int(parse_tag("ENEMY_DAMAGE", raw_text, str(random.randint(e_min, e_max) if not enemy_stunned else 0)))
     except ValueError:
-        enemy_dmg = random.randint(e_min, e_max)
+        enemy_dmg = 0 if enemy_stunned else random.randint(e_min, e_max)
+
+    if enemy_stunned:
+        enemy_dmg = 0
 
     flee_outcome = parse_tag("FLEE_OUTCOME", raw_text, "none").lower()
 
@@ -344,6 +503,35 @@ VISUAL: [one sentence describing the combat scene]"""
         line for line in narrative.splitlines()
         if not any(line.strip().startswith(t) for t in tag_prefixes)
     ).strip()
+
+    # ── Apply new skill effect ────────────────────────────────────────────────
+    if skill_used:
+        sdef        = all_skill_defs[skill_used]
+        effect      = sdef.get("effect", "none")
+        eff_val     = sdef.get("effect_value", 0)
+        eff_dur     = sdef.get("effect_duration", 0)
+        if effect != "none" and eff_dur > 0:
+            if effect in ("poison", "bleed", "stun", "weaken"):
+                cs["enemy_effects"] = _add_effect(cs["enemy_effects"], effect, eff_val, eff_dur)
+            elif effect in ("block", "dodge", "shield", "crit", "expose"):
+                cs["player_effects"] = _add_effect(cs["player_effects"], effect, eff_val, eff_dur)
+
+    # ── Apply damage reduction from player effects ────────────────────────────
+    if player_block > 0 and enemy_dmg > 0:
+        enemy_dmg = max(0, int(enemy_dmg * (1 - player_block / 100)))
+        cs["player_effects"] = [e for e in cs["player_effects"] if e["type"] != "block"]
+
+    if player_shield > 0 and enemy_dmg > 0:
+        absorbed   = min(player_shield, enemy_dmg)
+        enemy_dmg -= absorbed
+        remaining  = player_shield - absorbed
+        cs["player_effects"] = [
+            ({**e, "value": remaining} if e["type"] == "shield" and remaining > 0 else None)
+            for e in cs["player_effects"] if not (e["type"] == "shield")
+        ]
+        cs["player_effects"] = [e for e in cs["player_effects"] if e is not None]
+        if remaining > 0:
+            cs["player_effects"].append({"type": "shield", "value": remaining, "turns_remaining": 99})
 
     # ── Apply results ──────────────────────────────────────────────────────────
     combat_event = "ongoing"
@@ -374,9 +562,9 @@ VISUAL: [one sentence describing the combat scene]"""
             cs["enemy_hp"] = max(0, cs["enemy_hp"] - player_dmg)
             player["milestones"]["total_damage_dealt"] += player_dmg
             if cs["enemy_hp"] <= 0:
-                combat_event  = "victory"
-                victory_loot  = list(cs.get("enemy_loot", []))
-                victory_xp    = cs.get("enemy_xp", 0)
+                combat_event = "victory"
+                victory_loot = list(cs.get("enemy_loot", []))
+                victory_xp   = cs.get("enemy_xp", 0)
                 player = _end_combat(player, "victory", all_locations, location_key)
             else:
                 player["hp"] = max(0, player["hp"] - enemy_dmg)
@@ -391,15 +579,20 @@ VISUAL: [one sentence describing the combat scene]"""
                 cs["enemy_hp"] = max(0, cs["enemy_hp"] - player_dmg)
                 player["milestones"]["total_damage_dealt"] += player_dmg
                 if cs["enemy_hp"] <= 0:
-                    combat_event  = "victory"
-                    victory_loot  = list(cs.get("enemy_loot", []))
-                    victory_xp    = cs.get("enemy_xp", 0)
+                    combat_event = "victory"
+                    victory_loot = list(cs.get("enemy_loot", []))
+                    victory_xp   = cs.get("enemy_xp", 0)
                     player = _end_combat(player, "victory", all_locations, location_key)
                 else:
                     cs["round"] += 1
 
         if player["hp"] <= player["max_hp"] * 0.25 and player["hp"] > 0:
             player["milestones"]["times_nearly_died"] += 1
+
+    # ── Tick down all effect durations at end of round ────────────────────────
+    if combat_event == "ongoing":
+        cs["player_effects"] = _tick_effects(cs["player_effects"])
+        cs["enemy_effects"]  = _tick_effects(cs["enemy_effects"])
 
     # ── Death ──────────────────────────────────────────────────────────────────
     if combat_event == "death" or player["hp"] <= 0:

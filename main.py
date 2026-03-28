@@ -9,7 +9,7 @@ from google import genai
 from google.genai.types import GenerateImagesConfig, GenerateContentConfig, Schema, Type
 from dotenv import load_dotenv
 
-from models import RegisterRequest, LoginRequest, ActionRequest, RiseRequest, AvatarRequest, TravelRequest
+from models import RegisterRequest, LoginRequest, ActionRequest, RiseRequest, AvatarRequest, TravelRequest, SkillChoiceRequest, ForgeRequest
 from db import get_player, save_player, get_world, save_world, get_all_locations, save_location, hash_password
 from enemies import tick_spawns, tick_story_npcs
 from world_tick import tick_world, tick_corruption
@@ -105,6 +105,21 @@ def _location_npcs(location: dict) -> dict:
         else:
             friendly.append(entry)
     return {"friendly": friendly, "hostile": hostile}
+
+
+@app.get("/skill_defs")
+async def get_skill_defs():
+    world = get_world()
+    return world.get("skill_definitions", {})
+
+
+@app.get("/state/{player_id}")
+async def get_state(player_id: str):
+    """Return the current player state from the database. Used by the frontend on page load."""
+    player = get_player(player_id)
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
+    return {"player_id": player_id, "state": player_to_state(player, player_id)}
 
 
 @app.get("/map.json")
@@ -999,4 +1014,152 @@ async def fast_travel(request: TravelRequest):
         "image_base64": ref_image,
         "location":     current_location.get("name", destination),
         "state":        player_to_state(player, request.player_id),
+    }
+
+
+# ── /choose_skill ──────────────────────────────────────────────────────────────
+
+@app.post("/choose_skill")
+async def choose_skill(request: SkillChoiceRequest):
+    player = get_player(request.player_id)
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
+
+    offer = player.get("pending_skill_offer")
+    if not offer:
+        raise HTTPException(status_code=400, detail="No skill offer pending.")
+    if request.skill_id not in offer:
+        raise HTTPException(status_code=400, detail="That skill is not in the current offer.")
+
+    world_state = get_world()
+    skill_defs  = world_state.get("skill_definitions", {})
+    if request.skill_id not in skill_defs:
+        raise HTTPException(status_code=404, detail="Skill definition not found.")
+
+    player["skills"][request.skill_id]  = {"level": 1, "xp": 0, "modifications": []}
+    player["pending_skill_offer"]        = None
+    save_player(request.player_id, player)
+
+    sdef = skill_defs[request.skill_id]
+    return {
+        "text":  f"You have learned {sdef['name']}. {sdef['description']}",
+        "state": player_to_state(player, request.player_id),
+    }
+
+
+# ── /forge ─────────────────────────────────────────────────────────────────────
+
+@app.post("/forge")
+async def forge_skill(request: ForgeRequest):
+    player = get_player(request.player_id)
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
+
+    if player.get("forge_charges", 0) < 1:
+        raise HTTPException(status_code=400, detail="No forge charges. Defeat powerful enemies or complete story milestones to earn them.")
+
+    if not request.skill_ids or len(request.skill_ids) < 1:
+        raise HTTPException(status_code=400, detail="Select at least one skill to sacrifice.")
+    if len(request.skill_ids) > 2:
+        raise HTTPException(status_code=400, detail="Cannot sacrifice more than 2 skills at once.")
+
+    world_state = get_world()
+    skill_defs  = world_state.get("skill_definitions", {})
+    player_skills = player.get("skills", {})
+
+    for sid in request.skill_ids:
+        if sid not in player_skills:
+            raise HTTPException(status_code=400, detail=f"You do not have skill: {sid}")
+
+    # Gather sacrificed skill data for context
+    sacrificed = []
+    for sid in request.skill_ids:
+        sdef = skill_defs.get(sid) or player_skills[sid]
+        sacrificed.append({"id": sid, **sdef})
+
+    all_existing = {k: v for k, v in skill_defs.items()}
+
+    forge_prompt = f"""You are a game designer for 'Echoes of the Fallen', a dark fantasy RPG.
+A player wants to forge a new skill by sacrificing existing ones.
+
+PLAYER STATS:
+Level: {player['level']} | STR:{player['attributes']['STR']} AGI:{player['attributes']['AGI']} CON:{player['attributes']['CON']} ARC:{player['attributes']['ARC']}
+Class: {player['class']}
+
+SKILLS BEING SACRIFICED:
+{json.dumps(sacrificed, indent=2)}
+
+PLAYER'S DESCRIPTION OF WHAT THEY WANT:
+"{request.description}"
+
+ALL EXISTING SKILLS FOR BALANCE REFERENCE:
+{json.dumps(all_existing, indent=2)}
+
+RULES:
+- The new skill must be reasonable for the player's level and stats
+- It should reflect the flavour of the sacrificed skills but be meaningfully different
+- base_damage should be 0-14 depending on trade-offs
+- cooldown_turns should be 2-7
+- mana_cost + stamina_cost should total at least as much as the sacrificed skills
+- effect must be one of: none, stun, poison, bleed, weaken, block, dodge, shield, crit, expose
+- If the request is wildly unbalanced, adjust it and note why in forge_reasoning
+- Name should be evocative dark fantasy (2-3 words)
+- Write a short id in snake_case
+
+Respond with ONLY a JSON object (no markdown) with these exact fields:
+{{
+  "id": "snake_case_id",
+  "name": "Display Name",
+  "description": "One sentence flavour description.",
+  "base_damage": 0,
+  "scales_with": "STR|AGI|CON|ARC",
+  "mana_cost": 0,
+  "stamina_cost": 0,
+  "cooldown_turns": 3,
+  "effect": "none",
+  "effect_value": 0,
+  "effect_duration": 0,
+  "forge_reasoning": "One sentence explaining balance decisions."
+}}"""
+
+    if not client:
+        raise HTTPException(status_code=503, detail="AI client not available.")
+
+    try:
+        response   = client.models.generate_content(model="gemini-2.5-flash", contents=forge_prompt)
+        raw        = response.text.strip()
+        # Strip any markdown code fences
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        new_skill = json.loads(raw.strip())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Forge failed: {e}")
+
+    required = {"id", "name", "description", "base_damage", "scales_with",
+                "mana_cost", "stamina_cost", "cooldown_turns", "effect",
+                "effect_value", "effect_duration"}
+    if not required.issubset(new_skill.keys()):
+        raise HTTPException(status_code=500, detail="Forge produced an incomplete skill definition.")
+
+    reasoning = new_skill.pop("forge_reasoning", "")
+    skill_id  = new_skill.pop("id")
+
+    # Remove sacrificed skills, add new one
+    for sid in request.skill_ids:
+        player["skills"].pop(sid, None)
+
+    player["skills"][skill_id]  = {"level": 1, "xp": 0, "modifications": [], "forged": True, **new_skill}
+    player["forge_charges"]      = max(0, player.get("forge_charges", 1) - 1)
+    player["milestones"]["skill_modifications_used"] = player["milestones"].get("skill_modifications_used", 0) + 1
+
+    save_player(request.player_id, player)
+
+    return {
+        "skill_id":  skill_id,
+        "skill":     new_skill,
+        "reasoning": reasoning,
+        "state":     player_to_state(player, request.player_id),
+        "text":      f"The forge burns. {new_skill['name']} takes shape from the ashes of what came before. {reasoning}",
     }
