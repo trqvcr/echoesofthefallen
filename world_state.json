@@ -4,21 +4,267 @@
     "The old kingdom of Valdris collapsed overnight. Its cities became ruins haunted by Void-touched creatures.",
     "Survivors scattered across the floating island remnants of what was once a continent."
   ],
-  "players": {
-    "player1": {
-      "name": "Unknown",
-      "class": "none",
-      "status": "alive",
-      "location": "ashen_courtyard",
-      "hp": 30,
-      "max_hp": 30,
-      "xp": 0,
-      "level": 1,
-      "attributes": {
-        "STR": 5, "AGI": 5, "CON": 5, "ARC": 5
-      },
-      "inventory": [],
-      "lineage": []
+
+  "races": {
+    "human": {
+      "name": "Human",
+      "description": "Adaptable survivors. Humans have no innate power, but learn faster than any other race.",
+      "stat_modifiers": { "STR": 0, "AGI": 0, "CON": 0, "ARC": 0 },
+      "passive": "Fast Learner — gain +10% bonus XP from all sources.",
+      "subraces": {
+        "void_scarred": {
+          "name": "Void-Scarred",
+          "unlock_condition": "Survive direct exposure to raw Void energy three times.",
+          "description": "A human changed by prolonged Void exposure. Their eyes glow faintly purple.",
+          "stat_modifiers": { "ARC": 2, "CON": -1 },
+          "passive": "Void Attunement — can read Void runes without a primer."
+        },
+        "saltmarsh_veteran": {
+          "name": "Saltmarsh Veteran",
+          "unlock_condition": "Complete 5 quests for Saltmarsh settlement.",
+          "description": "Hardened by years of surviving on the edge of the broken world.",
+          "stat_modifiers": { "CON": 2, "AGI": 1 },
+          "passive": "Grit — survive one killing blow per rest with 1 HP."
+        }
+      }
+    },
+    "ashen_elf": {
+      "name": "Ashen Elf",
+      "description": "Ancient beings who survived the Shattering by merging partially with the ash itself. Graceful but cold.",
+      "stat_modifiers": { "AGI": 2, "ARC": 1, "CON": -1 },
+      "passive": "Ash Step — movement makes no sound. Enemies have -10% chance to detect you.",
+      "subraces": {
+        "ember_elf": {
+          "name": "Ember Elf",
+          "unlock_condition": "Channel ARC magic at least 20 times in combat.",
+          "description": "An Ashen Elf who has rekindled the old flame magic thought lost in the Shattering.",
+          "stat_modifiers": { "ARC": 3, "AGI": -1 },
+          "passive": "Ember Aura — fire damage dealt ignites enemies for 2 turns."
+        },
+        "void_shade": {
+          "name": "Void Shade",
+          "unlock_condition": "Kill 10 enemies without being detected.",
+          "description": "An Ashen Elf who has embraced the darkness of the Void Below.",
+          "stat_modifiers": { "AGI": 3, "ARC": 1, "STR": -1 },
+          "passive": "Shadow Meld — become invisible for 1 turn per combat once per rest."
+        }
+      }
+    },
+    "ironborn_dwarf": {
+      "name": "Ironborn Dwarf",
+      "description": "Stocky survivors who rebuilt their forges on the floating islands. Tough as the stone they carve.",
+      "stat_modifiers": { "STR": 2, "CON": 2, "AGI": -2 },
+      "passive": "Iron Skin — reduce all incoming physical damage by 1.",
+      "subraces": {
+        "runeforged": {
+          "name": "Runeforged",
+          "unlock_condition": "Craft or upgrade 3 weapons or armor pieces.",
+          "description": "A dwarf who has etched living runes into their own skin.",
+          "stat_modifiers": { "STR": 2, "ARC": 2 },
+          "passive": "Runic Resilience — weapons and armor you use never degrade."
+        },
+        "ash_delver": {
+          "name": "Ash Delver",
+          "unlock_condition": "Explore 5 underground or buried locations.",
+          "description": "A dwarf who tunnels through the ashen ruins, unearthing secrets others cannot reach.",
+          "stat_modifiers": { "CON": 2, "STR": 1 },
+          "passive": "Tremorsense — detect hidden doors and traps within 10 feet."
+        }
+      }
+    },
+    "void_goblin": {
+      "name": "Void Goblin",
+      "description": "Small, cunning scavengers mutated by Void energy after the Shattering. Underestimated by everyone. Dangerous because of it.",
+      "stat_modifiers": { "AGI": 3, "ARC": 1, "STR": -2, "CON": -1 },
+      "passive": "Scavenger — always find one extra item when looting corpses or ruins.",
+      "subraces": {
+        "hex_touched": {
+          "name": "Hex-Touched",
+          "unlock_condition": "Inflict 3 different status effects on enemies (poison, bleed, stun, etc.).",
+          "description": "A Void Goblin who has learned to weaponise the chaotic energy in their blood.",
+          "stat_modifiers": { "ARC": 3, "AGI": 1, "CON": -1 },
+          "passive": "Hex Blood — status effects you inflict last 1 extra turn."
+        },
+        "chrome_runt": {
+          "name": "Chrome Runt",
+          "unlock_condition": "Steal from 5 different NPCs without getting caught.",
+          "description": "A Void Goblin who has grafted salvaged metal scraps onto their body as crude armour.",
+          "stat_modifiers": { "CON": 3, "STR": 1, "AGI": -1 },
+          "passive": "Junk Armour — reduce incoming damage by 2, but make noise on stealth checks."
+        }
+      }
     }
-  }
+  },
+
+  "classes": {
+    "ashen_knight": {
+      "name": "Ashen Knight",
+      "description": "A heavily armored survivor of the old royal guard. Relies on brute force and endurance.",
+      "starting_attributes": { "STR": 8, "AGI": 3, "CON": 7, "ARC": 2 },
+      "starting_gear": ["rusted_broadsword", "chainmail"],
+      "starting_skills": ["shield_bash", "iron_stance"],
+      "subclasses": {
+        "void_paladin": {
+          "name": "Void Paladin",
+          "unlock_condition": "Defeat a Void-touched boss while below 25% HP.",
+          "description": "A knight who channels Void energy into holy wrath.",
+          "stat_modifiers": { "ARC": 3, "CON": 1 },
+          "bonus_skill": "void_smite"
+        },
+        "bone_warden": {
+          "name": "Bone Warden",
+          "unlock_condition": "Block or absorb over 500 total damage across your playthrough.",
+          "description": "A knight so battle-hardened their body has begun to calcify.",
+          "stat_modifiers": { "CON": 4, "STR": 1, "AGI": -1 },
+          "bonus_skill": "calcify"
+        }
+      }
+    },
+    "void_drifter": {
+      "name": "Void Drifter",
+      "description": "A rogue who survived the cataclysm by hiding in shadows. Fast and lethal.",
+      "starting_attributes": { "STR": 5, "AGI": 9, "CON": 4, "ARC": 2 },
+      "starting_gear": ["obsidian_dagger", "leather_tunic"],
+      "starting_skills": ["poison_blade", "shadow_step"],
+      "subclasses": {
+        "phantom_blade": {
+          "name": "Phantom Blade",
+          "unlock_condition": "Land 10 critical hits.",
+          "description": "A drifter who phases partially into the Void during attacks.",
+          "stat_modifiers": { "AGI": 3, "ARC": 2 },
+          "bonus_skill": "phase_strike"
+        },
+        "void_hunter": {
+          "name": "Void Hunter",
+          "unlock_condition": "Track and kill 3 enemies that fled from combat.",
+          "description": "A relentless tracker who hunts Void-touched creatures for sport.",
+          "stat_modifiers": { "AGI": 2, "STR": 2 },
+          "bonus_skill": "marked_prey"
+        }
+      }
+    },
+    "rune_scribe": {
+      "name": "Rune-Scribe",
+      "description": "A scholar who wields the dangerous, shattered magic that destroyed the world. Glass cannon.",
+      "starting_attributes": { "STR": 2, "AGI": 4, "CON": 4, "ARC": 10 },
+      "starting_gear": ["crackling_void_staff", "tattered_robes"],
+      "starting_skills": ["void_bolt", "rune_ward", "arcane_sight"],
+      "subclasses": {
+        "shard_caller": {
+          "name": "Shard Caller",
+          "unlock_condition": "Discover 2 Void Crown shards.",
+          "description": "A Rune-Scribe attuned to the resonance of the shattered Crown.",
+          "stat_modifiers": { "ARC": 4, "CON": -1 },
+          "bonus_skill": "shard_pulse"
+        },
+        "runic_warder": {
+          "name": "Runic Warder",
+          "unlock_condition": "Successfully defend an ally or location using magic 5 times.",
+          "description": "A scribe who specialises in protective and binding runes.",
+          "stat_modifiers": { "ARC": 2, "CON": 3 },
+          "bonus_skill": "binding_rune"
+        }
+      }
+    },
+    "void_ranger": {
+      "name": "Void Ranger",
+      "description": "A spectral archer channeling Void energy through their bow. Deadly at range.",
+      "starting_attributes": { "STR": 3, "AGI": 10, "CON": 3, "ARC": 4 },
+      "starting_gear": ["void_bow", "quiver_of_void_arrows", "hide_armour"],
+      "starting_skills": ["void_shot", "hunters_eye"],
+      "subclasses": {
+        "wraith_archer": {
+          "name": "Wraith Archer",
+          "unlock_condition": "Kill 5 enemies from stealth with ranged attacks.",
+          "description": "A ranger whose arrows phase through walls and light armour.",
+          "stat_modifiers": { "ARC": 3, "AGI": 2 },
+          "bonus_skill": "wraith_arrow"
+        },
+        "storm_caller": {
+          "name": "Storm Caller",
+          "unlock_condition": "Hit 3 or more enemies with a single attack 5 times.",
+          "description": "A ranger who fires barrages of Void-charged arrows.",
+          "stat_modifiers": { "AGI": 2, "STR": 2, "CON": -1 },
+          "bonus_skill": "arrow_storm"
+        }
+      }
+    }
+  },
+
+  "skill_definitions": {
+    "shield_bash": {
+      "name": "Shield Bash",
+      "description": "Slam your shield into an enemy, dealing damage and stunning them briefly.",
+      "base_damage": 4,
+      "base_cost": "1 stamina",
+      "effect": "stun 1 turn",
+      "scales_with": "STR"
+    },
+    "iron_stance": {
+      "name": "Iron Stance",
+      "description": "Plant your feet and brace for impact, reducing incoming damage this turn.",
+      "base_damage": 0,
+      "base_cost": "1 stamina",
+      "effect": "reduce incoming damage by 50% this turn",
+      "scales_with": "CON"
+    },
+    "poison_blade": {
+      "name": "Poison Blade",
+      "description": "Coat your weapon in void-touched poison, causing damage over time.",
+      "base_damage": 3,
+      "base_cost": "1 stamina",
+      "effect": "poison 3 turns (2 dmg/turn)",
+      "scales_with": "AGI"
+    },
+    "shadow_step": {
+      "name": "Shadow Step",
+      "description": "Melt into the shadows and reappear behind your target for a backstab.",
+      "base_damage": 6,
+      "base_cost": "2 stamina",
+      "effect": "ignore DEF on this attack",
+      "scales_with": "AGI"
+    },
+    "void_bolt": {
+      "name": "Void Bolt",
+      "description": "Fire a concentrated bolt of Void energy at a single target.",
+      "base_damage": 8,
+      "base_cost": "2 mana",
+      "effect": "none",
+      "scales_with": "ARC"
+    },
+    "rune_ward": {
+      "name": "Rune Ward",
+      "description": "Inscribe a protective rune on yourself or an ally, absorbing incoming damage.",
+      "base_damage": 0,
+      "base_cost": "2 mana",
+      "effect": "absorb up to 10 damage next hit",
+      "scales_with": "ARC"
+    },
+    "arcane_sight": {
+      "name": "Arcane Sight",
+      "description": "Open your mind to the Void, revealing hidden objects, traps, and magical auras.",
+      "base_damage": 0,
+      "base_cost": "1 mana",
+      "effect": "reveal hidden items and traps in current location",
+      "scales_with": "ARC"
+    },
+    "void_shot": {
+      "name": "Void Shot",
+      "description": "Fire an arrow charged with Void energy that pierces through light armor.",
+      "base_damage": 7,
+      "base_cost": "1 stamina",
+      "effect": "ignore 2 DEF",
+      "scales_with": "AGI"
+    },
+    "hunters_eye": {
+      "name": "Hunter's Eye",
+      "description": "Study your target, identifying their weakness and increasing your next attack.",
+      "base_damage": 0,
+      "base_cost": "1 stamina",
+      "effect": "+4 damage on next attack",
+      "scales_with": "AGI"
+    }
+  },
+
+  "players": {}
 }
