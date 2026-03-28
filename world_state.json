@@ -4,118 +4,179 @@
     "The old kingdom of Valdris collapsed overnight. Its cities became ruins haunted by Void-touched creatures.",
     "Survivors scattered across the floating island remnants of what was once a continent."
   ],
-
   "races": {
     "human": {
       "name": "Human",
       "description": "Adaptable survivors. Humans have no innate power, but learn faster than any other race.",
-      "stat_modifiers": { "STR": 0, "AGI": 0, "CON": 0, "ARC": 0 },
-      "passive": "Fast Learner — gain +10% bonus XP from all sources.",
+      "stat_modifiers": {
+        "STR": 0,
+        "AGI": 0,
+        "CON": 0,
+        "ARC": 0
+      },
+      "passive": "Fast Learner \u00e2\u20ac\u201d gain +10% bonus XP from all sources.",
       "subraces": {
         "void_scarred": {
           "name": "Void-Scarred",
           "unlock_condition": "Survive direct exposure to raw Void energy three times.",
           "description": "A human changed by prolonged Void exposure. Their eyes glow faintly purple.",
-          "stat_modifiers": { "ARC": 2, "CON": -1 },
-          "passive": "Void Attunement — can read Void runes without a primer."
+          "stat_modifiers": {
+            "ARC": 2,
+            "CON": -1
+          },
+          "passive": "Void Attunement \u00e2\u20ac\u201d can read Void runes without a primer."
         },
         "saltmarsh_veteran": {
           "name": "Saltmarsh Veteran",
           "unlock_condition": "Complete 5 quests for Saltmarsh settlement.",
           "description": "Hardened by years of surviving on the edge of the broken world.",
-          "stat_modifiers": { "CON": 2, "AGI": 1 },
-          "passive": "Grit — survive one killing blow per rest with 1 HP."
+          "stat_modifiers": {
+            "CON": 2,
+            "AGI": 1
+          },
+          "passive": "Grit \u00e2\u20ac\u201d survive one killing blow per rest with 1 HP."
         }
       }
     },
     "ashen_elf": {
       "name": "Ashen Elf",
       "description": "Ancient beings who survived the Shattering by merging partially with the ash itself. Graceful but cold.",
-      "stat_modifiers": { "AGI": 2, "ARC": 1, "CON": -1 },
-      "passive": "Ash Step — movement makes no sound. Enemies have -10% chance to detect you.",
+      "stat_modifiers": {
+        "AGI": 2,
+        "ARC": 1,
+        "CON": -1
+      },
+      "passive": "Ash Step \u00e2\u20ac\u201d movement makes no sound. Enemies have -10% chance to detect you.",
       "subraces": {
         "ember_elf": {
           "name": "Ember Elf",
           "unlock_condition": "Channel ARC magic at least 20 times in combat.",
           "description": "An Ashen Elf who has rekindled the old flame magic thought lost in the Shattering.",
-          "stat_modifiers": { "ARC": 3, "AGI": -1 },
-          "passive": "Ember Aura — fire damage dealt ignites enemies for 2 turns."
+          "stat_modifiers": {
+            "ARC": 3,
+            "AGI": -1
+          },
+          "passive": "Ember Aura \u00e2\u20ac\u201d fire damage dealt ignites enemies for 2 turns."
         },
         "void_shade": {
           "name": "Void Shade",
           "unlock_condition": "Kill 10 enemies without being detected.",
           "description": "An Ashen Elf who has embraced the darkness of the Void Below.",
-          "stat_modifiers": { "AGI": 3, "ARC": 1, "STR": -1 },
-          "passive": "Shadow Meld — become invisible for 1 turn per combat once per rest."
+          "stat_modifiers": {
+            "AGI": 3,
+            "ARC": 1,
+            "STR": -1
+          },
+          "passive": "Shadow Meld \u00e2\u20ac\u201d become invisible for 1 turn per combat once per rest."
         }
       }
     },
     "ironborn_dwarf": {
       "name": "Ironborn Dwarf",
       "description": "Stocky survivors who rebuilt their forges on the floating islands. Tough as the stone they carve.",
-      "stat_modifiers": { "STR": 2, "CON": 2, "AGI": -2 },
-      "passive": "Iron Skin — reduce all incoming physical damage by 1.",
+      "stat_modifiers": {
+        "STR": 2,
+        "CON": 2,
+        "AGI": -2
+      },
+      "passive": "Iron Skin \u00e2\u20ac\u201d reduce all incoming physical damage by 1.",
       "subraces": {
         "runeforged": {
           "name": "Runeforged",
           "unlock_condition": "Craft or upgrade 3 weapons or armor pieces.",
           "description": "A dwarf who has etched living runes into their own skin.",
-          "stat_modifiers": { "STR": 2, "ARC": 2 },
-          "passive": "Runic Resilience — weapons and armor you use never degrade."
+          "stat_modifiers": {
+            "STR": 2,
+            "ARC": 2
+          },
+          "passive": "Runic Resilience \u00e2\u20ac\u201d weapons and armor you use never degrade."
         },
         "ash_delver": {
           "name": "Ash Delver",
           "unlock_condition": "Explore 5 underground or buried locations.",
           "description": "A dwarf who tunnels through the ashen ruins, unearthing secrets others cannot reach.",
-          "stat_modifiers": { "CON": 2, "STR": 1 },
-          "passive": "Tremorsense — detect hidden doors and traps within 10 feet."
+          "stat_modifiers": {
+            "CON": 2,
+            "STR": 1
+          },
+          "passive": "Tremorsense \u00e2\u20ac\u201d detect hidden doors and traps within 10 feet."
         }
       }
     },
     "void_goblin": {
       "name": "Void Goblin",
       "description": "Small, cunning scavengers mutated by Void energy after the Shattering. Underestimated by everyone. Dangerous because of it.",
-      "stat_modifiers": { "AGI": 3, "ARC": 1, "STR": -2, "CON": -1 },
-      "passive": "Scavenger — always find one extra item when looting corpses or ruins.",
+      "stat_modifiers": {
+        "AGI": 3,
+        "ARC": 1,
+        "STR": -2,
+        "CON": -1
+      },
+      "passive": "Scavenger \u00e2\u20ac\u201d always find one extra item when looting corpses or ruins.",
       "subraces": {
         "hex_touched": {
           "name": "Hex-Touched",
           "unlock_condition": "Inflict 3 different status effects on enemies (poison, bleed, stun, etc.).",
           "description": "A Void Goblin who has learned to weaponise the chaotic energy in their blood.",
-          "stat_modifiers": { "ARC": 3, "AGI": 1, "CON": -1 },
-          "passive": "Hex Blood — status effects you inflict last 1 extra turn."
+          "stat_modifiers": {
+            "ARC": 3,
+            "AGI": 1,
+            "CON": -1
+          },
+          "passive": "Hex Blood \u00e2\u20ac\u201d status effects you inflict last 1 extra turn."
         },
         "chrome_runt": {
           "name": "Chrome Runt",
           "unlock_condition": "Steal from 5 different NPCs without getting caught.",
           "description": "A Void Goblin who has grafted salvaged metal scraps onto their body as crude armour.",
-          "stat_modifiers": { "CON": 3, "STR": 1, "AGI": -1 },
-          "passive": "Junk Armour — reduce incoming damage by 2, but make noise on stealth checks."
+          "stat_modifiers": {
+            "CON": 3,
+            "STR": 1,
+            "AGI": -1
+          },
+          "passive": "Junk Armour \u00e2\u20ac\u201d reduce incoming damage by 2, but make noise on stealth checks."
         }
       }
     }
   },
-
   "classes": {
     "ashen_knight": {
       "name": "Ashen Knight",
       "description": "A heavily armored survivor of the old royal guard. Relies on brute force and endurance.",
-      "starting_attributes": { "STR": 8, "AGI": 3, "CON": 7, "ARC": 2 },
-      "starting_gear": ["rusted_broadsword", "chainmail"],
-      "starting_skills": ["shield_bash", "iron_stance"],
+      "starting_attributes": {
+        "STR": 8,
+        "AGI": 3,
+        "CON": 7,
+        "ARC": 2
+      },
+      "starting_gear": [
+        "rusted_broadsword",
+        "chainmail"
+      ],
+      "starting_skills": [
+        "shield_bash",
+        "iron_stance"
+      ],
       "subclasses": {
         "void_paladin": {
           "name": "Void Paladin",
           "unlock_condition": "Defeat a Void-touched boss while below 25% HP.",
           "description": "A knight who channels Void energy into holy wrath.",
-          "stat_modifiers": { "ARC": 3, "CON": 1 },
+          "stat_modifiers": {
+            "ARC": 3,
+            "CON": 1
+          },
           "bonus_skill": "void_smite"
         },
         "bone_warden": {
           "name": "Bone Warden",
           "unlock_condition": "Block or absorb over 500 total damage across your playthrough.",
           "description": "A knight so battle-hardened their body has begun to calcify.",
-          "stat_modifiers": { "CON": 4, "STR": 1, "AGI": -1 },
+          "stat_modifiers": {
+            "CON": 4,
+            "STR": 1,
+            "AGI": -1
+          },
           "bonus_skill": "calcify"
         }
       }
@@ -123,22 +184,39 @@
     "void_drifter": {
       "name": "Void Drifter",
       "description": "A rogue who survived the cataclysm by hiding in shadows. Fast and lethal.",
-      "starting_attributes": { "STR": 5, "AGI": 9, "CON": 4, "ARC": 2 },
-      "starting_gear": ["obsidian_dagger", "leather_tunic"],
-      "starting_skills": ["poison_blade", "shadow_step"],
+      "starting_attributes": {
+        "STR": 5,
+        "AGI": 9,
+        "CON": 4,
+        "ARC": 2
+      },
+      "starting_gear": [
+        "obsidian_dagger",
+        "leather_tunic"
+      ],
+      "starting_skills": [
+        "poison_blade",
+        "shadow_step"
+      ],
       "subclasses": {
         "phantom_blade": {
           "name": "Phantom Blade",
           "unlock_condition": "Land 10 critical hits.",
           "description": "A drifter who phases partially into the Void during attacks.",
-          "stat_modifiers": { "AGI": 3, "ARC": 2 },
+          "stat_modifiers": {
+            "AGI": 3,
+            "ARC": 2
+          },
           "bonus_skill": "phase_strike"
         },
         "void_hunter": {
           "name": "Void Hunter",
           "unlock_condition": "Track and kill 3 enemies that fled from combat.",
           "description": "A relentless tracker who hunts Void-touched creatures for sport.",
-          "stat_modifiers": { "AGI": 2, "STR": 2 },
+          "stat_modifiers": {
+            "AGI": 2,
+            "STR": 2
+          },
           "bonus_skill": "marked_prey"
         }
       }
@@ -146,22 +224,40 @@
     "rune_scribe": {
       "name": "Rune-Scribe",
       "description": "A scholar who wields the dangerous, shattered magic that destroyed the world. Glass cannon.",
-      "starting_attributes": { "STR": 2, "AGI": 4, "CON": 4, "ARC": 10 },
-      "starting_gear": ["crackling_void_staff", "tattered_robes"],
-      "starting_skills": ["void_bolt", "rune_ward", "arcane_sight"],
+      "starting_attributes": {
+        "STR": 2,
+        "AGI": 4,
+        "CON": 4,
+        "ARC": 10
+      },
+      "starting_gear": [
+        "crackling_void_staff",
+        "tattered_robes"
+      ],
+      "starting_skills": [
+        "void_bolt",
+        "rune_ward",
+        "arcane_sight"
+      ],
       "subclasses": {
         "shard_caller": {
           "name": "Shard Caller",
           "unlock_condition": "Discover 2 Void Crown shards.",
           "description": "A Rune-Scribe attuned to the resonance of the shattered Crown.",
-          "stat_modifiers": { "ARC": 4, "CON": -1 },
+          "stat_modifiers": {
+            "ARC": 4,
+            "CON": -1
+          },
           "bonus_skill": "shard_pulse"
         },
         "runic_warder": {
           "name": "Runic Warder",
           "unlock_condition": "Successfully defend an ally or location using magic 5 times.",
           "description": "A scribe who specialises in protective and binding runes.",
-          "stat_modifiers": { "ARC": 2, "CON": 3 },
+          "stat_modifiers": {
+            "ARC": 2,
+            "CON": 3
+          },
           "bonus_skill": "binding_rune"
         }
       }
@@ -169,28 +265,46 @@
     "void_ranger": {
       "name": "Void Ranger",
       "description": "A spectral archer channeling Void energy through their bow. Deadly at range.",
-      "starting_attributes": { "STR": 3, "AGI": 10, "CON": 3, "ARC": 4 },
-      "starting_gear": ["void_bow", "quiver_of_void_arrows", "hide_armour"],
-      "starting_skills": ["void_shot", "hunters_eye"],
+      "starting_attributes": {
+        "STR": 3,
+        "AGI": 10,
+        "CON": 3,
+        "ARC": 4
+      },
+      "starting_gear": [
+        "void_bow",
+        "quiver_of_void_arrows",
+        "hide_armour"
+      ],
+      "starting_skills": [
+        "void_shot",
+        "hunters_eye"
+      ],
       "subclasses": {
         "wraith_archer": {
           "name": "Wraith Archer",
           "unlock_condition": "Kill 5 enemies from stealth with ranged attacks.",
           "description": "A ranger whose arrows phase through walls and light armour.",
-          "stat_modifiers": { "ARC": 3, "AGI": 2 },
+          "stat_modifiers": {
+            "ARC": 3,
+            "AGI": 2
+          },
           "bonus_skill": "wraith_arrow"
         },
         "storm_caller": {
           "name": "Storm Caller",
           "unlock_condition": "Hit 3 or more enemies with a single attack 5 times.",
           "description": "A ranger who fires barrages of Void-charged arrows.",
-          "stat_modifiers": { "AGI": 2, "STR": 2, "CON": -1 },
+          "stat_modifiers": {
+            "AGI": 2,
+            "STR": 2,
+            "CON": -1
+          },
           "bonus_skill": "arrow_storm"
         }
       }
     }
   },
-
   "skill_definitions": {
     "shield_bash": {
       "name": "Shield Bash",
@@ -265,6 +379,74 @@
       "scales_with": "AGI"
     }
   },
-
-  "players": {}
+  "players": {
+    "bob": {
+      "name": "Bob",
+      "race": "ironborn_dwarf",
+      "subrace": null,
+      "class": "ashen_knight",
+      "subclass": null,
+      "status": "alive",
+      "history": [],
+      "location": "ashen_courtyard",
+      "hp": 65,
+      "max_hp": 65,
+      "stamina": 10,
+      "max_stamina": 10,
+      "mana": 5,
+      "max_mana": 5,
+      "xp": 0,
+      "xp_to_next_level": 100,
+      "level": 1,
+      "attributes": {
+        "STR": 10,
+        "AGI": 1,
+        "CON": 9,
+        "ARC": 2
+      },
+      "derived_stats": {
+        "max_hp": 65,
+        "atk": 14,
+        "def": 7,
+        "dodge_chance": 2
+      },
+      "skills": {
+        "shield_bash": {
+          "level": 1,
+          "xp": 0,
+          "modifications": []
+        },
+        "iron_stance": {
+          "level": 1,
+          "xp": 0,
+          "modifications": []
+        }
+      },
+      "inventory": [
+        "rusted_broadsword",
+        "chainmail"
+      ],
+      "equipped": {
+        "weapon": "rusted_broadsword",
+        "armor": "chainmail",
+        "accessory": null
+      },
+      "milestones": {
+        "bosses_defeated": [],
+        "total_kills": 0,
+        "total_damage_dealt": 0,
+        "total_damage_absorbed": 0,
+        "times_nearly_died": 0,
+        "skill_modifications_used": 0,
+        "subclass_unlocked": false,
+        "subrace_unlocked": false
+      },
+      "lineage": [],
+      "reputation": {
+        "saltmarsh": 0,
+        "ashen_ruins": 0,
+        "void_wastes": 0
+      }
+    }
+  }
 }
