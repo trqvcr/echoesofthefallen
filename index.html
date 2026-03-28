@@ -477,7 +477,8 @@
         }
 
         document.addEventListener('keydown', e => {
-            if (e.key.toLowerCase() === 'm' && document.activeElement !== input) {
+            const tag = document.activeElement.tagName;
+            if (e.key.toLowerCase() === 'm' && tag !== 'INPUT' && tag !== 'TEXTAREA') {
                 e.preventDefault(); toggleMap();
             }
         });
