@@ -115,16 +115,17 @@ def _handle_death(player: dict, player_id: str) -> tuple:
         for skill_id in class_data["starting_skills"]
     }
 
-    descendant_id = player_id + "_heir"
+    descendant_id = player_id
+    generation    = len(player.get("lineage", [])) + 2
     descendant = {
-        "name":             player["name"] + " Heir",
+        "name":             player["name"],
         "password_hash":    player.get("password_hash", ""),
         "race":             player["race"],
         "subrace":          None,
         "class":            player["class"],
         "subclass":         None,
         "status":           "alive",
-        "history":          [f"I am the heir of {player['name']}, who fell in battle."],
+        "history":          [f"Generation {generation}. {player['name']} rises from the ashes of their fallen ancestor."],
         "location":         "ashen_courtyard",
         "hp":               max_hp,
         "max_hp":           max_hp,
