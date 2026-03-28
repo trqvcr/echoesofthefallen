@@ -339,7 +339,7 @@ RECENT ACTIONS: {player['history'][-5:]}
 PLAYER ACTION: {action}
 
 Respond with vivid narrative (2-3 sentences). Then output EXACTLY these tags on new lines:
-ENV_DAMAGE: [integer 0-999 — non-zero ONLY if the action directly causes physical harm: falling, self-inflicted wounds, environmental hazards, touching dangerous objects. Use 0 for all normal exploration, movement, talking, or inspecting.]
+ENV_DAMAGE: [integer 0-999 — non-zero if the action causes physical harm OR the player explicitly declares death/dying. Examples: falling, self-harm, hazards, touching dangerous objects, fatal illness, declaring "I die", drinking poison, jumping into void. If the action is explicitly fatal or the player declares death, output {player['max_hp']} to guarantee death. Use 0 for normal exploration, movement, talking, or inspecting.]
 VISUAL: [one sentence describing the scene for image generation]
 STATE_CHANGES: [JSON object of state flags to set, e.g. {{"broken_chair": true}} — or {{}} if nothing changed]
 NPC_UPDATE: [npc_id|disposition_delta|memory_to_append — or none if no NPC was affected]
