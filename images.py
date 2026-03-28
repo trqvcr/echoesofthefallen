@@ -8,9 +8,10 @@ STYLE = (
 )
 
 PORTRAIT_STYLE = (
-    "League of Legends character portrait, cinematic splash art, painterly digital illustration, "
-    "dramatic rim lighting, rich saturated colors, highly detailed face and armor, "
-    "dark fantasy, close-up bust portrait, plain dark background"
+    "League of Legends splash art style, Riot Games concept art, painterly 2D digital illustration, "
+    "artistic oil painting, visible brushwork, stylized fantasy character portrait, "
+    "dramatic cinematic rim lighting, deep rich saturated colors, dark fantasy atmosphere, "
+    "close-up bust portrait, highly detailed illustrated character, dark moody background"
 )
 
 
@@ -24,12 +25,11 @@ def generate_scene_image(client, visual_prompt: str, avatar_description: str = "
     # Imagen doesn't let the character description hijack the composition.
     if avatar_description:
         styled_prompt = (
-            f"{scene}, dark fantasy scene. "
-            f"Featuring a character: {avatar_description}. "
-            f"{STYLE}"
+            f"{avatar_description}, {scene}. "
+            f"Dark fantasy scene. {STYLE}"
         )
     else:
-        styled_prompt = f"{scene}, dark fantasy scene. {STYLE}"
+        styled_prompt = f"{scene}. Dark fantasy scene. {STYLE}"
 
     print(f"[image] prompt: {styled_prompt[:120]}...")
 
@@ -56,7 +56,7 @@ def generate_avatar_portrait(client, description: str) -> str:
     if not client or not description.strip():
         return ""
 
-    styled_prompt = f"{description.strip()}. {PORTRAIT_STYLE}"
+    styled_prompt = f"{PORTRAIT_STYLE}. Character: {description.strip()}."
     print(f"[avatar] prompt: {styled_prompt[:120]}...")
 
     try:

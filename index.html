@@ -14,6 +14,7 @@
         #narrative-log::-webkit-scrollbar-thumb { background: #4c1d95; border-radius: 2px; }
         .stat-bar-bg { background: rgba(255,255,255,0.05); border: 1px solid rgba(139, 92, 246, 0.1); }
         #hp-bar-fill { transition: width 0.5s ease; box-shadow: 0 0 10px rgba(220, 38, 38, 0.4); }
+        #xp-bar-fill { transition: width 0.5s ease; box-shadow: 0 0 6px rgba(139, 92, 246, 0.5); }
         .action-row { background: rgba(5, 3, 15, 0.9); border-top: 1px solid rgba(139, 92, 246, 0.2); }
         @keyframes msgFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .msg-fade { animation: msgFadeIn 0.4s ease forwards; }
@@ -152,10 +153,6 @@
 </head>
 <body class="text-gray-200 min-h-screen flex items-center justify-center p-4">
 
-    <!-- Ambient Music -->
-    <audio id="music-player-a" loop preload="none"></audio>
-    <audio id="music-player-b" loop preload="none"></audio>
-
     <!-- Avatar Creation Screen -->
     <div id="avatar-screen" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.97);z-index:110;flex-direction:column;align-items:center;justify-content:center;padding:2rem;">
         <div class="death-fade max-w-lg w-full text-center">
@@ -213,7 +210,27 @@
     <div id="world-map-modal">
         <div class="w-full max-w-4xl flex justify-between items-end mb-4 px-4">
             <div class="text-purple-500 title-font tracking-[0.5em] text-sm uppercase">Atlas of the Shattered World</div>
-            <button onclick="toggleMap()" class="text-gray-500 hover:text-red-400 title-font text-xs tracking-widest uppercase transition-colors">[PRESS M TO CLOSE]</button>
+            <div class="flex items-center gap-5">
+                <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-1.5">
+                        <svg width="14" height="14"><circle cx="7" cy="7" r="6" fill="#7f1d1d" stroke="#ef4444" stroke-width="1.5"/></svg>
+                        <span class="title-font text-[9px] text-red-400 uppercase tracking-widest">Enemy</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <svg width="14" height="14"><circle cx="7" cy="7" r="6" fill="#14532d" stroke="#22c55e" stroke-width="1.5"/></svg>
+                        <span class="title-font text-[9px] text-green-400 uppercase tracking-widest">NPC</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <svg width="10" height="10"><circle cx="5" cy="5" r="5" fill="#1e1b4b" stroke="#a78bfa" stroke-width="1.5"/></svg>
+                        <span class="title-font text-[9px] text-purple-300 uppercase tracking-widest">You</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <svg width="14" height="10"><rect x="0" y="3" width="14" height="4" rx="1" fill="none" stroke="#4c1d95" stroke-width="1" stroke-dasharray="3 2"/></svg>
+                        <span class="title-font text-[9px] text-gray-500 uppercase tracking-widest">Unexplored</span>
+                    </div>
+                </div>
+                <button onclick="toggleMap()" class="text-gray-500 hover:text-red-400 title-font text-xs tracking-widest uppercase transition-colors">[PRESS M TO CLOSE]</button>
+            </div>
         </div>
         <div id="map-container">
             <canvas id="map-canvas"></canvas>
@@ -255,6 +272,15 @@
                     </div>
                     <div class="w-full h-2 stat-bar-bg rounded-full overflow-hidden">
                         <div id="hp-bar-fill" class="h-full bg-red-700 w-full"></div>
+                    </div>
+                </div>
+                <div class="space-y-2 mt-2">
+                    <div class="flex justify-between text-xs title-font tracking-tighter">
+                        <span class="text-purple-400">LEVEL <span id="stat-level" class="text-gray-300">1</span></span>
+                        <span id="stat-xp" class="text-gray-500 text-[10px]">0 / 100 XP</span>
+                    </div>
+                    <div class="w-full h-1 stat-bar-bg rounded-full overflow-hidden">
+                        <div id="xp-bar-fill" class="h-full bg-purple-700" style="width:0%"></div>
                     </div>
                 </div>
             </div>
@@ -314,8 +340,9 @@
             
             <!-- Scene Image -->
             <div class="relative w-full bg-gray-950 border-b border-purple-900/30 overflow-hidden flex-shrink-0" style="aspect-ratio:16/9">
-                <img id="scene-image" src="" class="w-full h-full object-cover opacity-0 absolute inset-0 transition-opacity duration-1000">
-                <div id="image-placeholder" class="flex flex-col items-center gap-2 text-gray-800">
+                <img id="scene-image-a" src="" class="w-full h-full object-cover opacity-0 absolute inset-0 transition-opacity duration-1000">
+                <img id="scene-image-b" src="" class="w-full h-full object-cover opacity-0 absolute inset-0 transition-opacity duration-1000">
+                <div id="image-placeholder" class="absolute inset-0 flex flex-col items-center justify-center gap-2 text-gray-800">
                     <span class="text-5xl">🌑</span>
                     <span class="title-font text-[10px] tracking-[0.5em] uppercase">Visualizing the Beyond</span>
                 </div>
@@ -334,10 +361,19 @@
                 </div>
             </div>
 
-            <div id="travel-hud" class="p-4 bg-gray-950/50 border-b border-purple-900/20 flex flex-wrap gap-3 items-center">
-                <span class="title-font text-[10px] text-purple-600 uppercase tracking-widest mr-2">Paths Forward:</span>
-                <div id="exit-buttons" class="flex gap-2">
-                    </div>
+            <div id="travel-hud" class="px-4 py-3 bg-gray-950/50 border-b border-purple-900/20 flex flex-col gap-2">
+                <div id="hud-npcs" class="hidden flex-wrap gap-2 items-center">
+                    <span class="title-font text-[9px] text-purple-500 uppercase tracking-widest mr-1 flex-shrink-0">People:</span>
+                    <div id="npc-buttons" class="flex flex-wrap gap-1.5"></div>
+                </div>
+                <div id="hud-hostile" class="hidden flex-wrap gap-2 items-center">
+                    <span class="title-font text-[9px] text-red-600 uppercase tracking-widest mr-1 flex-shrink-0">Threats:</span>
+                    <div id="hostile-buttons" class="flex flex-wrap gap-1.5"></div>
+                </div>
+                <div class="flex flex-wrap gap-2 items-center">
+                    <span class="title-font text-[9px] text-purple-600 uppercase tracking-widest mr-1 flex-shrink-0">Paths:</span>
+                    <div id="exit-buttons" class="flex flex-wrap gap-1.5"></div>
+                </div>
             </div>
 
             <!-- Combat Banner -->
@@ -411,6 +447,12 @@
             const hpPct = Math.max(0, (gameState.hp / gameState.max_hp) * 100);
             document.getElementById('hp-bar-fill').style.width = hpPct + '%';
 
+            const xp    = gameState.xp || 0;
+            const xpMax = gameState.xp_to_next_level || 100;
+            document.getElementById('stat-level').innerText = gameState.level || 1;
+            document.getElementById('stat-xp').innerText    = `${xp} / ${xpMax} XP`;
+            document.getElementById('xp-bar-fill').style.width = Math.min((xp / xpMax) * 100, 100) + '%';
+
             const statMap = {
                 str: { el: 'stat-str', bar: 'bar-str' },
                 agi: { el: 'stat-agi', bar: 'bar-agi' },
@@ -454,6 +496,9 @@
                     </button>`;
                 }).join('');
             }
+
+            // NPC / threat buttons from last known location_npcs
+            if (window._lastLocationNpcs) updateNpcHud(window._lastLocationNpcs);
 
             // Combat banner
             const cs     = gameState.combat_state || {};
@@ -816,14 +861,14 @@
                 if (!visited.has(node.id)) return;
                 const loc = mapData[node.id];
                 if (!loc) return;
+                // Dots sit above the node, outside the pulse ring (r=26)
                 if (loc.has_hostile) {
-                    npcG.appendChild(svgEl('circle',{cx:String(node.x+15),cy:String(node.y-15),r:'4.5',
-                        fill:'#7f1d1d',stroke:'#ef4444','stroke-width':'1',opacity:'0.92'}));
+                    npcG.appendChild(svgEl('circle',{cx:String(node.x+10),cy:String(node.y-34),r:'6',
+                        fill:'#7f1d1d',stroke:'#ef4444','stroke-width':'1.5',opacity:'1'}));
                 }
                 if (loc.has_friendly) {
-                    const yo = loc.has_hostile ? 12 : 0;
-                    npcG.appendChild(svgEl('circle',{cx:String(node.x-15),cy:String(node.y-15+yo),r:'4',
-                        fill:'#14532d',stroke:'#22c55e','stroke-width':'0.9',opacity:'0.88'}));
+                    npcG.appendChild(svgEl('circle',{cx:String(node.x-10),cy:String(node.y-34),r:'6',
+                        fill:'#14532d',stroke:'#22c55e','stroke-width':'1.5',opacity:'1'}));
                 }
             });
             svg.appendChild(npcG);
@@ -1054,8 +1099,6 @@
             if (visited.includes(destination)) {
                 // Use /travel endpoint — no AI call, instant
                 input.disabled = true; btn.disabled = true;
-                const sceneImg = document.getElementById('scene-image');
-                sceneImg.classList.add('opacity-0');
                 try {
                     const res = await fetch('/travel', {
                         method: 'POST',
@@ -1069,12 +1112,8 @@
                         saveState(gameState);
                     }
                     updateUI();
-                    if (data.image_base64) {
-                        sceneImg.onload = () => sceneImg.classList.remove('opacity-0');
-                        sceneImg.src = data.image_base64;
-                        document.getElementById('image-placeholder').classList.add('hidden');
-                    }
-                    const loc = mapData && mapData[destination];
+                    setSceneImage(data.image_base64 || null);
+                    if (data.location_npcs) updateNpcHud(data.location_npcs);
                     const msg = document.createElement('p');
                     msg.className = 'text-purple-400/70 font-mono text-xs italic msg-fade';
                     msg.innerText = `→ ${data.text}`;
@@ -1084,7 +1123,6 @@
                     err.className = 'text-red-500 text-xs msg-fade';
                     err.innerText = `Travel failed: ${e.message}`;
                     log.appendChild(err);
-                    sceneImg.classList.remove('opacity-0');
                 } finally {
                     input.disabled = false; btn.disabled = false; input.focus();
                 }
@@ -1218,16 +1256,13 @@
 
         function confirmAvatar() {
             document.getElementById('avatar-screen').style.display = 'none';
+            unlockAudio();
             updateUI();
             sendOpeningScene();
         }
 
         async function sendOpeningScene() {
             try {
-                const sceneImg = document.getElementById('scene-image');
-                const scenePH  = document.getElementById('image-placeholder');
-                sceneImg.classList.add('opacity-0');
-
                 const res = await fetch('/action', {
                     method:  'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1246,14 +1281,11 @@
                 }
                 updateUI();
 
-                if (data.image_base64) {
-                    sceneImg.onload = () => sceneImg.classList.remove('opacity-0');
-                    sceneImg.src = data.image_base64;
-                    if (scenePH) scenePH.classList.add('hidden');
-                }
+                setSceneImage(data.image_base64 || null);
                 if (data.music_base64) {
                     playMusic(data.music_base64, data.music_context || 'default');
                 }
+                if (data.location_npcs) updateNpcHud(data.location_npcs);
 
                 const msg = document.createElement('p');
                 msg.className = "text-gray-300 leading-relaxed msg-fade";
@@ -1280,6 +1312,10 @@
                 if (!gameState.avatar_description) {
                     document.getElementById('avatar-screen').style.display = 'flex';
                 } else {
+                    // Unlock audio on the first user interaction (autoplay policy)
+                    const _firstClick = () => { unlockAudio(); document.removeEventListener('click', _firstClick); document.removeEventListener('keydown', _firstClick); };
+                    document.addEventListener('click', _firstClick);
+                    document.addEventListener('keydown', _firstClick);
                     await sendOpeningScene();
                 }
             } else {
@@ -1305,44 +1341,42 @@
             localStorage.setItem(`echoes_save_${state.house_name}`, JSON.stringify(lean));
         }
 
-        // ── Ambient Music ──────────────────────────────────────────────────────
-        const musicA   = document.getElementById('music-player-a');
-        const musicB   = document.getElementById('music-player-b');
-        let   activePlayer  = musicA;
-        let   inactivePlayer = musicB;
-        let   musicMuted    = false;
-        let   musicVolume   = 0.35;
-        let   currentMusicContext = null;
+        // ── Ambient Music (Web Audio API — gapless looping) ───────────────────
+        let audioCtx          = null;
+        let activeGain        = null;  // GainNode for currently playing source
+        let activeSource      = null;  // AudioBufferSourceNode currently playing
+        let musicMuted        = false;
+        let musicVolume       = 0.35;
+        let currentMusicContext = null;
+        let pendingMusic      = null;
+        let audioUnlocked     = false;
+
+        function _getAudioCtx() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            return audioCtx;
+        }
 
         function setMusicVolume(v) {
             musicVolume = parseFloat(v);
-            if (!musicMuted) {
-                activePlayer.volume   = musicVolume;
-                inactivePlayer.volume = 0;
-            }
+            if (activeGain && !musicMuted) activeGain.gain.value = musicVolume;
         }
 
         function toggleMusic() {
             unlockAudio();
             const btn = document.getElementById('music-toggle');
             musicMuted = !musicMuted;
-            if (musicMuted) {
-                activePlayer.volume = 0;
-                btn.classList.add('muted');
-                btn.classList.remove('playing');
-            } else {
-                activePlayer.volume = musicVolume;
-                if (activePlayer.src) btn.classList.add('playing');
-                btn.classList.remove('muted');
-            }
+            if (activeGain) activeGain.gain.value = musicMuted ? 0 : musicVolume;
+            btn.classList.toggle('muted', musicMuted);
+            if (!musicMuted && activeSource) btn.classList.add('playing');
+            else btn.classList.remove('playing');
         }
-
-        let pendingMusic = null; // queued while browser hasn't had a user gesture yet
-        let audioUnlocked = false;
 
         function unlockAudio() {
             if (audioUnlocked) return;
             audioUnlocked = true;
+            _getAudioCtx().resume().catch(() => {});
             if (pendingMusic) {
                 const { dataUrl, context } = pendingMusic;
                 pendingMusic = null;
@@ -1352,40 +1386,134 @@
 
         function playMusic(dataUrl, context) {
             if (!dataUrl || context === currentMusicContext) return;
-            currentMusicContext = context;
-            if (!audioUnlocked) {
-                pendingMusic = { dataUrl, context };
-                return;
-            }
+            if (!audioUnlocked) { pendingMusic = { dataUrl, context }; return; }
             _startPlayback(dataUrl, context);
         }
 
-        function _startPlayback(dataUrl, context) {
-            const btn = document.getElementById('music-toggle');
+        async function _startPlayback(dataUrl, context) {
+            try {
+                const ctx = _getAudioCtx();
+                // Attempt resume in case AudioContext is still suspended
+                if (ctx.state === 'suspended') await ctx.resume();
 
-            inactivePlayer.src    = dataUrl;
-            inactivePlayer.volume = 0;
-            inactivePlayer.loop   = true;
+                // Decode base64 → ArrayBuffer → AudioBuffer
+                const base64 = dataUrl.split(',')[1];
+                const binary  = atob(base64);
+                const bytes   = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                const audioBuffer = await ctx.decodeAudioData(bytes.buffer);
 
-            inactivePlayer.play().then(() => {
-                const steps    = 40;
-                const interval = 2000 / steps;
-                let   step     = 0;
-                const fade = setInterval(() => {
-                    step++;
-                    const t = step / steps;
-                    if (!musicMuted) inactivePlayer.volume = musicVolume * t;
-                    activePlayer.volume = musicVolume * (1 - t);
-                    if (step >= steps) {
-                        clearInterval(fade);
-                        activePlayer.pause();
-                        activePlayer.src = '';
-                        [activePlayer, inactivePlayer] = [inactivePlayer, activePlayer];
-                        if (!musicMuted) activePlayer.volume = musicVolume;
-                        if (!musicMuted) btn.classList.add('playing');
-                    }
-                }, interval);
-            }).catch(e => console.warn('[music] playback blocked:', e));
+                // New source + gain nodes
+                const newGain   = ctx.createGain();
+                const newSource = ctx.createBufferSource();
+                newSource.buffer = audioBuffer;
+                newSource.loop   = true;
+                newSource.connect(newGain);
+                newGain.connect(ctx.destination);
+                newGain.gain.value = 0;
+                newSource.start();
+
+                // Crossfade over 2 s
+                const FADE = 2;
+                const now  = ctx.currentTime;
+                newGain.gain.linearRampToValueAtTime(musicMuted ? 0 : musicVolume, now + FADE);
+                if (activeGain) {
+                    activeGain.gain.linearRampToValueAtTime(0, now + FADE);
+                    const old = activeSource;
+                    const oldGain = activeGain;
+                    setTimeout(() => { old.stop(); oldGain.disconnect(); }, (FADE + 0.1) * 1000);
+                }
+
+                activeSource = newSource;
+                activeGain   = newGain;
+                currentMusicContext = context;  // only set after successful start
+
+                const btn = document.getElementById('music-toggle');
+                if (!musicMuted) btn.classList.add('playing');
+            } catch(e) {
+                console.warn('[music] playback error:', e);
+                // Don't set currentMusicContext — allows retry on next call
+            }
+        }
+
+        // ── Scene Image Crossfade ──────────────────────────────────────────────
+        let _activeSceneImg = 'a';  // which img element is currently shown
+
+        function setSceneImage(base64) {
+            const ph      = document.getElementById('image-placeholder');
+            const current = document.getElementById(`scene-image-${_activeSceneImg}`);
+            const next    = document.getElementById(`scene-image-${_activeSceneImg === 'a' ? 'b' : 'a'}`);
+
+            if (!base64) {
+                // No image — fade out current and show placeholder
+                current.classList.remove('opacity-100');
+                current.classList.add('opacity-0');
+                if (ph) ph.classList.remove('hidden');
+                return;
+            }
+
+            next.src = base64;
+            next.onload = () => {
+                // Fade in new, fade out old — old image stays visible during load
+                next.classList.remove('opacity-0');
+                next.classList.add('opacity-100');
+                current.classList.remove('opacity-100');
+                current.classList.add('opacity-0');
+                if (ph) ph.classList.add('hidden');
+                _activeSceneImg = _activeSceneImg === 'a' ? 'b' : 'a';
+                // Clear the now-hidden image after the transition
+                setTimeout(() => { current.src = ''; }, 1100);
+            };
+        }
+
+        // ── NPC / Threat HUD ───────────────────────────────────────────────────
+        function updateNpcHud(locationNpcs) {
+            if (!locationNpcs) return;
+            window._lastLocationNpcs = locationNpcs;
+
+            // Keep mapData in sync so map dots reflect live NPC state
+            if (mapData && gameState && gameState.location && mapData[gameState.location]) {
+                mapData[gameState.location].has_friendly = locationNpcs.friendly.length > 0;
+                mapData[gameState.location].has_hostile  = locationNpcs.hostile.length  > 0;
+                if (isMapOpen) buildMapSVG();
+                buildMiniMap(gameState.location);
+            }
+
+            const friendly = locationNpcs.friendly || [];
+            const hostile  = locationNpcs.hostile  || [];
+
+            const npcRow      = document.getElementById('hud-npcs');
+            const hostileRow  = document.getElementById('hud-hostile');
+            const npcBtns     = document.getElementById('npc-buttons');
+            const hostileBtns = document.getElementById('hostile-buttons');
+
+            if (friendly.length > 0) {
+                npcBtns.innerHTML = friendly.map(n =>
+                    `<button onclick="document.getElementById('action-input').value='talk to ${n.name}'; document.getElementById('action-input').focus();"
+                        class="title-font text-[9px] uppercase tracking-wider px-2.5 py-1 border border-purple-900/40 hover:border-purple-500 hover:text-purple-300 text-purple-500 rounded transition-all">
+                        ${n.name}
+                    </button>`
+                ).join('');
+                npcRow.classList.remove('hidden');
+                npcRow.classList.add('flex');
+            } else {
+                npcRow.classList.add('hidden');
+                npcRow.classList.remove('flex');
+            }
+
+            if (hostile.length > 0) {
+                hostileBtns.innerHTML = hostile.map(n =>
+                    `<button onclick="document.getElementById('action-input').value='attack ${n.name}'; document.getElementById('action-input').focus();"
+                        class="title-font text-[9px] uppercase tracking-wider px-2.5 py-1 border border-red-900/40 hover:border-red-500 hover:text-red-300 text-red-500 rounded transition-all">
+                        ⚔ ${n.name}
+                    </button>`
+                ).join('');
+                hostileRow.classList.remove('hidden');
+                hostileRow.classList.add('flex');
+            } else {
+                hostileRow.classList.add('hidden');
+                hostileRow.classList.remove('flex');
+            }
         }
 
         // ── Action Loop ────────────────────────────────────────────────────────
@@ -1402,11 +1530,6 @@
             input.value    = '';
             input.disabled = true;
             btn.disabled   = true;
-
-            // Fade out current scene image while waiting
-            const sceneImg   = document.getElementById('scene-image');
-            const scenePH    = document.getElementById('image-placeholder');
-            sceneImg.classList.add('opacity-0');
 
             try {
                 const response = await fetch('/action', {
@@ -1438,15 +1561,11 @@
                     playMusic(data.music_base64, data.music_context || 'default');
                 }
 
+                // NPC / threat HUD
+                if (data.location_npcs) updateNpcHud(data.location_npcs);
+
                 // Scene image
-                if (data.image_base64) {
-                    sceneImg.onload = () => sceneImg.classList.remove('opacity-0');
-                    sceneImg.src = data.image_base64;
-                    if (scenePH) scenePH.classList.add('hidden');
-                } else {
-                    sceneImg.src = '';
-                    if (scenePH) scenePH.classList.remove('hidden');
-                }
+                setSceneImage(data.image_base64 || null);
 
                 // Narrative message
                 const sMsg = document.createElement('p');

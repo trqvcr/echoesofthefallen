@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 from models import RegisterRequest, LoginRequest, ActionRequest, RiseRequest, AvatarRequest, TravelRequest
 from db import get_player, save_player, get_world, get_all_locations, save_location, hash_password
-from enemies import tick_spawns
+from enemies import tick_spawns, tick_story_npcs
 from world_tick import tick_world
 from combat import player_to_state, _start_combat, process_combat_turn, _make_ancestor_record, build_heir
 from images import generate_scene_image, generate_avatar_portrait
@@ -54,6 +54,21 @@ async def serve_map_bg():
     if os.path.exists(path):
         return FileResponse(path, media_type="image/jpeg")
     raise HTTPException(status_code=404, detail="Map background not generated yet. Run generate_map_bg.py")
+
+
+def _location_npcs(location: dict) -> dict:
+    """Return friendly/neutral and hostile NPC summaries for a location."""
+    friendly, hostile = [], []
+    for npc_id, npc in location.get("npcs", {}).items():
+        if npc.get("status") == "dead":
+            continue
+        disp = npc.get("disposition", 0)
+        entry = {"id": npc_id, "name": npc["name"]}
+        if disp <= -50:
+            hostile.append(entry)
+        else:
+            friendly.append(entry)
+    return {"friendly": friendly, "hostile": hostile}
 
 
 @app.get("/map.json")
@@ -232,6 +247,7 @@ async def handle_action(request: ActionRequest):
     world_state   = get_world()
     all_locations = get_all_locations()
     all_locations = tick_spawns(all_locations)
+    all_locations = tick_story_npcs(all_locations)
     all_locations = tick_world(all_locations)
 
     player = get_player(request.player_id)
@@ -271,6 +287,10 @@ async def handle_action(request: ActionRequest):
         if music_data:
             result["music_base64"]  = music_data
             result["music_context"] = music_ctx
+
+    # Always include current location NPC summary for the HUD
+    post_loc_data = all_locations.get(post_location, {})
+    result["location_npcs"] = _location_npcs(post_loc_data)
 
     return result
 
@@ -420,14 +440,33 @@ VISUAL: [scene description for image generation]"""
     player["history"].append(action)
     player["history"] = player["history"][-20:]
 
-    attrs  = player["attributes"]
+    attrs = player["attributes"]
+
+    npc_lines = []
+    for k, v in current_location.get("npcs", {}).items():
+        if v.get("status") == "dead":
+            npc_lines.append(f"- {v['name']} [DEAD]")
+            continue
+        disp  = v.get("disposition", 0)
+        mood  = "friendly" if disp >= 30 else "neutral" if disp >= -20 else "hostile"
+        desc  = v.get("description", "")
+        mem   = v.get("memory", [])
+        entry = f"- {v['name']} (mood: {mood}, disposition: {disp})"
+        if desc:
+            entry += f"\n  Personality/appearance: {desc}"
+        if mem:
+            entry += f"\n  Remembers: {'; '.join(mem[-3:])}"
+        npc_lines.append(entry)
+    npc_block = "\n".join(npc_lines) if npc_lines else "none"
+
     prompt = f"""You are a dark fantasy dungeon master for 'Echoes of the Fallen'.
 
 WORLD HISTORY: {world_state['world_history']}
 LOCATION: {current_location['name']}
 DESCRIPTION: {current_location['description']}
 CURRENT STATE: {_format_state_for_prompt(current_location.get('state', {}))}
-NPCS HERE: {[f"{k}: {v['name']} (disposition: {v.get('disposition',0)}, status: {v.get('status','alive')})" for k,v in current_location.get('npcs',{}).items()]}
+NPCS HERE:
+{npc_block}
 LOCATION HISTORY: {current_location.get('history', [])[-5:]}
 
 PLAYER: {player['name']} | Race: {player['race']} | Class: {player['class']}
@@ -439,7 +478,11 @@ RECENT ACTIONS: {player['history'][-5:]}
 
 PLAYER ACTION: {action}
 
-Respond with vivid narrative (2-3 sentences). Do NOT include any game mechanic notations, inventory updates, state updates, or bracketed annotations in your response — pure prose only."""
+Guidelines:
+- If the player is talking to an NPC, write dialogue in their voice based on their personality. NPCs remember past interactions.
+- If the player is examining something, reveal lore and sensory detail — smells, sounds, inscriptions, textures.
+- If the player finds a clue or discovery, make it feel earned and specific to this location.
+- 2-3 sentences of pure prose. No bracketed annotations or mechanic text."""
 
     narrative = "[The void is silent — no AI connected]"
     mutation  = {"env_damage": 0, "visual": "", "state_changes": [], "items_gained": [], "npc_id": "", "npc_delta": 0, "npc_memory": "", "history": ""}
