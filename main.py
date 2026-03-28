@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from models import RegisterRequest, LoginRequest, ActionRequest
 from db import get_player, save_player, get_world, get_all_locations, save_location, hash_password
 from enemies import tick_spawns
-from combat import player_to_state, _start_combat, process_combat_turn
+from combat import player_to_state, _start_combat, process_combat_turn, _handle_death
 
 load_dotenv()
 
@@ -245,7 +245,7 @@ VISUAL: [scene description for image generation]"""
         narrative = "[Combat begins]"
         if client:
             response  = client.models.generate_content(model="gemini-2.5-flash", contents=combat_prompt)
-            narrative = response.text
+            narrative = response.text or "[Combat begins]"
 
         display_text = "\n".join(
             line for line in narrative.splitlines()
@@ -294,7 +294,7 @@ VISUAL: [one sentence describing the scene for image generation]"""
     narrative = "[The void is silent — no AI connected]"
     if client:
         response  = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
-        narrative = response.text
+        narrative = response.text or "[The void is silent — no AI connected]"
 
     display_text = "\n".join(
         line for line in narrative.splitlines()

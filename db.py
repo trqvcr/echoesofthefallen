@@ -8,6 +8,10 @@ load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise ValueError("SUPABASE_URL and SUPABASE_KEY environment variables must be set")
+
 sb = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
@@ -16,7 +20,7 @@ sb = create_client(SUPABASE_URL, SUPABASE_KEY)
 def get_player(player_id: str) -> dict | None:
     res = sb.table("players").select("state").eq("id", player_id).execute()
     if res.data:
-        return res.data[0]["state"]
+        return res.data[0]["state"]  # type: ignore
     return None
 
 def save_player(player_id: str, state: dict):
@@ -41,8 +45,11 @@ def get_all_locations() -> dict:
 
 def get_location(key: str) -> dict | None:
     res = sb.table("locations").select("data").eq("key", key).execute()
-    if res.data:
-        return res.data[0]["data"]
+    if res.data and isinstance(res.data, list) and len(res.data) > 0:
+        row = res.data[0]
+        if isinstance(row, dict):
+            data = row.get("data")
+            return data if isinstance(data, dict) else None
     return None
 
 def save_location(key: str, data: dict):
