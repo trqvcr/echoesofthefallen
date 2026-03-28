@@ -2,13 +2,7 @@ import base64
 from google.genai.types import (
     GenerateImagesConfig,
     GenerateContentConfig,
-    EditImageConfig,
-    SubjectReferenceImage,
-    SubjectReferenceConfig,
-    SubjectReferenceType,
-    Image,
 )
-
 STYLE = (
     "League of Legends cinematic splash art style, painterly digital illustration, "
     "dramatic fantasy lighting, rich saturated colors, highly detailed, "
@@ -113,12 +107,7 @@ def generate_scene_image(
     avatar_portrait_b64: str = "",
     npc_portrait_b64: str = "",
 ) -> str:
-    """
-    Generate a 16:9 scene image.
-    If portrait reference images are provided, uses edit_image with SubjectReferenceImage
-    so the character and NPC look consistent with their stored portraits.
-    Falls back to standard generate_images if reference-based generation fails.
-    """
+    """Generate a 16:9 scene image using text-to-image."""
     if not client or not visual_prompt or visual_prompt.strip().lower() in ("", "[none]"):
         return ""
 
@@ -126,48 +115,6 @@ def generate_scene_image(
     styled_prompt = f"{scene}. {STYLE}"
     print(f"[scene] prompt: {styled_prompt[:140]}...")
 
-    # Build subject reference list from stored portraits
-    references = []
-    ref_id     = 1
-
-    avatar_bytes = _decode_portrait(avatar_portrait_b64)
-    if avatar_bytes:
-        references.append(SubjectReferenceImage(
-            reference_id=ref_id,
-            reference_image=Image(image_bytes=avatar_bytes, mime_type="image/jpeg"),
-            config=SubjectReferenceConfig(subject_type=SubjectReferenceType.SUBJECT_TYPE_PERSON),
-        ))
-        ref_id += 1
-
-    npc_bytes = _decode_portrait(npc_portrait_b64)
-    if npc_bytes:
-        references.append(SubjectReferenceImage(
-            reference_id=ref_id,
-            reference_image=Image(image_bytes=npc_bytes, mime_type="image/jpeg"),
-            config=SubjectReferenceConfig(subject_type=SubjectReferenceType.SUBJECT_TYPE_PERSON),
-        ))
-
-    # Try reference-driven generation first
-    if references:
-        try:
-            result = client.models.edit_image(
-                model="imagen-3.0-capability-001",
-                prompt=styled_prompt,
-                reference_images=references,
-                config=EditImageConfig(
-                    number_of_images=1,
-                    aspect_ratio="16:9",
-                    output_mime_type="image/jpeg",
-                    person_generation="ALLOW_ALL",
-                ),
-            )
-            if result.generated_images:
-                img_bytes = result.generated_images[0].image.image_bytes
-                return f"data:image/jpeg;base64,{base64.b64encode(img_bytes).decode()}"
-        except Exception as e:
-            print(f"[scene] reference generation failed ({e}), falling back to text-only")
-
-    # Fallback: standard text-to-image
     try:
         result = client.models.generate_images(
             model="imagen-4.0-fast-generate-001",
@@ -182,7 +129,7 @@ def generate_scene_image(
             img_bytes = result.generated_images[0].image.image_bytes
             return f"data:image/jpeg;base64,{base64.b64encode(img_bytes).decode()}"
     except Exception as e:
-        print(f"[scene] fallback generation failed: {e}")
+        print(f"[scene] generation failed: {e}")
 
     return ""
 

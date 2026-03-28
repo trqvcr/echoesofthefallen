@@ -469,45 +469,67 @@ async def handle_action(request: ActionRequest):
 
     prev_context = get_music_context(pre_location, pre_combat)
     new_context  = get_music_context(post_location, post_combat)
-    needs_music  = new_context != prev_context or combat_event in ("start", "victory", "fled")
+    needs_music  = True  # always generate; client handles looping
+
+    print(f"[DEBUG] prev_ctx={prev_context} new_ctx={new_context} combat_event={combat_event} needs_music={needs_music}")
 
     loop = asyncio.get_running_loop()
 
-    # ── Image generation (exploration path only; combat already has image_base64) ─
+   # ── Image, TTS, Music — run in parallel ───────────────────────────────────
+    tasks = {}
+
     if "_visual_prompt" in result:
         vp     = result.pop("_visual_prompt")
         np_    = result.pop("_npc_portrait", "")
         ap     = result.pop("_avatar_portrait", "")
         lk     = result.pop("_location_key", "")
         no_ref = result.pop("_no_ref_image", False)
-
-        scene_img = await loop.run_in_executor(
+        tasks["image"] = loop.run_in_executor(
             None, partial(generate_scene_image, client, vp,
                           avatar_portrait_b64=ap, npc_portrait_b64=np_))
-        result["image_base64"] = scene_img or ""
+    else:
+        lk, no_ref = "", False
 
-        if scene_img and no_ref and lk:
-            all_loc = get_all_locations()
-            loc = all_loc.get(lk, {})
-            if loc and not loc.get("reference_image"):
-                loc["reference_image"] = scene_img
-                save_location(lk, loc)
-
-    # ── TTS — included in response so voice plays in sync with music ─────────
     narrative_text = result.get("text", "")
     if narrative_text and client:
-        tts_b64 = await loop.run_in_executor(
+        tasks["tts"] = loop.run_in_executor(
             None, partial(generate_tts_audio, client, narrative_text))
-        if tts_b64:
-            result["tts_base64"] = tts_b64
 
-    # ── Music generation ──────────────────────────────────────────────────────
     if needs_music:
-        music_data, music_ctx = await loop.run_in_executor(
+        tasks["music"] = loop.run_in_executor(
             None, partial(generate_ambient_music, client, post_location, post_combat))
-        if music_data:
-            result["music_base64"]  = music_data
-            result["music_context"] = music_ctx
+
+    if tasks:
+        gathered = await asyncio.gather(*tasks.values(), return_exceptions=True)
+        task_results = dict(zip(tasks.keys(), gathered))
+
+        if tasks:
+            gathered = await asyncio.gather(*tasks.values(), return_exceptions=True)
+            task_results = dict(zip(tasks.keys(), gathered))
+            print(f"[DEBUG] task_results keys: {list(task_results.keys())}, music: {task_results.get('music')}")  # ← ADD THIS LINE
+
+        if "image" in task_results:
+            scene_img = task_results["image"] if not isinstance(task_results["image"], Exception) else None
+            result["image_base64"] = scene_img or ""
+            if scene_img and no_ref and lk:
+                all_loc = get_all_locations()
+                loc = all_loc.get(lk, {})
+                if loc and not loc.get("reference_image"):
+                    loc["reference_image"] = scene_img
+                    save_location(lk, loc)
+
+        if "tts" in task_results:
+            tts_b64 = task_results["tts"] if not isinstance(task_results["tts"], Exception) else None
+            if tts_b64:
+                result["tts_base64"] = tts_b64
+
+        if "music" in task_results:
+            music_result = task_results["music"] if not isinstance(task_results["music"], Exception) else None
+            if music_result:
+                music_data, music_ctx = music_result
+                if music_data:
+                    result["music_base64"]  = music_data
+                    result["music_context"] = music_ctx
 
     # Always include current location NPC summary for the HUD
     post_loc_data = all_locations.get(post_location, {})
