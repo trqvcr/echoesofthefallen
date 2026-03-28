@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Echoes of the Fallen</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-950 text-gray-200 font-mono h-screen flex flex-col items-center justify-center p-4">
+
+    <div class="w-full max-w-3xl bg-gray-900 border border-gray-700 rounded-lg shadow-[0_0_20px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col h-[80vh]">
+        
+        <div class="h-64 bg-gray-800 border-b border-gray-700 flex items-center justify-center overflow-hidden relative">
+            <img id="scene-image" src="" alt="Scene Image" class="object-cover w-full h-full hidden">
+            <p id="image-placeholder-text" class="text-gray-500 italic">Visuals loading...</p>
+        </div>
+
+        <div id="narrative-log" class="flex-1 p-6 overflow-y-auto space-y-4">
+            <p class="text-purple-400">System: Welcome to Echoes of the Fallen.</p>
+        </div>
+
+        <div class="p-4 bg-gray-950 border-t border-gray-700 flex gap-2">
+            <span class="text-gray-500 py-2">&gt;</span>
+            <input type="text" id="action-input" placeholder="What do you do? (e.g., 'go north')" 
+                   class="flex-1 bg-transparent border-none outline-none text-green-400 placeholder-gray-600">
+            <button id="submit-btn" class="px-4 py-2 bg-purple-900 hover:bg-purple-700 text-white rounded transition-colors">
+                Action
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // 1. Game State Setup
+        const playerId = "test_player_1"; // Hardcoded for now
+        let currentRoom = "Aether_Wharf"; // Starting room from your map.json
+
+        // 2. UI Elements
+        const log = document.getElementById('narrative-log');
+        const input = document.getElementById('action-input');
+        const btn = document.getElementById('submit-btn');
+
+        // 3. The Core Function: Sending data to your FastAPI Python server
+        async function sendAction() {
+            const actionText = input.value.trim();
+            if (!actionText) return;
+
+            // Display player's action in the log
+            log.innerHTML += `<p class="text-green-400 opacity-80">&gt; ${actionText}</p>`;
+            input.value = '';
+            
+            // Auto-scroll to the bottom
+            log.scrollTop = log.scrollHeight;
+
+            try {
+                // Talk to the FastAPI terminal server
+                const response = await fetch('http://localhost:8000/action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        player_id: playerId,
+                        action: actionText,
+                        current_room: currentRoom
+                    })
+                });
+
+                const data = await response.json();
+
+                // Update the current room based on what the server says
+                currentRoom = data.current_room;
+
+                // Display the server's response
+                log.innerHTML += `<p class="text-gray-200">${data.text}</p>`;
+                log.scrollTop = log.scrollHeight;
+
+            } catch (error) {
+                log.innerHTML += `<p class="text-red-500">Error connecting to the void (Is your server running?)</p>`;
+            }
+        }
+
+        // Trigger action on button click or 'Enter' key
+        btn.addEventListener('click', sendAction);
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendAction();
+        });
+    </script>
+</body>
+</html>
