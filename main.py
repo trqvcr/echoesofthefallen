@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from google import genai
-from google.genai.types import GenerateImagesConfig
+from google.genai.types import GenerateImagesConfig, GenerateContentConfig, Schema, Type
 from dotenv import load_dotenv
 
 from models import RegisterRequest, LoginRequest, ActionRequest, RiseRequest, AvatarRequest
@@ -326,8 +326,8 @@ VISUAL: [scene description for image generation]"""
 WORLD HISTORY: {world_state['world_history']}
 LOCATION: {current_location['name']}
 DESCRIPTION: {current_location['description']}
-LOCATION STATE: {current_location.get('state', {})}
-NPCS PRESENT: {[f"{k}: {v['name']} (disposition: {v.get('disposition',0)}, status: {v.get('status','alive')})" for k,v in current_location.get('npcs',{}).items()]}
+CURRENT STATE FLAGS: {current_location.get('state', {})}
+NPCS HERE: {[f"{k}: {v['name']} (disposition: {v.get('disposition',0)}, status: {v.get('status','alive')})" for k,v in current_location.get('npcs',{}).items()]}
 LOCATION HISTORY: {current_location.get('history', [])[-5:]}
 
 PLAYER: {player['name']} | Race: {player['race']} | Class: {player['class']}
@@ -339,70 +339,80 @@ RECENT ACTIONS: {player['history'][-5:]}
 
 PLAYER ACTION: {action}
 
-Respond with vivid narrative (2-3 sentences). Then output EXACTLY these tags on new lines:
-ENV_DAMAGE: [integer 0-999 — non-zero if the action causes physical harm OR the player explicitly declares death/dying. Examples: falling, self-harm, hazards, touching dangerous objects, fatal illness, declaring "I die", drinking poison, jumping into void. If the action is explicitly fatal or the player declares death, output {player['max_hp']} to guarantee death. Use 0 for normal exploration, movement, talking, or inspecting.]
-VISUAL: [one sentence describing the scene for image generation]
-STATE_CHANGES: [JSON object of state flags to set, e.g. {{"broken_chair": true}} — or {{}} if nothing changed]
-NPC_UPDATE: [npc_id|disposition_delta|memory_to_append — or none if no NPC was affected]
-HISTORY: [one sentence to append to this location's history log — or none]"""
+Respond with vivid narrative (2-3 sentences)."""
 
     narrative = "[The void is silent — no AI connected]"
-    raw_text  = ""
+    mutation  = {"env_damage": 0, "visual": "", "state_changes": {}, "npc_id": "", "npc_delta": 0, "npc_memory": "", "history": ""}
+
     if client:
+        # Call 1: narrative
         response  = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
-        raw_text  = response.text or ""
-        narrative = raw_text or "[The void is silent — no AI connected]"
+        narrative = response.text or "[The void is silent — no AI connected]"
 
-    def parse_tag(tag, text, default=""):
-        for line in text.splitlines():
-            if line.strip().startswith(f"{tag}:"):
-                return line.split(":", 1)[1].strip()
-        return default
+        # Call 2: structured mutations
+        mutation_prompt = f"""Given this game action and its narrative, extract the world state changes.
 
-    tag_prefixes = ["ENV_DAMAGE:", "VISUAL:", "STATE_CHANGES:", "NPC_UPDATE:", "HISTORY:"]
-    display_text = "\n".join(
-        line for line in narrative.splitlines()
-        if not any(line.strip().startswith(t) for t in tag_prefixes)
-    ).strip()
+LOCATION: {current_location['name']}
+CURRENT STATE FLAGS: {current_location.get('state', {})}
+NPCS HERE: {list(current_location.get('npcs', {}).keys())}
+PLAYER ACTION: {action}
+NARRATIVE: {narrative}
+
+Extract what changed."""
+
+        mutation_schema = Schema(
+            type=Type.OBJECT,
+            properties={
+                "env_damage":    Schema(type=Type.INTEGER, description="HP damage from environment, 0 if none"),
+                "visual":        Schema(type=Type.STRING,  description="One sentence scene description for image generation"),
+                "state_changes": Schema(type=Type.OBJECT,  description="State flags that changed, e.g. broken_table:true. Invent new keys freely."),
+                "npc_id":        Schema(type=Type.STRING,  description="NPC id that was affected, empty string if none"),
+                "npc_delta":     Schema(type=Type.INTEGER, description="Disposition change for the NPC, 0 if none"),
+                "npc_memory":    Schema(type=Type.STRING,  description="Memory to append to NPC, empty string if none"),
+                "history":       Schema(type=Type.STRING,  description="One sentence for location history log, empty string if nothing significant"),
+            },
+            required=["env_damage", "visual", "state_changes", "npc_id", "npc_delta", "npc_memory", "history"]
+        )
+
+        try:
+            mut_response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=mutation_prompt,
+                config=GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=mutation_schema
+                )
+            )
+            mutation = json.loads(mut_response.text)
+            print(f"=== MUTATION ===\n{mutation}\n================")
+        except Exception as e:
+            print(f"Mutation extraction failed: {e}")
+
+    display_text = narrative.strip()
 
     # ── Apply world state mutations ────────────────────────────────────────────
     location_dirty = False
 
-    state_changes_raw = parse_tag("STATE_CHANGES", raw_text)
-    if state_changes_raw and state_changes_raw != "{}":
-        try:
-            changes = json.loads(state_changes_raw)
-            if isinstance(changes, dict) and changes:
-                if "state" not in current_location:
-                    current_location["state"] = {}
-                current_location["state"].update(changes)
-                location_dirty = True
-        except (json.JSONDecodeError, ValueError):
-            pass
+    state_changes = mutation.get("state_changes", {})
+    if isinstance(state_changes, dict) and state_changes:
+        if "state" not in current_location:
+            current_location["state"] = {}
+        current_location["state"].update(state_changes)
+        location_dirty = True
 
-    npc_update_raw = parse_tag("NPC_UPDATE", raw_text)
-    if npc_update_raw and npc_update_raw.lower() != "none":
-        parts = npc_update_raw.split("|")
-        if len(parts) >= 3:
-            npc_id, delta_str, memory_str = parts[0].strip(), parts[1].strip(), parts[2].strip()
-            npcs = current_location.get("npcs", {})
-            if npc_id in npcs:
-                try:
-                    delta = int(delta_str)
-                    npcs[npc_id]["disposition"] = npcs[npc_id].get("disposition", 0) + delta
-                except ValueError:
-                    pass
-                if "memory" not in npcs[npc_id]:
-                    npcs[npc_id]["memory"] = []
-                npcs[npc_id]["memory"].append(memory_str)
-                current_location["npcs"] = npcs
-                location_dirty = True
+    npc_id     = mutation.get("npc_id", "")
+    npc_delta  = mutation.get("npc_delta", 0)
+    npc_memory = mutation.get("npc_memory", "")
+    if npc_id and npc_id in current_location.get("npcs", {}):
+        if npc_delta:
+            current_location["npcs"][npc_id]["disposition"] = current_location["npcs"][npc_id].get("disposition", 0) + npc_delta
+        if npc_memory:
+            current_location["npcs"][npc_id].setdefault("memory", []).append(npc_memory)
+        location_dirty = True
 
-    history_raw = parse_tag("HISTORY", raw_text)
-    if history_raw and history_raw.lower() != "none":
-        if "history" not in current_location:
-            current_location["history"] = []
-        current_location["history"].append(f"[{player['name']}] {history_raw}")
+    history_entry = mutation.get("history", "")
+    if history_entry:
+        current_location.setdefault("history", []).append(f"[{player['name']}] {history_entry}")
         location_dirty = True
 
     if location_dirty:
@@ -411,12 +421,7 @@ HISTORY: [one sentence to append to this location's history log — or none]"""
     # ── Environmental damage ───────────────────────────────────────────────────
     combat_event = None
     extra_data   = {}
-
-    try:
-        env_damage = int(parse_tag("ENV_DAMAGE", raw_text, "0"))
-        env_damage = max(0, env_damage)
-    except ValueError:
-        env_damage = 0
+    env_damage   = max(0, int(mutation.get("env_damage", 0)))
 
     if env_damage > 0:
         player["hp"] = max(0, player["hp"] - env_damage)
@@ -434,7 +439,7 @@ HISTORY: [one sentence to append to this location's history log — or none]"""
 
     result = {
         "text":         display_text,
-        "image_base64": generate_scene_image(client, parse_tag("VISUAL", raw_text), player.get("avatar_description", "")),
+        "image_base64": generate_scene_image(client, mutation.get("visual", ""), player.get("avatar_description", "")),
         "status":       player["status"],
         "location":     current_location["name"],
         "state":        player_to_state(player),
