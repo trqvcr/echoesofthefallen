@@ -526,7 +526,7 @@
 
     function showClipImages(clipIdx) {
         const imgIndices = clipImageMap[clipIdx] || [clipIdx];
-        const imgIdx     = imgIndices[imageCyclePos % imgIndices.length];
+        const imgIdx     = imgIndices[Math.min(imageCyclePos, imgIndices.length - 1)];
         document.querySelectorAll('.clip-image').forEach(i => i.classList.remove('active'));
         if (imageReadiness[imgIdx]) {
             document.getElementById(`img-${imgIdx}`)?.classList.add('active');
@@ -542,7 +542,7 @@
             imageCycleTimer = setInterval(() => {
                 imageCyclePos++;
                 showClipImages(clipIdx);
-            }, 9000);
+            }, 16000);
         }
     }
 
@@ -685,7 +685,12 @@
             if (r.ok) {
                 const d = await r.json();
                 if (d.state && d.state.avatar_description) {
-                    // Already has avatar — go straight to game
+                    // Already has avatar — preload opening scene then go to game
+                    fetch('/prime-opening', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ player_id: playerId, action: 'look around' })
+                    }).catch(() => {});
                     window.location.href = '/game';
                     return;
                 }
@@ -736,7 +741,15 @@
         }
     }
 
-    function confirmAvatar() { window.location.href = '/game'; }
+    function confirmAvatar() {
+        // Kick off opening scene computation now so game page loads instantly
+        fetch('/prime-opening', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ player_id: sessionStorage.getItem('playerId'), action: 'look around' })
+        }).catch(() => {});
+        window.location.href = '/game';
+    }
 
     // ── Init ──────────────────────────────────────────────────────────────────
     window.onload = () => {

@@ -86,30 +86,37 @@ INTRO_NARRATIONS = [
 
 # ── Intro still images (replace videos) ───────────────────────────────────────
 
+_CINEMATIC = (
+    "League of Legends cinematic splash art style, painterly digital illustration, "
+    "dramatic fantasy lighting, rich saturated colors, highly detailed, "
+    "dark fantasy atmosphere, volumetric fog, wide cinematic 16:9 composition"
+)
+
 INTRO_IMAGES = [
     # ── Clip 0: The King Who Reached Too Far ──────────────────────────────────
     {
         "path": "intro_image_0.jpg",
         "clip": 0,
         "prompt": (
-            "16-bit pixel art dark fantasy landscape, wide cinematic 16:9. "
-            "A vast night sky crackles with swirling purple void energy above a jagged dark island coast. "
-            "A towering stone spire — the Shattered Spire — dominates the center, its peak wreathed in glowing crimson and violet tendrils. "
-            "At the summit, a tiny crowned king figure reaches upward. Ash drifts like snow. "
-            "Stars twinkle. Deep blacks, muted purples, and crimson glows. "
-            "SNES/GBA retro pixel art style, chunky sprites, limited palette, no antialiasing."
+            "Dark fantasy cinematic landscape. A colossal obsidian spire — the Shattered Spire — "
+            "erupts from a mist-shrouded island at night. Its peak crackles with swirling violet and crimson void energy. "
+            "A lone crowned king stands silhouetted at the very summit, arms raised toward a sky torn with dark tendrils. "
+            "Ash drifts like snow across a deep purple and black sky. Distant stars bleed into the void. "
+            "Dramatic low-angle shot, volumetric god-rays of dark energy, ominous grandeur. "
+            + _CINEMATIC
         ),
     },
     {
         "path": "intro_image_1.jpg",
         "clip": 0,
         "prompt": (
-            "16-bit pixel art dark fantasy interior, wide cinematic 16:9. "
-            "A candlelit stone scriptorium deep inside a dark tower. Robed pixel art scholars hunch over enormous "
-            "open tomes on stone desks, scrawling void runes by candlelight. Shelves of crumbling books line the walls. "
-            "A crowned king pixel sprite paces behind them, face etched with fear, clutching a skull-carved scepter. "
-            "Candles cast long purple and amber shadows. Dust motes drift in the air. "
-            "SNES/GBA retro pixel art style, chunky sprites, warm candlelight against deep purple shadows."
+            "Dark fantasy cinematic interior. A vast candlelit stone scriptorium inside a dark tower. "
+            "Hunched scholars in dark robes pore over enormous crumbling tomes on heavy stone desks, "
+            "quills scratching void runes by candlelight. Floor-to-ceiling shelves overflow with decaying books. "
+            "A crowned king in ornate gold armor paces behind them, face gaunt with fear, a skull-carved scepter in hand. "
+            "Amber candlelight battles deep purple shadow. Dust motes drift through shafts of dim light. "
+            "Cinematic wide shot, warm chiaroscuro lighting, oppressive dread. "
+            + _CINEMATIC
         ),
     },
     # ── Clip 1: The Night of the Shattering ───────────────────────────────────
@@ -117,36 +124,40 @@ INTRO_IMAGES = [
         "path": "intro_image_2.jpg",
         "clip": 1,
         "prompt": (
-            "16-bit pixel art dark fantasy scene, wide cinematic 16:9. "
-            "Night. Seven black-robed cultist pixel sprites stand in a ritual circle on cracked stone ground. "
-            "At the center, a jagged crimson void shard floats above an altar, pulsing with red light. "
-            "A crowned king kneels before it. The sky above tears open — a massive obsidian and crimson rift, "
-            "jagged edges glowing, red energy pouring down. Glowing ground cracks radiate outward. "
-            "SNES/GBA retro pixel art style, chunky sprites, limited palette, dramatic backlighting."
+            "Dark fantasy cinematic ritual scene. Night. Seven black-robed cultists stand in a perfect circle "
+            "on cracked ancient stone ground, arms raised in dark supplication. "
+            "At the circle's center a jagged crimson void shard hovers above a carved altar, pulsing with malevolent red light. "
+            "A crowned king kneels before it, reaching upward. The sky above splits open — "
+            "a massive obsidian and crimson rift tears through the heavens, pouring down waves of dark energy. "
+            "Ground cracks glow red. Smoke and ash churn. "
+            "Dramatic overhead cinematic angle, hellish backlighting, catastrophic atmosphere. "
+            + _CINEMATIC
         ),
     },
     {
         "path": "intro_image_3.jpg",
         "clip": 1,
         "prompt": (
-            "16-bit pixel art dark fantasy close-up, wide cinematic 16:9. "
-            "Extreme close-up on a jagged crimson void shard hovering above a carved stone altar. "
-            "It pulses with malevolent red and black energy, dark runes glowing on the altar base. "
-            "Two gauntleted royal hands reach into frame from below, trembling, fingertips nearly touching the shard. "
-            "The air around it shimmers and warps. Black void tendrils curl outward. "
-            "SNES/GBA retro pixel art style, high contrast crimson glow, dark vignette, dramatic tension."
+            "Dark fantasy cinematic close-up. An extreme close-up of a jagged crimson void shard "
+            "hovering above a carved obsidian altar, radiating malevolent red and black energy. "
+            "Ancient void runes on the altar base pulse with dim light. "
+            "Two trembling gauntleted royal hands reach into frame from below, fingertips inches from the shard. "
+            "The air warps and tears around it. Black tendrils curl outward like fingers. "
+            "Macro cinematic shot, intense crimson and black contrast, heavy dramatic vignette. "
+            + _CINEMATIC
         ),
     },
     {
         "path": "intro_image_4.jpg",
         "clip": 1,
         "prompt": (
-            "16-bit pixel art dark fantasy transformation scene, wide cinematic 16:9. "
-            "King Aldros pixel sprite stands at the center of the ritual circle, arms flung wide, crown floating above his head. "
-            "His body fractures and dissolves — pixel chunks breaking apart into streams of black void energy that spiral upward "
-            "into the rift above. His eyes blaze solid red. The cultists around him recoil in horror. "
-            "The sky is torn open with blinding crimson light. "
-            "SNES/GBA retro pixel art style, explosive light effects, chunky sprites disintegrating."
+            "Dark fantasy cinematic transformation. King Aldros stands at the ritual circle's center, "
+            "arms flung wide, crown floating above his head in the vortex. "
+            "His body dissolves — flesh unraveling into streams of black void energy that spiral upward into the rift. "
+            "His eyes burn solid crimson. The cultists around him recoil in terror. "
+            "The sky blazes with blinding red-white light as the void consumes him entirely. "
+            "Epic wide cinematic shot, explosive light blooms, catastrophic transformation energy. "
+            + _CINEMATIC
         ),
     },
     # ── Clip 2: An Heir Rises ─────────────────────────────────────────────────
@@ -154,25 +165,26 @@ INTRO_IMAGES = [
         "path": "intro_image_5.jpg",
         "clip": 2,
         "prompt": (
-            "16-bit pixel art dark fantasy landscape, wide cinematic 16:9. "
-            "A ruined wasteland under an ashen sky. A massive crimson void rift tears across the upper sky, "
-            "bleeding red light down onto crumbling stone ruins below. "
-            "Pixel art ash falls like snow. Robed cultist sprites march toward the rift in the midground. "
-            "In the foreground, a lone armored knight pixel sprite stands at a stone wall, "
+            "Dark fantasy cinematic wasteland. A vast corrupted island under a churning ashen sky. "
+            "A massive crimson void rift tears across the upper atmosphere, bleeding red light onto crumbling stone ruins below. "
+            "Fine ash falls like snow. Black-robed cultists march in formation toward the rift in the midground. "
+            "In the foreground, a lone armored knight stands at a crumbling stone wall, "
             "gazing toward the corrupted horizon, sword at their side. "
-            "SNES/GBA retro pixel art style, chunky sprites, muted ash palette with crimson glow accents."
+            "Cinematic wide establishing shot, ashen muted palette with crimson glow accents, desolate grandeur. "
+            + _CINEMATIC
         ),
     },
     {
         "path": "intro_image_6.jpg",
         "clip": 2,
         "prompt": (
-            "16-bit pixel art dark fantasy interior, wide cinematic 16:9. "
-            "A torch-lit ancestral stone hall at night. A lone armored pixel sprite sits at a heavy wooden table, "
-            "sharpening a sword by torchlight. Maps and wax-sealed letters are spread across the table. "
-            "A faded family crest — a tower beneath a broken star — hangs on the stone wall behind them. "
-            "A narrow arrow-slit window shows ash drifting past outside against a red-tinged sky. "
-            "SNES/GBA retro pixel art style, warm orange torchlight, heavy shadows, muted earth palette."
+            "Dark fantasy cinematic interior. A torch-lit ancestral stone hall at night. "
+            "A lone armored figure sits at a heavy oak table, sharpening a sword by torchlight. "
+            "Maps and wax-sealed letters are spread across the table. "
+            "A weathered stone wall bears a carved family crest — a tower beneath a broken star. "
+            "A narrow arrow-slit window reveals ash drifting past a red-tinged night sky outside. "
+            "Intimate cinematic composition, warm amber torchlight against heavy shadow, quiet resolve. "
+            + _CINEMATIC
         ),
     },
 ]
