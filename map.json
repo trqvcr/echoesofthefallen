@@ -1,0 +1,20 @@
+{
+  "Aether_Wharf": {
+    "name": "The Aether Wharf",
+    "description": "A floating dock made of splintered white wood. A rusted skiff sways over the endless violet void below.",
+    "exits": { "north": "Sky_Bridge" },
+    "enemies": []
+  },
+  "Sky_Bridge": {
+    "name": "The Shattered Sky Bridge",
+    "description": "A stone bridge that has snapped in the middle. Magic blue sparks leap across the gap.",
+    "exits": { "south": "Aether_Wharf", "north": "Ruined_Keep" },
+    "enemies": [ { "name": "Void Wraith", "hp": 15, "atk": 4 } ]
+  },
+  "Ruined_Keep": {
+    "name": "The Ruined Keep",
+    "description": "The crumbling remains of a throne room. A shattered crown sits on a pedestal of bone.",
+    "exits": { "south": "Sky_Bridge" },
+    "enemies": []
+  }
+}

@@ -6,7 +6,7 @@ import json
 # from google import genai # Uncomment once you pip install google-genai
 
 # 1. Initialize the App
-app = FastAPI(title="Scion of the Shattered Crown Engine")
+app = FastAPI(title="EchoesOfTheFallen Engine")
 
 # 2. CORS Configuration (Crucial for hackathons)
 app.add_middleware(
