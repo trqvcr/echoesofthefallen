@@ -13,44 +13,39 @@ load_dotenv()
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 PROMPT = (
-    "Aerial top-down dark fantasy map illustration. "
-    "A single fractured stone island floating in infinite starless void. "
-    "Painted in the style of a League of Legends map — rich detail, "
-    "dark atmospheric, slightly isometric bird's-eye view. "
+    "Directly overhead top-down satellite view of an entire small stone island "
+    "floating in infinite void space. The whole island fits within the frame "
+    "with void surrounding all edges. Extreme altitude — like looking straight "
+    "down from thousands of feet above. No perspective, no isometric angle, "
+    "perfectly flat top-down orthographic view. Dark fantasy painted map art. "
 
-    "LEFT THIRD — The Ashen Ruins: "
-    "Crumbled ancient imperial stone district. Broken temples, collapsed "
-    "fortress towers, cracked stone archways, shattered pillars half-buried "
-    "in grey ash. Dead bare-branched trees with grey bark. Thick ash dunes. "
-    "A flooded sunken quarter in the lower-left with still black void-water "
-    "pools that reflect faint violet light. Cracked grave markers and "
-    "overgrown burial mounds. A leaning stone watchtower on the north edge. "
+    "The island is divided into distinct regions visible as color zones: "
 
-    "CENTER — The Bridge Zone: "
-    "A wide stone bridge arching over a glowing void rift. Cold blue-violet "
-    "energy rises from the dark chasm. A small abandoned camp with "
-    "weatherbeaten canvas tents and a cold firepit beside the bridge. "
+    "LEFT — Ashen Ruins: A grey-purple ash-covered district. Crumbled stone "
+    "ruins visible only as tiny dark specks and grey rubble patches. Dead "
+    "forests as clusters of dark grey dots. Ash dunes as pale grey smears. "
+    "A small dark void-water pool in the lower-left corner. "
 
-    "RIGHT THIRD — Saltmarsh Settlement: "
-    "A dense medieval settlement of dark stone buildings with amber lantern "
-    "glow in windows, cobblestone alleys, a prominent tavern with a hanging "
-    "sign, a busy market square with stalls, a barracks building, and wooden "
-    "docks extending over the island's edge. Rope bridges between structures. "
-    "Warm amber and orange light contrast the darkness. "
+    "CENTER — Bridge and Wasteland: A thin stone bridge crossing a glowing "
+    "blue-violet void rift (a dark crack with glowing edges). "
 
-    "TOP SECTION — The Void Wastes: "
-    "Barren cracked black obsidian and volcanic rock. Deep glowing red fissures "
-    "of void energy run through the ground. No vegetation whatsoever. "
-    "A needle-like rock spire at the far edge. The ground faintly pulses "
-    "with crimson light. "
+    "RIGHT — Saltmarsh Settlement: A dense cluster of tiny amber-lit specks "
+    "suggesting tightly packed buildings. Warm orange-amber color wash over "
+    "the district. Tiny dock structures at the very right edge over void. "
 
-    "EDGES: The island's stone cliffs drop sharply into infinite black void. "
-    "Faint distant purple stars far below. "
+    "TOP — Void Wastes: Barren black cracked obsidian. Glowing red fissure "
+    "lines running through the rock. No features, just cracked dark stone "
+    "with red void energy seeping through cracks. "
 
-    "COLOR PALETTE: deep purples, near-black, muted dark grey, blood red "
-    "accents, dark amber warmth on the right side only. "
-    "High detail, painterly, cinematic lighting, no UI elements, no text, "
-    "no grid lines."
+    "The island edges are sharp rocky cliffs dropping into infinite black void. "
+    "The void surrounding the island is deep black with faint distant stars. "
+    "Thin winding paths visible as slightly lighter lines between regions. "
+
+    "Style: painterly dark fantasy cartography, perfectly top-down orthographic, "
+    "the entire island small within the frame, individual buildings indistinct "
+    "— only color, texture, and region shape matter. Muted dark palette: "
+    "ash grey, near-black, blood red cracks, faint amber glow on right. "
+    "No UI, no text, no labels, no grid."
 )
 
 print("Generating map background...")

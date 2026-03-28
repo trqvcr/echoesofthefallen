@@ -284,7 +284,7 @@
                     <h3 class="title-font text-[10px] text-purple-500 tracking-[0.3em] uppercase mb-2">Vicinity</h3>
                     <div id="minimap-wrap" class="rounded">
                         <div id="minimap-title">Area Map</div>
-                        <svg id="minimap-svg" width="100%" height="88" viewBox="0 0 220 88" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"></svg>
+                        <svg id="minimap-svg" width="100%" height="88" viewBox="0 0 220 88" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice"></svg>
                     </div>
                 </div>
 
@@ -966,66 +966,64 @@
         }
 
         // ── Mini-Map ───────────────────────────────────────────────────────────
-        function mmEl(tag, attrs = {}) {
-            const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
-            Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v));
-            return el;
-        }
-
         function buildMiniMap(locationKey) {
             const svg = document.getElementById('minimap-svg');
             if (!svg || !mapData || !locationKey || !mapData[locationKey]) return;
+            const loc = mapData[locationKey];
+            if (loc.x === null || loc.x === undefined) return;
             svg.innerHTML = '';
 
-            const loc     = mapData[locationKey];
-            const exits   = (loc.exits || []).filter(e => mapData[e]);
+            // Crop window in main-map coordinate space (900×560)
+            const CROP_W = 320, CROP_H = 220;
+            const center = gridToSvg(loc.x, loc.y);
+            let cropX = center.x - CROP_W / 2;
+            let cropY = center.y - CROP_H / 2;
+            cropX = Math.max(0, Math.min(900 - CROP_W, cropX));
+            cropY = Math.max(0, Math.min(560 - CROP_H, cropY));
+            svg.setAttribute('viewBox', `${cropX} ${cropY} ${CROP_W} ${CROP_H}`);
+
+            // Background — same image as full map, SVG clips to viewBox
+            if (mapBgImage) {
+                const img = svgEl('image', {href:'/map-bg.jpg', x:'0', y:'0', width:'900', height:'560'});
+                svg.appendChild(img);
+            } else {
+                svg.appendChild(svgEl('rect', {x:cropX, y:cropY, width:CROP_W, height:CROP_H, fill:'#030108'}));
+            }
+
+            // Dark overlay for readability
+            svg.appendChild(svgEl('rect', {x:cropX, y:cropY, width:CROP_W, height:CROP_H, fill:'rgba(2,0,8,0.42)'}));
+
+            // Exit lines and dots
             const visited = new Set((gameState && gameState.visited_locations) || []);
-            const CX = 110, CY = 44; // center of 220x88 viewBox
-            const SCALE = 28;
-
-            // Draw edges first
-            exits.forEach(exitKey => {
-                const exitLoc = mapData[exitKey];
-                const dx = (exitLoc.x - loc.x) * SCALE;
-                const dy = (exitLoc.y - loc.y) * SCALE;
-                const ex = Math.max(12, Math.min(208, CX + dx));
-                const ey = Math.max(10, Math.min(78, CY + dy));
-                svg.appendChild(mmEl('line', {x1:CX, y1:CY, x2:ex, y2:ey,
-                    stroke:'rgba(100,60,180,0.35)', 'stroke-width':'1', 'stroke-dasharray':'3 3'}));
+            (loc.exits || []).filter(e => mapData[e] && mapData[e].x !== null).forEach(exitKey => {
+                const ep  = gridToSvg(mapData[exitKey].x, mapData[exitKey].y);
+                const vis = visited.has(exitKey);
+                svg.appendChild(svgEl('line', {x1:center.x, y1:center.y, x2:ep.x, y2:ep.y,
+                    stroke: vis ? 'rgba(139,92,246,0.55)' : 'rgba(80,60,120,0.3)',
+                    'stroke-width':'1.5', 'stroke-dasharray':'3 4'}));
+                svg.appendChild(svgEl('circle', {cx:ep.x, cy:ep.y, r:'5',
+                    fill: vis ? '#3b1f7a' : '#111125',
+                    stroke: vis ? '#7c3aed' : '#2a2a50', 'stroke-width':'1.2'}));
+                const lbl = document.createElementNS('http://www.w3.org/2000/svg','text');
+                lbl.setAttribute('x', ep.x); lbl.setAttribute('y', ep.y - 8);
+                lbl.setAttribute('text-anchor','middle'); lbl.setAttribute('font-size','9');
+                lbl.setAttribute('fill', vis ? '#c4b5fd' : '#444466');
+                lbl.setAttribute('font-family','Cinzel, serif');
+                lbl.textContent = mapData[exitKey].name.split(' ')[0];
+                svg.appendChild(lbl);
             });
 
-            // Draw exit nodes
-            exits.forEach(exitKey => {
-                const exitLoc = mapData[exitKey];
-                const dx = (exitLoc.x - loc.x) * SCALE;
-                const dy = (exitLoc.y - loc.y) * SCALE;
-                const ex = Math.max(12, Math.min(208, CX + dx));
-                const ey = Math.max(10, Math.min(78, CY + dy));
-                const isVis = visited.has(exitKey);
+            // Player dot
+            svg.appendChild(svgEl('circle', {cx:center.x, cy:center.y, r:'9', fill:'none',
+                stroke:'#a855f7', 'stroke-width':'1.5', opacity:'0.5'}));
+            svg.appendChild(svgEl('circle', {cx:center.x, cy:center.y, r:'6',
+                fill:'#5b21b6', stroke:'#a855f7', 'stroke-width':'2'}));
 
-                svg.appendChild(mmEl('circle', {cx:ex, cy:ey, r:'6',
-                    fill: isVis ? '#2d1665' : '#0d0d1a',
-                    stroke: isVis ? '#7c3aed' : '#2a2a40', 'stroke-width':'1'}));
-
-                const nm = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                nm.setAttribute('x', ex); nm.setAttribute('y', ey - 9);
-                nm.setAttribute('text-anchor', 'middle'); nm.setAttribute('font-size', '6');
-                nm.setAttribute('fill', isVis ? '#9d7ecf' : '#3a3a55');
-                nm.setAttribute('font-family', 'Cinzel, serif');
-                nm.textContent = exitLoc.name.split(' ')[0];
-                svg.appendChild(nm);
-            });
-
-            // Current location (center, highlighted)
-            svg.appendChild(mmEl('circle', {cx:CX, cy:CY, r:'10', fill:'none',
-                stroke:'#a855f7', 'stroke-width':'1', opacity:'0.5'}));
-            svg.appendChild(mmEl('circle', {cx:CX, cy:CY, r:'7',
-                fill:'#4c1d95', stroke:'#a855f7', 'stroke-width':'1.5'}));
-
-            const nm = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-            nm.setAttribute('x', CX); nm.setAttribute('y', CY + 20);
-            nm.setAttribute('text-anchor', 'middle'); nm.setAttribute('font-size', '7');
-            nm.setAttribute('fill', '#c4b5fd'); nm.setAttribute('font-family', 'Cinzel, serif');
+            // Location name
+            const nm = document.createElementNS('http://www.w3.org/2000/svg','text');
+            nm.setAttribute('x', center.x); nm.setAttribute('y', center.y + 18);
+            nm.setAttribute('text-anchor','middle'); nm.setAttribute('font-size','9');
+            nm.setAttribute('fill','#c4b5fd'); nm.setAttribute('font-family','Cinzel, serif');
             nm.textContent = loc.name.split(' ').slice(0, 2).join(' ');
             svg.appendChild(nm);
         }
