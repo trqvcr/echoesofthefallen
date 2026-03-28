@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Map of Valdris</title>
+    <link rel="stylesheet" href="map.css">
+</head>
+<body>
+    <div class="map-container">
+        <div class="map-parchment">
+            <header>
+                <h1>ECHOES OF THE FALLEN</h1>
+                <h2>MAP OF VALDRIS</h2>
+            </header>
+
+            <div class="map-content">
+                
+                <p class="region-label" id="region-ashen">THE ASHEN RUINS REGION</p>
+                <p class="region-label" id="region-saltmarsh">SALTMARSH SETTLEMENT REGION</p>
+                <p class="region-label" id="region-void">THE VOID WASTES REGION</p>
+                
+                <p id="void-below">VOID BELOW &#11015;</p>
+
+                <div class="path path-courtyard-keep"></div>
+                <div class="path path-courtyard-library"></div>
+                <div class="path path-courtyard-bridge"></div>
+                <div class="path path-keep-vault"></div>
+                <div class="path path-bridge-gate"></div>
+                <div class="path path-gate-flagon"></div>
+                <div class="path path-gate-market"></div>
+                <div class="path path-gate-void"></div>
+
+                <div class="island-node ashen-node" id="node-courtyard">
+                    <div class="island-graphics"></div> <p class="island-label">ASHEN COURTYARD</p>
+                </div>
+                <div class="island-node ashen-node" id="node-keep">
+                    <p class="details-top">&#128058; VOID WOLF</p>
+                    <div class="island-graphics"></div>
+                    <p class="island-label">RUINED KEEP</p>
+                    <p class="details-bottom">COLLAPSED THRONE ROOM<br>FLICKERING THRONE LIGHT</p>
+                    <div class="detail-icon" id="icon-keep-vault">&#128274; THRONE VAULT REQUIRES VAULT KEY</div>
+                </div>
+                <div class="island-node ashen-node" id="node-vault">
+                    <div class="island-graphics"></div>
+                    <p class="island-label">THRONE VAULT</p>
+                    <div class="detail-icon" id="icon-vault-lock">&#128274;</div>
+                </div>
+                <div class="island-node ashen-node" id="node-library">
+                    <p class="details-top">Osric<br>Maren</p>
+                    <div class="island-graphics"></div>
+                    <p class="island-label">SUNKEN LIBRARY</p>
+                    <p class="details-bottom">&#128123; SCHOLAR'S GHOST</p>
+                </div>
+                <div class="island-node ashen-node" id="node-bridge">
+                    <div class="island-graphics"></div>
+                    <p class="island-label">VOID BRIDGE</p>
+                    <div class="detail-icon" id="icon-bridge-lock">&#128274; REQUIRES ROYAL SEAL</div>
+                </div>
+
+                <div class="island-node saltmarsh-node" id="node-gate">
+                    <div class="island-graphics"></div>
+                    <p class="island-label">SALTMARSH GATE</p>
+                </div>
+                <div class="island-node saltmarsh-node" id="node-flagon">
+                    <div class="island-graphics"></div>
+                    <p class="island-label">THE ASHEN FLAGON</p>
+                </div>
+                <div class="island-node saltmarsh-node" id="node-market">
+                    <p class="details-top">&#11016; PICKPOCKET</p>
+                    <div class="island-graphics"></div>
+                    <p class="island-label">SALTMARSH MARKET</p>
+                </div>
+
+                <div class="island-node void-node" id="node-waste">
+                    <p class="details-top">Void, unstable, dangerous</p>
+                    <div class="island-graphics"></div>
+                    <p class="island-label">VOID WASTES EDGE</p>
+                    <p class="details-bottom">TURN BACK &#11018;</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -71,6 +71,10 @@ async def serve_game():
 async def health():
     return {"status": "ok"}
 
+@app.get("/map.json")
+async def serve_map_json():
+    return FileResponse("map.json")
+
 # ── /register ──────────────────────────────────────────────────────────────────
 
 @app.post("/register")
@@ -304,3 +308,5 @@ async def process_levelup(request: LevelUpRequest):
         return {"message": "Ascension complete.", "state": _player_to_state(player)}
     else:
         raise HTTPException(status_code=400, detail="Invalid stat selected.")
+    
+    

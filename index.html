@@ -126,6 +126,12 @@
                 </div>
             </div>
 
+            <div id="travel-hud" class="p-4 bg-gray-950/50 border-b border-purple-900/20 flex flex-wrap gap-3 items-center">
+                <span class="title-font text-[10px] text-purple-600 uppercase tracking-widest mr-2">Paths Forward:</span>
+                <div id="exit-buttons" class="flex gap-2">
+                    </div>
+            </div>
+
             <div id="narrative-log" class="flex-1 p-8 overflow-y-auto space-y-6 min-h-0">
                 <p class="text-purple-400 italic title-font text-sm tracking-widest text-center">— THE VOID STIRS. YOUR LEGACY BEGINS. —</p>
             </div>
@@ -220,8 +226,70 @@
             if (gameState.xp >= gameState.xp_to_next_level) {
                 document.getElementById('levelup-modal').classList.remove('hidden');
             }
+
+            updateExits();
         }
 
+        // --- GRAPH TRAVERSAL & UI ---
+        async function updateExits() {
+            if (!gameState) return;
+            
+            try {
+                // Fetch the Graph
+                const res = await fetch('/map.json');
+                const mapData = await res.json();
+                
+                // Current Node
+                const currentRoom = mapData[gameState.location] || {};
+                const edges = currentRoom.exits || []; // Edges to other Nodes
+                
+                const container = document.getElementById('exit-buttons');
+                if (!container) return;
+                
+                container.innerHTML = ''; 
+                
+                if (edges.length === 0) {
+                    container.innerHTML = '<span class="text-gray-600 italic text-xs">A dead end...</span>';
+                }
+
+                edges.forEach(nodeId => {
+                    const targetNode = mapData[nodeId] || {};
+                    const btn = document.createElement('button');
+                    
+                    // Use the Node's actual display name, or format its ID
+                    const label = (targetNode.name || nodeId.replace(/_/g, ' ')).toUpperCase();
+                    
+                    // ── LOCK LOGIC ──
+                    // If the node requires a specific boss/item to enter:
+                    let isLocked = false;
+                    if (targetNode.state && targetNode.state.requires_key) {
+                        // Check if player has the key in inventory
+                        if (!gameState.inventory.includes(targetNode.state.requires_key)) {
+                            isLocked = true;
+                        }
+                    }
+
+                    if (isLocked) {
+                        // Render Locked Node
+                        btn.className = "px-3 py-1 bg-gray-950 border border-gray-800 text-gray-600 title-font text-[10px] rounded cursor-not-allowed tracking-wider flex items-center gap-1";
+                        btn.innerHTML = `🔒 <span>${label}</span>`;
+                        btn.title = "This path is sealed.";
+                    } else {
+                        // Render Open Node
+                        btn.className = "px-3 py-1 bg-purple-950/30 border border-purple-900/40 hover:bg-purple-800/40 text-purple-300 title-font text-[10px] rounded transition-all tracking-wider";
+                        btn.innerText = label;
+                        btn.onclick = () => {
+                            input.value = `move to ${label.toLowerCase()}`;
+                            sendAction();
+                        };
+                    }
+                    
+                    container.appendChild(btn);
+                });
+            } catch (e) {
+                console.error("Failed to load map graph:", e);
+            }
+        }
         // --- INITIAL LOAD ---
         window.onload = () => {
             const playerId   = sessionStorage.getItem('playerId');

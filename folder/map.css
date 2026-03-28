@@ -1,0 +1,117 @@
+/* General reset and base styles */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { 
+    font-family: 'Times New Roman', Times, serif; /* Placeholder for Gothic/fantasy font */
+    color: #333;
+    overflow: hidden; /* Prevent scrolling if map is too big for screen */
+}
+
+/* Map container - full screen with parchment background */
+.map-container {
+    width: 100vw; height: 100vh;
+    background-color: #f3e5c9; /* Aged parchment color */
+    background-image: url('parchment.jpg'); /* Uncomment and use actual image */
+    background-size: cover;
+    display: flex; justify-content: center; align-items: center;
+}
+
+/* Inner main container with positioning relative for absolute children */
+.map-parchment {
+    width: 90%; height: 90%;
+    position: relative;
+    padding: 2% 5%;
+}
+
+/* Titles */
+header { text-align: center; }
+h1 { font-weight: bold; font-size: 2vw; color: #333; }
+h2 { 
+    font-weight: bold; font-size: 3vw; color: #8c57e8; 
+    text-shadow: 0 0 10px rgba(136, 93, 232, 0.7); /* Glowing effect */
+}
+
+/* Map content area - full size of its relative parent */
+.map-content {
+    width: 100%; height: 100%;
+    position: relative;
+}
+
+/* Common style for region labels and void below */
+.region-label, #void-below {
+    position: absolute;
+    font-weight: bold; text-transform: uppercase; letter-spacing: 0.1em;
+}
+
+#void-below { 
+    bottom: 2%; left: 50%; transform: translateX(-50%); font-size: 1.5vw;
+}
+
+#region-ashen { top: 75%; left: 5%; }
+#region-saltmarsh { bottom: 20%; left: 60%; }
+#region-void { top: 20%; right: 5%; }
+
+/* Pathways - div lines with gradient, glow, and arrowhead */
+.path {
+    position: absolute; height: 3px; 
+    background: linear-gradient(to right, #6f34e8, transparent, #6f34e8); /* Line with transparent center */
+    box-shadow: 0 0 8px rgba(111, 52, 232, 0.8); /* Glowing effect */
+    transform-origin: left center; /* For easy rotation */
+}
+
+/* Arrowhead for paths */
+.path::after {
+    content: '\27A4'; /* Arrow text symbol */
+    color: #6f34e8;
+    position: absolute; right: -5px; top: -5px; font-size: 12px;
+}
+
+/* Positioning and rotation for specific paths - need to visually place */
+.path-courtyard-keep { top: 45%; left: 33%; width: 10%; transform: rotate(-30deg); }
+.path-courtyard-library { top: 55%; left: 33%; width: 10%; transform: rotate(30deg); }
+.path-courtyard-bridge { top: 50%; left: 45%; width: 15%; }
+.path-keep-vault { top: 25%; left: 22%; width: 5%; transform: rotate(180deg); }
+.path-bridge-gate { top: 50%; left: 62%; width: 5%; }
+.path-gate-flagon { top: 60%; left: 67%; width: 5%; transform: rotate(30deg); }
+.path-gate-market { top: 60%; left: 78%; width: 5%; transform: rotate(-30deg); }
+.path-gate-void { top: 40%; left: 78%; width: 5%; transform: rotate(-150deg); }
+
+/* Island nodes - common styles */
+.island-node {
+    position: absolute; width: 120px; text-align: center;
+    border: 1px solid #666; border-radius: 5px; background-color: #ccc; /* Placeholders */
+    box-sizing: border-box;
+}
+
+.ashen-node { border-color: #8c57e8; }
+.void-node { border-color: #8c57e8; color: #8c57e8; font-weight: bold; }
+.saltmarsh-node { border-color: #666; }
+
+/* Icon details */
+.details-top, .details-bottom { 
+    font-size: 0.8vw; color: #666; font-style: italic; position: absolute; width: 100%; 
+}
+.details-top { top: -20px; }
+.details-bottom { bottom: -15px; }
+
+/* Graphics placeholder area on islands */
+.island-graphics { height: 60px; background-color: #999; margin: 2px; }
+
+/* Island name label */
+.island-label { font-weight: bold; font-size: 1vw; color: #333; margin: 2px 0; }
+
+/* Detail icons (e.g., locks, ghost) */
+.detail-icon { font-size: 0.9vw; color: #6f34e8; font-weight: bold; }
+
+/* Meticulous positioning using percentages within the content area */
+#node-courtyard { top: 50%; left: 50%; transform: translate(-50%, -50%); width: 150px; }
+#node-keep { top: 15%; left: 10%; width: 130px; }
+#node-vault { top: 25%; left: 2%; }
+#node-library { bottom: 15%; left: 10%; width: 130px; }
+#node-bridge { top: 50%; left: 60%; transform: translateY(-50%); width: 100px; }
+#node-gate { top: 50%; left: 75%; transform: translateY(-50%); width: 100px; }
+#node-flagon { bottom: 10%; left: 70%; width: 130px; }
+#node-market { bottom: 10%; right: 5%; width: 130px; }
+#node-waste { top: 10%; right: 5%; width: 130px; }
+
+/* Fine-tuning specific icon positions */
+#icon-bridge-lock { position: absolute; bottom: 50%; width: 100%; }
