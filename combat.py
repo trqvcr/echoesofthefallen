@@ -261,7 +261,7 @@ PLAYER GOES FIRST: {player_first}
 
 Narrate this combat round vividly (3-4 sentences). Be specific about what happens.
 Then output EXACTLY these tags on separate lines:
-PLAYER_DAMAGE: [integer between {p_min} and {p_max}, or 0 if player missed/fled]
+PLAYER_DAMAGE: [integer — scale by action effectiveness. Normal attack = {p_min}-{p_max}. Weak/silly actions (tickle, poke, slap, gentle push) = 1 to {max(1, p_min//2)}. Powerful/skilled strike = up to {p_max + 3}. Miss or fled = 0]
 ENEMY_DAMAGE: [integer between {e_min} and {e_max}, or 0 if enemy missed or player fled successfully]
 SKILL_USED: [skill_id or none]
 FLEE_OUTCOME: [none / success / fail / captured]
@@ -281,7 +281,7 @@ VISUAL: [one sentence describing the combat scene]"""
         return default
 
     try:
-        player_dmg = int(parse_tag("PLAYER_DAMAGE", raw_text, str(random.randint(p_min, p_max))))
+        player_dmg = max(0, int(parse_tag("PLAYER_DAMAGE", raw_text, str(random.randint(p_min, p_max)))))
     except ValueError:
         player_dmg = random.randint(p_min, p_max)
 
