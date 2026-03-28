@@ -139,9 +139,22 @@
             text-transform: uppercase; text-align: center;
             margin-bottom: 2px;
         }
+
+        /* Music control */
+        #music-toggle { transition: color 0.2s; }
+        #music-toggle.muted { color: #4b5563; }
+        @keyframes musicPulse {
+            0%, 100% { opacity: 0.6; }
+            50%       { opacity: 1.0; }
+        }
+        #music-toggle.playing { animation: musicPulse 2s ease-in-out infinite; }
     </style>
 </head>
 <body class="text-gray-200 min-h-screen flex items-center justify-center p-4">
+
+    <!-- Ambient Music -->
+    <audio id="music-player-a" loop preload="none"></audio>
+    <audio id="music-player-b" loop preload="none"></audio>
 
     <!-- Avatar Creation Screen -->
     <div id="avatar-screen" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.97);z-index:110;flex-direction:column;align-items:center;justify-content:center;padding:2rem;">
@@ -300,8 +313,8 @@
         <div class="flex-1 flex flex-col bg-gray-900 border border-purple-900/40 rounded-lg shadow-[0_0_40px_rgba(88,28,135,0.2)] overflow-hidden">
             
             <!-- Scene Image -->
-            <div class="relative h-48 bg-gray-950 border-b border-purple-900/30 flex items-center justify-center overflow-hidden flex-shrink-0">
-                <img id="scene-image" src="" class="object-cover object-top w-full h-full opacity-0 absolute inset-0 transition-opacity duration-1000">
+            <div class="relative w-full bg-gray-950 border-b border-purple-900/30 overflow-hidden flex-shrink-0" style="aspect-ratio:16/9">
+                <img id="scene-image" src="" class="w-full h-full object-cover opacity-0 absolute inset-0 transition-opacity duration-1000">
                 <!-- NPC portrait overlay: bottom-right corner, circular, shown during NPC encounters -->
                 <div id="npc-portrait-wrap" class="hidden absolute bottom-3 right-3 w-20 h-20 rounded-full overflow-hidden border-2 border-red-800/80 shadow-[0_0_12px_rgba(185,28,28,0.6)] transition-opacity duration-500">
                     <img id="npc-portrait-img" src="" class="w-full h-full object-cover">
@@ -317,6 +330,11 @@
                     </div>
                     <div class="w-px h-3 bg-purple-900/50"></div>
                     <button onclick="toggleMap()" class="text-[9px] title-font text-purple-400 hover:text-white uppercase tracking-widest transition-colors">[M] VIEW MAP</button>
+                    <div class="w-px h-3 bg-purple-900/50"></div>
+                    <button id="music-toggle" onclick="toggleMusic()" title="Toggle ambient music" class="text-[9px] title-font text-purple-400 hover:text-white uppercase tracking-widest transition-colors">[♪] MUSIC</button>
+                    <input id="music-volume" type="range" min="0" max="1" step="0.05" value="0.35"
+                        oninput="setMusicVolume(this.value)"
+                        class="w-16 h-1 accent-purple-600 cursor-pointer" title="Volume">
                 </div>
             </div>
 
@@ -1052,7 +1070,7 @@
                     const data = await res.json();
                     if (data.state) {
                         gameState = data.state;
-                        localStorage.setItem(`echoes_save_${gameState.house_name}`, JSON.stringify(gameState));
+                        saveState(gameState);
                     }
                     updateUI();
                     showNpcPortrait('');
@@ -1135,16 +1153,23 @@
                 gameState = data.state;
                 sessionStorage.setItem('playerId',    data.player_id);
                 sessionStorage.setItem('playerName',  gameState.house_name);
-                localStorage.setItem(`echoes_save_${gameState.house_name}`, JSON.stringify(gameState));
+                saveState(gameState);
 
                 document.getElementById('death-screen').classList.remove('active');
                 document.getElementById('heir-name-input').value = '';
                 document.getElementById('action-input').disabled = false;
                 document.getElementById('submit-btn').disabled   = false;
-                document.getElementById('action-input').focus();
 
                 log.innerHTML = '<p class="text-purple-400 italic title-font text-sm tracking-widest text-center">— A NEW HEIR RISES. THE VOID REMEMBERS. —</p>';
                 updateUI();
+
+                if (!gameState.avatar_description) {
+                    const av = document.getElementById('avatar-screen');
+                    av.style.display = 'flex';
+                } else {
+                    document.getElementById('action-input').focus();
+                    await sendOpeningScene();
+                }
             } catch (e) {
                 errEl.textContent = e.message;
                 errEl.classList.remove('hidden');
@@ -1181,11 +1206,12 @@
 
                 if (data.state) {
                     gameState = data.state;
-                    localStorage.setItem(`echoes_save_${gameState.house_name}`, JSON.stringify(gameState));
+                    saveState(gameState);
                 }
 
                 confirm.disabled = false;
-                confirm.className = confirm.className.replace('bg-gray-800 text-gray-500 cursor-not-allowed', 'bg-purple-900 hover:bg-purple-700 text-white cursor-pointer');
+                confirm.classList.remove('bg-gray-800', 'text-gray-500', 'cursor-not-allowed');
+                confirm.classList.add('bg-purple-900', 'hover:bg-purple-700', 'text-white', 'cursor-pointer');
             } catch(e) {
                 errEl.textContent = e.message;
                 errEl.classList.remove('hidden');
@@ -1198,6 +1224,48 @@
         function confirmAvatar() {
             document.getElementById('avatar-screen').style.display = 'none';
             updateUI();
+            sendOpeningScene();
+        }
+
+        async function sendOpeningScene() {
+            try {
+                const sceneImg = document.getElementById('scene-image');
+                const scenePH  = document.getElementById('image-placeholder');
+                sceneImg.classList.add('opacity-0');
+
+                const res = await fetch('/action', {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({
+                        player_id: sessionStorage.getItem('playerId'),
+                        action:    'look around',
+                        state:     gameState
+                    })
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+
+                if (data.state) {
+                    gameState = data.state;
+                    saveState(gameState);
+                }
+                updateUI();
+
+                if (data.image_base64) {
+                    sceneImg.onload = () => sceneImg.classList.remove('opacity-0');
+                    sceneImg.src = data.image_base64;
+                    if (scenePH) scenePH.classList.add('hidden');
+                }
+                if (data.music_base64) {
+                    playMusic(data.music_base64, data.music_context || 'default');
+                }
+
+                const msg = document.createElement('p');
+                msg.className = "text-gray-300 leading-relaxed msg-fade";
+                msg.innerText = data.text;
+                log.appendChild(msg);
+                log.scrollTop = log.scrollHeight;
+            } catch (_) {}
         }
 
         window.onload = async () => {
@@ -1212,11 +1280,12 @@
             const saved = localStorage.getItem(`echoes_save_${playerName}`);
             if (saved) {
                 gameState = JSON.parse(saved);
-                await loadMapData(); // load map before updateUI so mini-map renders
+                await loadMapData();
                 updateUI();
                 if (!gameState.avatar_description) {
-                    const av = document.getElementById('avatar-screen');
-                    av.style.display = 'flex';
+                    document.getElementById('avatar-screen').style.display = 'flex';
+                } else {
+                    await sendOpeningScene();
                 }
             } else {
                 window.location.href = '/';
@@ -1233,8 +1302,100 @@
             }
         }
 
+        // ── Local Storage ─────────────────────────────────────────────────────
+        function saveState(state) {
+            // avatar_portrait is already persisted server-side; strip it to stay
+            // within the ~5 MB localStorage quota.
+            const { avatar_portrait, ...lean } = state;
+            localStorage.setItem(`echoes_save_${state.house_name}`, JSON.stringify(lean));
+        }
+
+        // ── Ambient Music ──────────────────────────────────────────────────────
+        const musicA   = document.getElementById('music-player-a');
+        const musicB   = document.getElementById('music-player-b');
+        let   activePlayer  = musicA;
+        let   inactivePlayer = musicB;
+        let   musicMuted    = false;
+        let   musicVolume   = 0.35;
+        let   currentMusicContext = null;
+
+        function setMusicVolume(v) {
+            musicVolume = parseFloat(v);
+            if (!musicMuted) {
+                activePlayer.volume   = musicVolume;
+                inactivePlayer.volume = 0;
+            }
+        }
+
+        function toggleMusic() {
+            unlockAudio();
+            const btn = document.getElementById('music-toggle');
+            musicMuted = !musicMuted;
+            if (musicMuted) {
+                activePlayer.volume = 0;
+                btn.classList.add('muted');
+                btn.classList.remove('playing');
+            } else {
+                activePlayer.volume = musicVolume;
+                if (activePlayer.src) btn.classList.add('playing');
+                btn.classList.remove('muted');
+            }
+        }
+
+        let pendingMusic = null; // queued while browser hasn't had a user gesture yet
+        let audioUnlocked = false;
+
+        function unlockAudio() {
+            if (audioUnlocked) return;
+            audioUnlocked = true;
+            if (pendingMusic) {
+                const { dataUrl, context } = pendingMusic;
+                pendingMusic = null;
+                _startPlayback(dataUrl, context);
+            }
+        }
+
+        function playMusic(dataUrl, context) {
+            if (!dataUrl || context === currentMusicContext) return;
+            currentMusicContext = context;
+            if (!audioUnlocked) {
+                pendingMusic = { dataUrl, context };
+                return;
+            }
+            _startPlayback(dataUrl, context);
+        }
+
+        function _startPlayback(dataUrl, context) {
+            const btn = document.getElementById('music-toggle');
+
+            inactivePlayer.src    = dataUrl;
+            inactivePlayer.volume = 0;
+            inactivePlayer.loop   = true;
+
+            inactivePlayer.play().then(() => {
+                const steps    = 40;
+                const interval = 2000 / steps;
+                let   step     = 0;
+                const fade = setInterval(() => {
+                    step++;
+                    const t = step / steps;
+                    if (!musicMuted) inactivePlayer.volume = musicVolume * t;
+                    activePlayer.volume = musicVolume * (1 - t);
+                    if (step >= steps) {
+                        clearInterval(fade);
+                        activePlayer.pause();
+                        activePlayer.src = '';
+                        [activePlayer, inactivePlayer] = [inactivePlayer, activePlayer];
+                        if (!musicMuted) activePlayer.volume = musicVolume;
+                        if (!musicMuted) btn.classList.add('playing');
+                    }
+                }, interval);
+            }).catch(e => console.warn('[music] playback blocked:', e));
+        }
+
         // ── Action Loop ────────────────────────────────────────────────────────
         async function sendAction() {
+            unlockAudio();
             const actionText = input.value.trim();
             if (!actionText || !gameState) return;
 
@@ -1272,10 +1433,15 @@
 
                 if (data.state) {
                     gameState = data.state;
-                    localStorage.setItem(`echoes_save_${gameState.house_name}`, JSON.stringify(gameState));
+                    saveState(gameState);
                 }
 
                 updateUI();
+
+                // Ambient music
+                if (data.music_base64) {
+                    playMusic(data.music_base64, data.music_context || 'default');
+                }
 
                 // Scene image
                 if (data.image_base64) {
@@ -1337,6 +1503,21 @@
                     vMsg.className = "text-yellow-500 title-font text-xs tracking-widest msg-fade";
                     vMsg.innerText = `⚔ Victory! Your enemy has fallen.`;
                     log.appendChild(vMsg);
+
+                    if (data.victory_xp > 0 || (data.victory_loot && data.victory_loot.length > 0)) {
+                        const lootLines = [];
+                        if (data.victory_xp > 0) lootLines.push(`+${data.victory_xp} XP`);
+                        if (data.victory_loot && data.victory_loot.length > 0) {
+                            data.victory_loot.forEach(item => {
+                                const name = typeof item === 'string' ? item : (item.name || item.id || item);
+                                lootLines.push(name.replace(/_/g, ' '));
+                            });
+                        }
+                        const lootMsg = document.createElement('p');
+                        lootMsg.className = "text-amber-400 title-font text-xs tracking-widest msg-fade";
+                        lootMsg.innerText = `✦ Gained: ${lootLines.join(' · ')}`;
+                        log.appendChild(lootMsg);
+                    }
                 } else if (data.combat_event === 'death') {
                     showDeathScreen(data);
                 } else if (data.combat_event === 'fled') {
