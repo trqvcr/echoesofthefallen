@@ -1,30 +1,19 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse 
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from models import EnemyState, GameState, ActionRequest
 import os
 import json
+from google import genai
 from dotenv import load_dotenv
-from google import genai 
-from typing import List, Dict, Any
 
-# 1. Load Environment Variables safely
 load_dotenv()
-API_KEY = os.getenv("GEMINI_API_KEY")
 
-# Initialize Gemini Client
-# The client automatically looks for the GEMINI_API_KEY environment variable
-if API_KEY:
-    client = genai.Client()
-else:
-    print("WARNING: GEMINI_API_KEY not found in .env file!")
-    client = None
+# 1. Initialize App
+app = FastAPI(title="Echoes of the Fallen")
 
-# 2. Initialize the App
-app = FastAPI(title="Echoes of the Fallen Engine")
-
-# 3. CORS Configuration
+# 2. CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -33,113 +22,95 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load the map data
-try:
-    with open("map.json", "r") as f:
-        world_map = json.load(f)
-except FileNotFoundError:
-    world_map = {}
-    print("WARNING: map.json not found!")
+# 3. Gemini Client
+client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
-# 5. Serve the Frontend (Crucial for the Web App to load!)
+# 4. Pydantic Models
+class ActionRequest(BaseModel):
+    player_id: str
+    action: str
+
+# 5. Helpers
+def load_json(path):
+    with open(path, "r") as f:
+        return json.load(f)
+
+def save_json(path, data):
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
+
+# 6. Serve HTML pages
 @app.get("/")
-async def serve_frontend():
+async def serve_login():
+    return FileResponse("login.html")
+
+@app.get("/game")
+async def serve_game():
     return FileResponse("index.html")
 
+# 7. Health Check
+@app.get("/health")
+async def health_check():
+    return {"message": "Echoes of the Fallen server is running."}
+
+# 8. Core Game Loop
 @app.post("/action")
 async def handle_action(request: ActionRequest):
-    game_state = request.state
-    action = request.action.lower()
-    
-    # --- COMBAT LOGIC ---
-    if "attack" in action:
-        # If no enemy exists, spawn a dummy goblin for testing
-        if not game_state.current_enemy:
-            game_state.current_enemy = EnemyState(name="Void Goblin", hp=15, atk=3)
-            return {
-                "text": "A snarling Void Goblin leaps from the shadows! Type 'attack' again to strike.",
-                "state": game_state.dict(),
-                "image_base64": "",
-                "status": "alive"
-            }
+    world_state = load_json("world_state.json")
+    map_data = load_json("map.json")
 
-        # The Math: Player Damage = STR + 1d6 roll
-        enemy = game_state.current_enemy
-        player_dmg = game_state.strength + random.randint(1, 6)
-        enemy.hp -= player_dmg
-        
-        battle_log = f"You strike the {enemy.name} for {player_dmg} damage! "
+    # Get player
+    player = world_state["players"].get(request.player_id)
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
 
-        # Check if enemy died
-        if enemy.hp <= 0:
-            battle_log += f"The {enemy.name} crumbles into dust. You are victorious!"
-            game_state.current_enemy = None # Clear the enemy from the room
-        else:
-            # Enemy retaliates: Damage = ATK + 1d3 roll
-            enemy_dmg = enemy.atk + random.randint(1, 3)
-            # Subtract Agility (Dodge/Block mitigation)
-            actual_dmg = max(1, enemy_dmg - (game_state.agility // 2)) 
-            game_state.hp -= actual_dmg
-            
-            battle_log += f"The {enemy.name} slashes back for {actual_dmg} damage! It has {enemy.hp} HP left. "
+    # Get location
+    location_key = player["location"]
+    current_location = map_data.get(location_key)
+    if not current_location:
+        raise HTTPException(status_code=404, detail="Location not found")
 
-        # Check for player death
-        status = "alive"
-        if game_state.hp <= 0:
-            battle_log += "You fall to the ground. Your lineage ends here..."
-            status = "dead"
+    # Check for movement
+    action_lower = request.action.lower()
+    for exit_location in current_location.get("exits", []):
+        if exit_location.replace("_", " ") in action_lower or exit_location in action_lower:
+            player["location"] = exit_location
+            current_location = map_data[exit_location]
+            break
 
-        return {
-            "text": battle_log,
-            "state": game_state.dict(),
-            "image_base64": "",
-            "status": status
-        }
-    # --- END COMBAT LOGIC ---
-
-    # 1. Movement Logic
-    room = world_map.get(game_state.current_room, {"name": "The Void", "description": "You are lost.", "exits": {}})
-    
-    if "go " in action:
-        direction = action.replace("go ", "").strip()
-        if direction in room.get("exits", {}):
-            game_state.current_room = room["exits"][direction]
-            room = world_map[game_state.current_room]
-    
-    # 2. The Gemini Prompt
-    # We feed the AI the current game state, the room description, and the user's action
+    # Build Gemini prompt
     prompt = f"""
-    You are the Dungeon Master for a dark fantasy text adventure called 'Echoes of the Fallen'.
-    The player is the current scion of {game_state.house_name}.
-    They have {game_state.hp} HP.
-    
-    They are currently in: {room.get('name')}
-    Room description: {room.get('description')}
-    
-    The player attempts to: '{action}'
-    
-    Describe what happens next in 2 to 3 short, atmospheric sentences. 
-    Keep it grim, mysterious, and engaging. Do NOT let them easily escape danger.
+    You are a dark fantasy dungeon master for 'Echoes of the Fallen'.
+
+    WORLD HISTORY: {world_state["world_history"]}
+    CURRENT LOCATION: {current_location["description"]}
+    LOCATION HISTORY: {current_location.get("history", [])}
+    PLAYER NAME: {player["name"]}
+    PLAYER CLASS: {player["class"]}
+    PLAYER HP: {player["hp"]}/{player["max_hp"]}
+    PLAYER INVENTORY: {player["inventory"]}
+    PLAYER ACTION: {request.action}
+
+    Respond with vivid narrative (2-3 sentences). Then on a new line write:
+    VISUAL: [one sentence describing the scene for image generation]
     """
-    
-    # 3. Call the Gemini API
-    if client:
-        try:
-            response = client.models.generate_content(
-                model='gemini-1.5-flash',
-                contents=prompt,
-            )
-            response_text = response.text
-        except Exception as e:
-            response_text = f"[System Error: The AI is sleeping. {str(e)}]"
-    else:
-        # Fallback if the API key isn't loaded properly
-        response_text = f"You are in {room.get('name')}. You tried to '{action}', but the AI API key is missing!"
-    
-    # 4. Return the AI's story and the updated state to the frontend
+
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=prompt
+    )
+
+    narrative = response.text
+
+    # Save updated world state
+    world_state["players"][request.player_id] = player
+    save_json("world_state.json", world_state)
+
     return {
-        "text": response_text,
-        "state": game_state.dict(),
-        "image_base64": "", 
-        "status": "alive"
+        "text": narrative,
+        "image_base64": "",
+        "status": player["status"],
+        "location": player["location"],
+        "hp": player["hp"],
+        "max_hp": player["max_hp"]
     }
