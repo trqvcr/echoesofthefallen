@@ -12,12 +12,14 @@ from dotenv import load_dotenv
 from models import RegisterRequest, LoginRequest, ActionRequest, RiseRequest, AvatarRequest, TravelRequest
 from db import get_player, save_player, get_world, save_world, get_all_locations, save_location, hash_password
 from enemies import tick_spawns, tick_story_npcs
-from world_tick import tick_world
+from world_tick import tick_world, tick_corruption
 from combat import player_to_state, _start_combat, process_combat_turn, _make_ancestor_record, build_heir
 from images import generate_scene_image, generate_avatar_portrait, generate_npc_portrait
 from story import (
     get_story_context, get_story_nudge, check_act_advancement,
     make_world_event, get_active_world_event, STORY_FLAGS,
+    get_npc_hint_context, CORRUPTION_KILL_VOID_ENEMY, CORRUPTION_FLAG_REDUCTIONS,
+    VOID_ENEMY_IDS, STRANGER_STAGES,
 )
 from music import generate_ambient_music, get_music_context
 import base64
@@ -101,10 +103,14 @@ async def serve_map():
 
 @app.get("/events")
 async def get_events():
-    """Polled by clients every few seconds. Returns active world event if any."""
-    world = get_world()
-    event = get_active_world_event(world.get("story", {}))
-    return event or {}
+    """Polled by clients every few seconds. Returns active world event + corruption."""
+    world      = get_world()
+    story      = world.get("story", {})
+    event      = get_active_world_event(story)
+    corruption = round(float(story.get("corruption", 0.0)), 1)
+    if event:
+        return {**event, "corruption": corruption}
+    return {"corruption": corruption}
 
 
 # ── /register ──────────────────────────────────────────────────────────────────
@@ -265,6 +271,9 @@ async def handle_action(request: ActionRequest):
     all_locations = tick_story_npcs(all_locations)
     all_locations = tick_world(all_locations)
 
+    # Tick passive corruption and collect any threshold events to fire
+    world_state, threshold_events = tick_corruption(world_state)
+
     player = get_player(request.player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
@@ -275,6 +284,7 @@ async def handle_action(request: ActionRequest):
 
     pre_location = player["location"]
     pre_combat   = player.get("combat_state", {}).get("active", False)
+    pre_enemy_id = player.get("combat_state", {}).get("enemy_id", "")
 
     if pre_combat:
         result = await process_combat_turn(
@@ -282,12 +292,48 @@ async def handle_action(request: ActionRequest):
             location_key, world_state, all_locations,
             request.player_id, skill_defs, client
         )
+        # On void enemy kill, reduce corruption; track stranger death
+        if result.get("combat_event") == "victory":
+            enemy_id = pre_enemy_id
+            story    = world_state.setdefault("story", {})
+            if any(v in enemy_id for v in VOID_ENEMY_IDS):
+                story["corruption"] = max(0.0, float(story.get("corruption", 0.0)) - CORRUPTION_KILL_VOID_ENEMY)
+            if enemy_id == "hooded_stranger":
+                story.setdefault("flags", {})["stranger_dead"]   = True
+                story["stranger_stage"]                          = -1
+                story["world_event"] = make_world_event("siege_of_saltmarsh_failed", triggered_by=player["name"])
+            world_state["story"] = story
     else:
         result = await _process_exploration(
             player, request.action, current_location,
             location_key, world_state, all_locations,
             request.player_id, skill_defs
         )
+
+    # Fire any threshold events (use latest event if multiple crossed in one tick)
+    story        = world_state.setdefault("story", {})
+    world_dirty  = bool(threshold_events)
+
+    for event_id in threshold_events:
+        story["world_event"] = make_world_event(event_id, triggered_by="world")
+
+    # Check story flag-based announcements set during this action
+    new_flag_event = result.pop("_fire_world_event", None)
+    if new_flag_event:
+        story["world_event"] = make_world_event(new_flag_event[0], triggered_by=new_flag_event[1])
+        world_dirty = True
+
+    # Act advancement check
+    new_act = check_act_advancement(story)
+    if new_act != story.get("act", 1):
+        story["act"] = new_act
+        act_event_id = f"act_{new_act}_begins"
+        story["world_event"] = make_world_event(act_event_id)
+        world_dirty = True
+
+    if world_dirty:
+        world_state["story"] = story
+        save_world(world_state)
 
     # Generate ambient music when game context changes
     combat_event  = result.get("combat_event")
@@ -306,6 +352,12 @@ async def handle_action(request: ActionRequest):
     # Always include current location NPC summary for the HUD
     post_loc_data = all_locations.get(post_location, {})
     result["location_npcs"] = _location_npcs(post_loc_data)
+
+    # Include active world event and corruption for the frontend
+    active_event = get_active_world_event(story)
+    if active_event:
+        result["world_event"] = active_event
+    result["corruption"] = round(story.get("corruption", 0.0), 1)
 
     return result
 
@@ -523,6 +575,22 @@ VISUAL: [scene description for image generation]"""
 
     attrs = player["attributes"]
 
+    # ── Location-based story flags ─────────────────────────────────────────────
+    LOCATION_FLAGS = {
+        "void_wastes_edge":  "void_wastes_reached",
+        "throne_vault":      "throne_vault_visited",
+        "sunken_library":    "sunken_library_visited",
+        "ritual_chamber":    "ritual_chamber_found",
+    }
+    flags = story.setdefault("flags", {})
+    if location_key in LOCATION_FLAGS:
+        flag = LOCATION_FLAGS[location_key]
+        if not flags.get(flag):
+            flags[flag] = True
+            story["flags"] = flags
+            world_state["story"] = story
+            save_world(world_state)
+
     npc_lines = []
     for k, v in current_location.get("npcs", {}).items():
         if v.get("status") == "dead":
@@ -537,6 +605,10 @@ VISUAL: [scene description for image generation]"""
             entry += f"\n  Personality/appearance: {desc}"
         if mem:
             entry += f"\n  Remembers: {'; '.join(mem[-3:])}"
+        # Inject NPC-specific story knowledge hints
+        hint = get_npc_hint_context(k, story)
+        if hint:
+            entry += f"\n{hint}"
         npc_lines.append(entry)
     npc_block = "\n".join(npc_lines) if npc_lines else "none"
 
@@ -643,8 +715,16 @@ history: one third-person sentence about {player['name']}. Empty string if trivi
                 "npc_delta":  Schema(type=Type.INTEGER, description="Disposition change for the NPC, 0 if none"),
                 "npc_memory": Schema(type=Type.STRING,  description="Memory to append to NPC, empty string if none"),
                 "history":    Schema(type=Type.STRING,  description="One sentence for location history log in third person, empty string if nothing significant"),
+                "story_flag": Schema(type=Type.STRING,  description=(
+                    "If the player's action triggers a story milestone, name it exactly. "
+                    "Options: scholar_warned, osric_questioned, stranger_noticed, sable_warned, petra_mentioned_artifacts, "
+                    "shattering_truth_learned, cult_origin_learned, void_crown_lore_learned, "
+                    "ritual_shard_1_found, ritual_shard_2_found, ritual_shard_3_found, "
+                    "void_node_1_disrupted, void_node_2_disrupted, void_node_3_disrupted. "
+                    "Empty string if none of these apply."
+                )),
             },
-            required=["env_damage", "visual", "state_changes", "items_gained", "npc_id", "npc_delta", "npc_memory", "history"]
+            required=["env_damage", "visual", "state_changes", "items_gained", "npc_id", "npc_delta", "npc_memory", "history", "story_flag"]
         )
 
         try:
@@ -723,6 +803,60 @@ history: one third-person sentence about {player['name']}. Empty string if trivi
         current_location["history"] = current_location["history"][-30:]
         location_dirty = True
 
+    # ── Story flag from Gemini mutation ───────────────────────────────────────
+    story_flag = mutation.get("story_flag", "").strip()
+    fire_world_event = None
+    if story_flag and story_flag in STORY_FLAGS:
+        story  = world_state.setdefault("story", {})
+        flags  = story.setdefault("flags", {})
+        if not flags.get(story_flag):
+            flags[story_flag] = True
+            story["flags"] = flags
+
+            # Apply corruption reduction for flag
+            reduction = CORRUPTION_FLAG_REDUCTIONS.get(story_flag, 0.0)
+            if reduction:
+                story["corruption"] = max(0.0, float(story.get("corruption", 0.0)) - reduction)
+
+            # Advance stranger arc on positive interactions
+            if story_flag == "stranger_noticed" or (
+                npc_id == "hooded_stranger" and npc_delta and npc_delta > 0
+            ):
+                current_stage = story.get("stranger_stage", 0)
+                if current_stage >= 0:
+                    interactions = story.get("stranger_interactions", 0) + 1
+                    story["stranger_interactions"] = interactions
+                    stage_data = STRANGER_STAGES.get(current_stage, {})
+                    threshold  = stage_data.get("interactions_to_advance", 999)
+                    if interactions >= threshold:
+                        story["stranger_stage"]        = current_stage + 1
+                        story["stranger_interactions"] = 0
+                        if current_stage + 1 == 3:
+                            fire_world_event = ("stranger_defected", player["name"])
+                            flags["ritual_chamber_opened"] = True
+
+            # Determine world announcement for this flag
+            FLAG_ANNOUNCEMENTS = {
+                "ritual_shard_1_found":      "ritual_shard_found",
+                "ritual_shard_2_found":      "ritual_shard_found",
+                "ritual_shard_3_found":      "ritual_shard_found",
+                "shattering_truth_learned":  "shattering_truth_revealed",
+                "cult_leader_dead":          "cult_leader_killed",
+                "void_entity_defeated":      "void_entity_defeated",
+                "void_crown_assembled":      "void_crown_assembled",
+            }
+            if not fire_world_event and story_flag in FLAG_ANNOUNCEMENTS:
+                fire_world_event = (FLAG_ANNOUNCEMENTS[story_flag], player["name"])
+
+            world_state["story"] = story
+            save_world(world_state)
+
+    # Pass fire_world_event up to handle_action via result
+    if fire_world_event:
+        result_extra = {"_fire_world_event": fire_world_event}
+    else:
+        result_extra = {}
+
     # ── NPC portrait for exploration interactions ─────────────────────────────
     npc_portrait     = ""
     npc_description  = ""
@@ -790,6 +924,7 @@ history: one third-person sentence about {player['name']}. Empty string if trivi
     if combat_event:
         result["combat_event"] = combat_event
     result.update(extra_data)
+    result.update(result_extra)
     return result
 
 

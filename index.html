@@ -20,6 +20,11 @@
         .msg-fade { animation: msgFadeIn 0.4s ease forwards; }
         .sidebar-box { background: rgba(15, 10, 25, 0.6); border: 1px solid rgba(139, 92, 246, 0.2); backdrop-filter: blur(10px); }
         #enemy-hp-fill { transition: width 0.5s ease; box-shadow: 0 0 10px rgba(220, 38, 38, 0.4); }
+        #corruption-bar-fill { transition: width 1s ease; }
+        @keyframes bannerIn { from { opacity: 0; transform: translateY(-100%); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes bannerOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-100%); } }
+        .world-banner { animation: bannerIn 0.5s ease forwards; }
+        .world-banner.dismissing { animation: bannerOut 0.4s ease forwards; }
 
         /* Death screen */
         #death-screen {
@@ -368,6 +373,29 @@
                         oninput="setMusicVolume(this.value)"
                         class="w-16 h-1 accent-purple-600 cursor-pointer" title="Volume">
                 </div>
+            </div>
+
+            <!-- World Event Announcement Banner -->
+            <div id="world-banner" class="hidden world-banner relative z-50 overflow-hidden">
+                <div id="world-banner-bg" class="absolute inset-0 opacity-20"></div>
+                <div class="relative px-6 py-3 flex items-start justify-between gap-4">
+                    <div class="flex flex-col gap-0.5 min-w-0">
+                        <span id="world-banner-title" class="title-font text-sm tracking-[0.2em] uppercase font-bold"></span>
+                        <span id="world-banner-msg" class="text-xs text-gray-300 leading-snug"></span>
+                        <span id="world-banner-by" class="title-font text-[9px] tracking-widest text-gray-600 uppercase mt-0.5 hidden"></span>
+                    </div>
+                    <button onclick="dismissBanner()" class="flex-shrink-0 title-font text-[9px] text-gray-600 hover:text-gray-300 uppercase tracking-widest mt-0.5 transition-colors">[×]</button>
+                </div>
+                <!-- Corruption bar lives at the bottom of the banner area always -->
+            </div>
+
+            <!-- Corruption Bar -->
+            <div class="px-4 py-1.5 bg-gray-950/60 border-b border-purple-900/10 flex items-center gap-3">
+                <span class="title-font text-[9px] text-gray-600 uppercase tracking-widest flex-shrink-0">Void</span>
+                <div class="flex-1 h-1 stat-bar-bg rounded-full overflow-hidden">
+                    <div id="corruption-bar-fill" class="h-full rounded-full" style="width:0%"></div>
+                </div>
+                <span id="corruption-label" class="title-font text-[9px] text-gray-600 uppercase tracking-widest flex-shrink-0">0%</span>
             </div>
 
             <div id="travel-hud" class="px-4 py-3 bg-gray-950/50 border-b border-purple-900/20 flex flex-col gap-2">
@@ -1607,6 +1635,12 @@
                 // NPC / threat HUD
                 if (data.location_npcs) updateNpcHud(data.location_npcs);
 
+                // Corruption bar
+                if (data.corruption !== undefined) updateCorruption(data.corruption);
+
+                // World event announcement
+                if (data.world_event) showWorldBanner(data.world_event);
+
                 // Scene image
                 setSceneImage(data.image_base64 || null);
 
@@ -1709,6 +1743,123 @@
                 input.focus();
             }
         }
+
+        // ── Corruption Bar ────────────────────────────────────────────────────────
+        const CORRUPTION_COLORS = {
+            0:   '#6b7280', // gray   — The Silence
+            25:  '#ca8a04', // yellow — The Creep
+            50:  '#ea580c', // orange — The Encroachment
+            75:  '#dc2626', // red    — The Breaking
+            90:  '#9333ea', // purple — The Dark Moon
+            100: '#7f1d1d', // crimson— The Fall
+        };
+
+        function updateCorruption(pct) {
+            const fill  = document.getElementById('corruption-bar-fill');
+            const label = document.getElementById('corruption-label');
+            if (!fill || !label) return;
+            fill.style.width = Math.min(pct, 100) + '%';
+            label.textContent = Math.round(pct) + '%';
+            let color = CORRUPTION_COLORS[0];
+            for (const t of [25, 50, 75, 90, 100]) {
+                if (pct >= t) color = CORRUPTION_COLORS[t];
+            }
+            fill.style.background = color;
+            fill.style.boxShadow  = `0 0 6px ${color}80`;
+            label.style.color     = color;
+        }
+
+        // ── World Event Banner ─────────────────────────────────────────────────
+        const BANNER_COLORS = {
+            gray:    { bg: '#374151', border: '#6b728040', text: '#d1d5db' },
+            yellow:  { bg: '#78350f', border: '#ca8a0440', text: '#fde68a' },
+            orange:  { bg: '#7c2d12', border: '#ea580c40', text: '#fed7aa' },
+            red:     { bg: '#7f1d1d', border: '#dc262640', text: '#fca5a5' },
+            green:   { bg: '#14532d', border: '#16a34a40', text: '#86efac' },
+            purple:  { bg: '#3b0764', border: '#9333ea40', text: '#e9d5ff' },
+            crimson: { bg: '#450a0a', border: '#b91c1c40', text: '#fecaca' },
+        };
+
+        let bannerDismissTimer = null;
+        let lastBannerId       = null;
+
+        function showWorldBanner(event) {
+            if (!event || !event.id) return;
+            // Don't re-show the same event
+            if (event.id === lastBannerId) return;
+            lastBannerId = event.id;
+
+            const banner  = document.getElementById('world-banner');
+            const bg      = document.getElementById('world-banner-bg');
+            const title   = document.getElementById('world-banner-title');
+            const msg     = document.getElementById('world-banner-msg');
+            const byLine  = document.getElementById('world-banner-by');
+            if (!banner) return;
+
+            const scheme = BANNER_COLORS[event.color] || BANNER_COLORS.purple;
+            banner.style.borderBottom = `1px solid ${scheme.border}`;
+            banner.style.borderTop    = `1px solid ${scheme.border}`;
+            bg.style.background       = scheme.bg;
+            title.style.color         = scheme.text;
+            title.textContent         = event.title || 'WORLD EVENT';
+            msg.textContent           = event.message || '';
+
+            if (event.triggered_by && event.triggered_by !== 'world') {
+                byLine.textContent = `— ${event.triggered_by}`;
+                byLine.classList.remove('hidden');
+            } else {
+                byLine.classList.add('hidden');
+            }
+
+            banner.classList.remove('hidden', 'dismissing');
+            void banner.offsetWidth; // reflow
+            banner.classList.add('world-banner');
+
+            // Also append to narrative log
+            const log  = document.getElementById('narrative-log');
+            if (log) {
+                const ann = document.createElement('div');
+                ann.className = "border rounded px-3 py-2 my-1 msg-fade";
+                ann.style.borderColor = scheme.border;
+                ann.style.background  = scheme.bg + '40';
+                ann.innerHTML = `<span class="title-font text-xs tracking-widest uppercase font-bold" style="color:${scheme.text}">${event.title}</span><br><span class="text-xs text-gray-400">${event.message}</span>`;
+                log.appendChild(ann);
+                log.scrollTop = log.scrollHeight;
+            }
+
+            // Auto-dismiss after 12s
+            if (bannerDismissTimer) clearTimeout(bannerDismissTimer);
+            bannerDismissTimer = setTimeout(dismissBanner, 12000);
+        }
+
+        function dismissBanner() {
+            const banner = document.getElementById('world-banner');
+            if (!banner || banner.classList.contains('hidden')) return;
+            banner.classList.add('dismissing');
+            setTimeout(() => banner.classList.add('hidden'), 400);
+            if (bannerDismissTimer) { clearTimeout(bannerDismissTimer); bannerDismissTimer = null; }
+        }
+
+        // ── Poll /events every 5s for world announcements from other players ──
+        let lastPolledEventId = null;
+        function startEventPolling() {
+            setInterval(async () => {
+                if (!sessionStorage.getItem('playerId')) return;
+                try {
+                    const res = await fetch('/events');
+                    if (!res.ok) return;
+                    const ev = await res.json();
+                    if (ev && ev.id && ev.id !== lastPolledEventId) {
+                        lastPolledEventId = ev.id;
+                        showWorldBanner(ev);
+                    }
+                    if (ev && ev.corruption !== undefined) {
+                        updateCorruption(ev.corruption);
+                    }
+                } catch (_) {}
+            }, 5000);
+        }
+        startEventPolling();
 
         function showNpcPortrait(src) {
             const wrap = document.getElementById('npc-portrait-wrap');
