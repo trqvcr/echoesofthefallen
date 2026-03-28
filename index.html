@@ -733,6 +733,11 @@
             input.disabled = true;
             btn.disabled   = true;
 
+            // Fade out current scene image while waiting
+            const sceneImg   = document.getElementById('scene-image');
+            const scenePH    = document.getElementById('image-placeholder');
+            sceneImg.classList.add('opacity-0');
+
             try {
                 const response = await fetch('/action', {
                     method:  'POST',
@@ -760,11 +765,12 @@
 
                 // Scene image
                 if (data.image_base64) {
-                    const imgEl      = document.getElementById('scene-image');
-                    const placeholder = document.getElementById('image-placeholder');
-                    imgEl.src = data.image_base64;
-                    imgEl.classList.remove('opacity-0');
-                    if (placeholder) placeholder.classList.add('hidden');
+                    sceneImg.onload = () => sceneImg.classList.remove('opacity-0');
+                    sceneImg.src = data.image_base64;
+                    if (scenePH) scenePH.classList.add('hidden');
+                } else {
+                    sceneImg.src = '';
+                    if (scenePH) scenePH.classList.remove('hidden');
                 }
 
                 // Narrative message
