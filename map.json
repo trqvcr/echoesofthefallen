@@ -2,11 +2,14 @@
   "world": {
     "name": "Valdris",
     "type": "world",
-    "lore": "Once a vast and prosperous continent, Valdris was shattered 300 years ago when the Void Crown — an artifact of immense power — was broken into five shards by a cabal of rogue scholars. The resulting cataclysm tore the land apart, raising floating island-remnants above an endless dark chasm known as the Void Below. The old kingdom collapsed overnight. Its cities became ruins haunted by Void-touched creatures. Survivors scattered across the islands, forming desperate settlements. The five shards of the Crown are said to still exist, each guarded by a fragment of the original catastrophe.",
+    "lore": "Once a vast and prosperous continent, Valdris was shattered 300 years ago when the Void Crown \u00e2\u20ac\u201d an artifact of immense power \u00e2\u20ac\u201d was broken into five shards by a cabal of rogue scholars. The resulting cataclysm tore the land apart, raising floating island-remnants above an endless dark chasm known as the Void Below. The old kingdom collapsed overnight. Its cities became ruins haunted by Void-touched creatures. Survivors scattered across the islands, forming desperate settlements. The five shards of the Crown are said to still exist, each guarded by a fragment of the original catastrophe.",
     "history": [],
-    "children": ["ashen_ruins", "saltmarsh_settlement", "void_wastes"]
+    "children": [
+      "ashen_ruins",
+      "saltmarsh_settlement",
+      "void_wastes"
+    ]
   },
-
   "ashen_ruins": {
     "name": "The Ashen Ruins",
     "type": "region",
@@ -17,15 +20,23 @@
       "void_energy_level": "unstable",
       "ash_storm_active": false
     },
-    "children": ["ashen_courtyard", "void_bridge", "ruined_keep", "sunken_library"]
+    "children": [
+      "ashen_courtyard",
+      "void_bridge",
+      "ruined_keep",
+      "sunken_library"
+    ]
   },
-
   "ashen_courtyard": {
     "name": "Ashen Courtyard",
     "type": "location",
     "parent": "ashen_ruins",
     "description": "A crumbling plaza of blackened stone. Ash drifts like snow from a pale, sunless sky. Three archways lead deeper into the ruins. A dead soldier in rusted armor slumps against a shattered fountain, his hand still clutching a broken sword. The ground is scorched in a pattern that suggests something enormous once stood here.",
-    "exits": ["void_bridge", "ruined_keep", "sunken_library"],
+    "exits": [
+      "void_bridge",
+      "ruined_keep",
+      "sunken_library"
+    ],
     "history": [],
     "state": {
       "fountain_intact": false,
@@ -33,15 +44,21 @@
       "scorched_pattern_examined": false
     },
     "npcs": {},
-    "items": ["broken_sword", "rusted_shield"]
+    "items": [
+      "broken_sword",
+      "rusted_shield"
+    ]
   },
-
   "void_bridge": {
     "name": "The Void Bridge",
     "type": "location",
     "parent": "ashen_ruins",
-    "description": "A narrow stone bridge spanning an endless dark chasm known as the Void Below. The air hums with unstable energy that makes skin tingle and eyes water. Strange runes glow faintly along the crumbling railings — warnings in an old script. On clear days, you can see other floating island-remnants drifting in the distance.",
-    "exits": ["ashen_courtyard", "ruined_keep", "saltmarsh_settlement"],
+    "description": "A narrow stone bridge spanning an endless dark chasm known as the Void Below. The air hums with unstable energy that makes skin tingle and eyes water. Strange runes glow faintly along the crumbling railings \u00e2\u20ac\u201d warnings in an old script. On clear days, you can see other floating island-remnants drifting in the distance.",
+    "exits": [
+      "ashen_courtyard",
+      "ruined_keep",
+      "saltmarsh_settlement"
+    ],
     "history": [],
     "state": {
       "runes_decoded": false,
@@ -51,13 +68,16 @@
     "npcs": {},
     "items": []
   },
-
   "ruined_keep": {
     "name": "The Ruined Keep",
     "type": "location",
     "parent": "ashen_ruins",
-    "description": "The remains of a great fortress that once housed the royal guard. The throne room ceiling has collapsed entirely, letting in a pale, ash-choked sky. Cracked pillars lean at dangerous angles. A Void-touched wolf prowls among the rubble, its eyes flickering with purple light. In the far corner, a sealed iron door bears the royal crest — scratched but intact.",
-    "exits": ["void_bridge", "ashen_courtyard", "throne_vault"],
+    "description": "The remains of a great fortress that once housed the royal guard. The throne room ceiling has collapsed entirely, letting in a pale, ash-choked sky. Cracked pillars lean at dangerous angles. A Void-touched wolf prowls among the rubble, its eyes flickering with purple light. In the far corner, a sealed iron door bears the royal crest \u00e2\u20ac\u201d scratched but intact.",
+    "exits": [
+      "void_bridge",
+      "ashen_courtyard",
+      "throne_vault"
+    ],
     "history": [],
     "state": {
       "iron_door_locked": true,
@@ -67,27 +87,33 @@
     "npcs": {
       "void_wolf": {
         "name": "Void-Touched Wolf",
-        "status": "alive",
+        "status": "dead",
         "disposition": -100,
-        "hp": 20,
+        "hp": 0,
         "max_hp": 20,
         "atk": 5,
         "def": 1,
         "xp_reward": 30,
-        "loot": ["void_fang", "shredded_leather"],
+        "loot": [
+          "void_fang",
+          "shredded_leather"
+        ],
         "memory": [],
         "description": "A large wolf whose fur has turned ashen grey. Void energy pulses beneath its skin in veins of purple light. It was once a palace hound."
       }
     },
-    "items": ["cracked_royal_seal"]
+    "items": [
+      "cracked_royal_seal"
+    ]
   },
-
   "throne_vault": {
     "name": "The Throne Vault",
     "type": "location",
     "parent": "ashen_ruins",
-    "description": "A small underground chamber beneath the keep, accessible only through the iron door. Rows of collapsed shelves line the walls. In the center, a stone pedestal holds a faintly glowing object — one of the five Void Crown shards. The air here is completely still, as if time itself has paused.",
-    "exits": ["ruined_keep"],
+    "description": "A small underground chamber beneath the keep, accessible only through the iron door. Rows of collapsed shelves line the walls. In the center, a stone pedestal holds a faintly glowing object \u00e2\u20ac\u201d one of the five Void Crown shards. The air here is completely still, as if time itself has paused.",
+    "exits": [
+      "ruined_keep"
+    ],
     "history": [],
     "state": {
       "shard_taken": false,
@@ -95,15 +121,18 @@
       "room_discovered": false
     },
     "npcs": {},
-    "items": ["void_crown_shard_1"]
+    "items": [
+      "void_crown_shard_1"
+    ]
   },
-
   "sunken_library": {
     "name": "The Sunken Library",
     "type": "location",
     "parent": "ashen_ruins",
     "description": "A once-grand library, now half-collapsed into the earth. Rows of bookshelves are buried under rubble, but some shelves near the back remain intact. Water seeps through cracks in the ceiling, pooling on the mosaic floor. An old scholar's ghost drifts between the shelves, endlessly searching for a book that no longer exists.",
-    "exits": ["ashen_courtyard"],
+    "exits": [
+      "ashen_courtyard"
+    ],
     "history": [],
     "state": {
       "ghost_appeased": false,
@@ -120,14 +149,18 @@
         "atk": 0,
         "def": 999,
         "xp_reward": 0,
-        "loot": ["lost_research_notes"],
+        "loot": [
+          "lost_research_notes"
+        ],
         "memory": [],
         "description": "A translucent apparition in tattered robes, endlessly murmuring the titles of books. It cannot be harmed. It does not know it is dead. If shown the right book, it may share secrets of the old world."
       }
     },
-    "items": ["waterlogged_journal", "rune_primer"]
+    "items": [
+      "waterlogged_journal",
+      "rune_primer"
+    ]
   },
-
   "saltmarsh_settlement": {
     "name": "Saltmarsh",
     "type": "region",
@@ -138,15 +171,23 @@
       "under_threat": false,
       "gate_open": true
     },
-    "children": ["saltmarsh_gate", "the_ashen_flagon", "saltmarsh_market", "healers_hut"]
+    "children": [
+      "saltmarsh_gate",
+      "the_ashen_flagon",
+      "saltmarsh_market",
+      "healers_hut"
+    ]
   },
-
   "saltmarsh_gate": {
     "name": "Saltmarsh Gate",
     "type": "location",
     "parent": "saltmarsh_settlement",
     "description": "A heavy gate of salvaged iron and timber marks the entrance to Saltmarsh. Two guards in mismatched armor watch the road with tired eyes. A noticeboard nailed to the gate post is covered in faded wanted posters and job listings.",
-    "exits": ["void_bridge", "the_ashen_flagon", "saltmarsh_market"],
+    "exits": [
+      "void_bridge",
+      "the_ashen_flagon",
+      "saltmarsh_market"
+    ],
     "history": [],
     "state": {
       "gate_locked": false,
@@ -169,13 +210,16 @@
     },
     "items": []
   },
-
   "the_ashen_flagon": {
     "name": "The Ashen Flagon",
     "type": "location",
     "parent": "saltmarsh_settlement",
     "description": "The only tavern in Saltmarsh, built inside the hull of a wrecked ship that crash-landed during the Shattering. The interior is warm and smoky. A long bar runs along the curved hull wall. Four tables fill the cramped floor space. Wanted posters and old maps cover every surface. The barkeep, a one-armed man named Osric, pours drinks with practiced efficiency.",
-    "exits": ["saltmarsh_gate", "saltmarsh_market", "tavern_back_room"],
+    "exits": [
+      "saltmarsh_gate",
+      "saltmarsh_market",
+      "tavern_back_room"
+    ],
     "history": [],
     "state": {
       "brawl_happened": false,
@@ -193,7 +237,9 @@
         "atk": 4,
         "def": 1,
         "xp_reward": 0,
-        "loot": ["tavern_key"],
+        "loot": [
+          "tavern_key"
+        ],
         "memory": [],
         "description": "A one-armed barkeep, missing his left arm from the elbow down. He lost it during the Shattering. He runs the Ashen Flagon with quiet authority. He knows more about the ruins than he lets on."
       },
@@ -206,35 +252,48 @@
         "atk": 9,
         "def": 2,
         "xp_reward": 50,
-        "loot": ["encrypted_letter", "void_shard_map"],
+        "loot": [
+          "encrypted_letter",
+          "void_shard_map"
+        ],
         "memory": [],
         "description": "A cloaked figure nursing a drink in the corner. Their face is hidden. They flinch when anyone gets too close. They are watching the door."
       }
     },
-    "items": ["mug_of_ash_ale", "old_map_fragment"]
+    "items": [
+      "mug_of_ash_ale",
+      "old_map_fragment"
+    ]
   },
-
   "tavern_back_room": {
     "name": "The Flagon's Back Room",
     "type": "location",
     "parent": "saltmarsh_settlement",
     "description": "A cramped storage room behind the bar, accessible through a low door. Barrels of ale and sacks of grain are stacked against the walls. A trapdoor in the floor is padlocked shut. Someone has scratched a crude map into the wooden wall.",
-    "exits": ["the_ashen_flagon"],
+    "exits": [
+      "the_ashen_flagon"
+    ],
     "history": [],
     "state": {
       "trapdoor_locked": true,
       "wall_map_noticed": false
     },
     "npcs": {},
-    "items": ["padlock", "half_empty_ale_barrel"]
+    "items": [
+      "padlock",
+      "half_empty_ale_barrel"
+    ]
   },
-
   "saltmarsh_market": {
     "name": "Saltmarsh Market",
     "type": "location",
     "parent": "saltmarsh_settlement",
     "description": "A row of rickety stalls in the open air. Traders sell salvaged weapons, scavenged food, and Void-touched curiosities of dubious safety. The market is always busy, always loud, and always slightly dangerous.",
-    "exits": ["saltmarsh_gate", "the_ashen_flagon", "healers_hut"],
+    "exits": [
+      "saltmarsh_gate",
+      "the_ashen_flagon",
+      "healers_hut"
+    ],
     "history": [],
     "state": {
       "market_open": true,
@@ -255,15 +314,20 @@
         "description": "An elderly woman selling salvaged weapons from a cart. She haggles aggressively but is fair. She has a vast network of contacts across the islands."
       }
     },
-    "items": ["salvaged_sword", "health_potion", "void_lantern"]
+    "items": [
+      "salvaged_sword",
+      "health_potion",
+      "void_lantern"
+    ]
   },
-
   "healers_hut": {
     "name": "The Healer's Hut",
     "type": "location",
     "parent": "saltmarsh_settlement",
-    "description": "A small hut at the edge of the settlement, smelling strongly of herbs and something sharper — Void energy, carefully contained. The healer, a young woman named Sable, treats wounds using a mixture of traditional medicine and dangerous Void-touched remedies.",
-    "exits": ["saltmarsh_market"],
+    "description": "A small hut at the edge of the settlement, smelling strongly of herbs and something sharper \u00e2\u20ac\u201d Void energy, carefully contained. The healer, a young woman named Sable, treats wounds using a mixture of traditional medicine and dangerous Void-touched remedies.",
+    "exits": [
+      "saltmarsh_market"
+    ],
     "history": [],
     "state": {
       "sable_busy": false,
@@ -279,39 +343,48 @@
         "atk": 2,
         "def": 0,
         "xp_reward": 0,
-        "loot": ["healers_kit"],
+        "loot": [
+          "healers_kit"
+        ],
         "memory": [],
         "description": "A young healer with ink-stained fingers and tired eyes. She is one of the few people in Saltmarsh who understands Void energy well enough to use it safely. She is hiding something about her past."
       }
     },
-    "items": ["healing_salve", "void_antidote"]
+    "items": [
+      "healing_salve",
+      "void_antidote"
+    ]
   },
-
   "void_wastes": {
     "name": "The Void Wastes",
     "type": "region",
     "parent": "world",
-    "description": "The most dangerous region of the shattered world — a cluster of small, unstable island-remnants barely held together by Void energy. Few who venture here return. The air crackles with raw power. This is where the largest concentration of Void Crown shards is believed to be.",
+    "description": "The most dangerous region of the shattered world \u00e2\u20ac\u201d a cluster of small, unstable island-remnants barely held together by Void energy. Few who venture here return. The air crackles with raw power. This is where the largest concentration of Void Crown shards is believed to be.",
     "history": [],
     "state": {
       "accessible": false,
       "void_storm_active": false
     },
-    "children": ["void_wastes_edge"]
+    "children": [
+      "void_wastes_edge"
+    ]
   },
-
   "void_wastes_edge": {
     "name": "Edge of the Void Wastes",
     "type": "location",
     "parent": "void_wastes",
     "description": "The threshold of the Void Wastes. The ground here is cracked and glowing faintly purple. Beyond this point, the laws of physics become suggestions. Even standing here causes a faint ringing in the ears and a metallic taste on the tongue. A weathered sign reads: TURN BACK.",
-    "exits": ["void_bridge"],
+    "exits": [
+      "void_bridge"
+    ],
     "history": [],
     "state": {
       "warning_sign_intact": true,
       "player_warned": false
     },
     "npcs": {},
-    "items": ["weathered_warning_sign"]
+    "items": [
+      "weathered_warning_sign"
+    ]
   }
 }

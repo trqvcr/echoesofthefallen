@@ -7,39 +7,63 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Crimson+Text:ital,wght@0,400;1,400&display=swap');
-
-        body { 
-            font-family: 'Crimson Text', serif; 
-            background-color: #030609;
-        }
+        body { font-family: 'Crimson Text', serif; background-color: #030609; }
         .title-font { font-family: 'Cinzel', serif; }
-
         #narrative-log::-webkit-scrollbar { width: 4px; }
         #narrative-log::-webkit-scrollbar-track { background: transparent; }
         #narrative-log::-webkit-scrollbar-thumb { background: #4c1d95; border-radius: 2px; }
-
         .stat-bar-bg { background: rgba(255,255,255,0.05); border: 1px solid rgba(139, 92, 246, 0.1); }
         #hp-bar-fill { transition: width 0.5s ease; box-shadow: 0 0 10px rgba(220, 38, 38, 0.4); }
-        
-        .action-row {
-            background: rgba(5, 3, 15, 0.9);
-            border-top: 1px solid rgba(139, 92, 246, 0.2);
-        }
-
-        @keyframes msgFadeIn {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+        .action-row { background: rgba(5, 3, 15, 0.9); border-top: 1px solid rgba(139, 92, 246, 0.2); }
+        @keyframes msgFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .msg-fade { animation: msgFadeIn 0.4s ease forwards; }
-        
-        .sidebar-box {
-            background: rgba(15, 10, 25, 0.6);
-            border: 1px solid rgba(139, 92, 246, 0.2);
-            backdrop-filter: blur(10px);
+        .sidebar-box { background: rgba(15, 10, 25, 0.6); border: 1px solid rgba(139, 92, 246, 0.2); backdrop-filter: blur(10px); }
+        #enemy-hp-fill { transition: width 0.5s ease; box-shadow: 0 0 10px rgba(220, 38, 38, 0.4); }
+
+        /* Death screen */
+        #death-screen {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 100;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
         }
+        #death-screen.active { display: flex; }
+        @keyframes deathFade { from { opacity: 0; } to { opacity: 1; } }
+        .death-fade { animation: deathFade 2s ease forwards; }
+
+        /* Combat banner pulse */
+        @keyframes combatPulse {
+            0%, 100% { border-color: rgba(220, 38, 38, 0.4); }
+            50% { border-color: rgba(220, 38, 38, 0.9); }
+        }
+        #combat-banner { animation: combatPulse 2s ease-in-out infinite; }
     </style>
 </head>
 <body class="text-gray-200 min-h-screen flex items-center justify-center p-4">
+
+    <!-- Death Screen -->
+    <div id="death-screen">
+        <div class="death-fade max-w-lg">
+            <div class="text-6xl mb-6">💀</div>
+            <h1 class="title-font text-4xl text-red-500 mb-2 tracking-widest">YOU HAVE FALLEN</h1>
+            <p id="death-killed-by" class="text-gray-500 italic mb-8">Slain by the void.</p>
+            
+            <div class="border border-red-900/40 rounded p-6 mb-8 text-left bg-red-950/10">
+                <h3 class="title-font text-xs text-red-400 tracking-widest uppercase mb-4">Your Legacy</h3>
+                <div id="lineage-display" class="space-y-2 text-sm text-gray-400"></div>
+            </div>
+
+            <p class="text-purple-400 italic mb-6">Your heir rises from the ashes. The world remembers what you did.</p>
+            <button onclick="continueAsHeir()" class="title-font text-sm uppercase tracking-widest px-8 py-4 bg-purple-900 hover:bg-purple-700 text-white rounded transition-all">
+                Rise as Heir
+            </button>
+        </div>
+    </div>
 
     <div class="w-full max-w-6xl flex gap-6 h-[90vh]">
 
@@ -54,7 +78,6 @@
                         <p id="class-display" class="text-gray-500 text-xs italic"></p>
                     </div>
                 </div>
-                
                 <div class="space-y-2">
                     <div class="flex justify-between text-xs title-font tracking-tighter">
                         <span class="text-red-400">VITALITY</span>
@@ -68,36 +91,34 @@
 
             <div class="sidebar-box rounded-lg p-5 flex-1 flex flex-col">
                 <h3 class="title-font text-[10px] text-purple-500 tracking-[0.3em] uppercase mb-6 border-b border-purple-900/30 pb-2">Attributes</h3>
-                
                 <div class="space-y-5">
                     <div class="space-y-1">
                         <div class="flex justify-between text-xs uppercase tracking-widest text-gray-400">
                             <span>Strength</span><span id="stat-str" class="text-orange-400">0</span>
                         </div>
-                        <div class="stat-bar-bg h-1 w-full rounded-full"><div id="bar-str" class="h-full bg-orange-600/50" style="width: 0%"></div></div>
+                        <div class="stat-bar-bg h-1 w-full rounded-full"><div id="bar-str" class="h-full bg-orange-600/50" style="width:0%"></div></div>
                     </div>
                     <div class="space-y-1">
                         <div class="flex justify-between text-xs uppercase tracking-widest text-gray-400">
                             <span>Agility</span><span id="stat-agi" class="text-blue-400">0</span>
                         </div>
-                        <div class="stat-bar-bg h-1 w-full rounded-full"><div id="bar-agi" class="h-full bg-blue-600/50" style="width: 0%"></div></div>
+                        <div class="stat-bar-bg h-1 w-full rounded-full"><div id="bar-agi" class="h-full bg-blue-600/50" style="width:0%"></div></div>
                     </div>
                     <div class="space-y-1">
                         <div class="flex justify-between text-xs uppercase tracking-widest text-gray-400">
                             <span>Constitution</span><span id="stat-con" class="text-green-400">0</span>
                         </div>
-                        <div class="stat-bar-bg h-1 w-full rounded-full"><div id="bar-con" class="h-full bg-green-600/50" style="width: 0%"></div></div>
+                        <div class="stat-bar-bg h-1 w-full rounded-full"><div id="bar-con" class="h-full bg-green-600/50" style="width:0%"></div></div>
                     </div>
                     <div class="space-y-1">
                         <div class="flex justify-between text-xs uppercase tracking-widest text-gray-400">
                             <span>Arcane</span><span id="stat-arc" class="text-purple-400">0</span>
                         </div>
-                        <div class="stat-bar-bg h-1 w-full rounded-full"><div id="bar-arc" class="h-full bg-purple-600/50" style="width: 0%"></div></div>
+                        <div class="stat-bar-bg h-1 w-full rounded-full"><div id="bar-arc" class="h-full bg-purple-600/50" style="width:0%"></div></div>
                     </div>
                 </div>
 
                 <h3 class="title-font text-[10px] text-purple-500 tracking-[0.3em] uppercase mt-10 mb-4 border-b border-purple-900/30 pb-2">Possessions</h3>
-                
                 <ul id="inventory-list" class="text-xs space-y-2 text-gray-500 italic flex-1">
                     <li>• Nothing but hope</li>
                 </ul>
@@ -108,13 +129,13 @@
                     </button>
                 </div>
             </div> 
-            
         </div>
 
         <!-- Main Panel -->
         <div class="flex-1 flex flex-col bg-gray-900 border border-purple-900/40 rounded-lg shadow-[0_0_40px_rgba(88,28,135,0.2)] overflow-hidden">
             
-            <div class="relative h-64 bg-gray-950 border-b border-purple-900/30 flex items-center justify-center overflow-hidden flex-shrink-0">
+            <!-- Scene Image -->
+            <div class="relative h-48 bg-gray-950 border-b border-purple-900/30 flex items-center justify-center overflow-hidden flex-shrink-0">
                 <img id="scene-image" src="" class="object-cover w-full h-full opacity-0 absolute inset-0 transition-opacity duration-1000">
                 <div id="image-placeholder" class="flex flex-col items-center gap-2 text-gray-800">
                     <span class="text-5xl">🌑</span>
@@ -126,10 +147,28 @@
                 </div>
             </div>
 
+            <!-- Combat Banner -->
+            <div id="combat-banner" class="hidden flex-shrink-0 bg-red-950/30 border-b border-red-900/40 px-6 py-3">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="title-font text-xs text-red-400 tracking-widest uppercase">⚔ Combat</span>
+                    <span id="combat-enemy-name" class="title-font text-xs text-gray-300 uppercase tracking-widest"></span>
+                    <span id="combat-round" class="title-font text-xs text-gray-600 tracking-widest"></span>
+                </div>
+                <div class="w-full h-2 stat-bar-bg rounded-full overflow-hidden">
+                    <div id="enemy-hp-fill" class="h-full bg-red-800 rounded-full" style="width:100%"></div>
+                </div>
+                <div class="flex justify-between mt-1">
+                    <span class="text-[10px] text-gray-600">Enemy HP</span>
+                    <span id="enemy-hp-text" class="text-[10px] text-red-400"></span>
+                </div>
+            </div>
+
+            <!-- Narrative Log -->
             <div id="narrative-log" class="flex-1 p-8 overflow-y-auto space-y-6 min-h-0">
                 <p class="text-purple-400 italic title-font text-sm tracking-widest text-center">— THE VOID STIRS. YOUR LEGACY BEGINS. —</p>
             </div>
 
+            <!-- Action Row -->
             <div class="action-row p-5 flex gap-4 items-center flex-shrink-0">
                 <span class="text-purple-700 title-font text-xl">›</span>
                 <input type="text" id="action-input" placeholder="What is your command?" 
@@ -142,8 +181,9 @@
     </div>
 
     <script>
-        // --- STATE ---
-        let gameState = null;
+        let gameState    = null;
+        let descendantId = null;
+
         const log   = document.getElementById('narrative-log');
         const input = document.getElementById('action-input');
         const btn   = document.getElementById('submit-btn');
@@ -155,21 +195,18 @@
             void_ranger:   '🏹',
         };
 
-        // --- UPDATE UI ---
+        // ── Update UI ──────────────────────────────────────────────────────────
         function updateUI() {
             if (!gameState) return;
 
-            // House name & class
             document.getElementById('ui-house-name').innerText = `House ${gameState.house_name}`;
             document.getElementById('class-display').innerText = (gameState.class || '').replace(/_/g, ' ');
             document.getElementById('class-icon').innerText    = CLASS_ICONS[gameState.class] || '⚔️';
 
-            // HP
             document.getElementById('stat-hp').innerText = `${gameState.hp} / ${gameState.max_hp}`;
             const hpPct = Math.max(0, (gameState.hp / gameState.max_hp) * 100);
             document.getElementById('hp-bar-fill').style.width = hpPct + '%';
 
-            // Attributes
             const statMap = {
                 str: { el: 'stat-str', bar: 'bar-str' },
                 agi: { el: 'stat-agi', bar: 'bar-agi' },
@@ -182,20 +219,68 @@
                 document.getElementById(ids.bar).style.width = Math.min(val * 5, 100) + '%';
             });
 
-            // Inventory
             const inv = gameState.inventory || [];
             document.getElementById('inventory-list').innerHTML = inv.length
                 ? inv.map(i => `<li>• ${i.replace(/_/g, ' ')}</li>`).join('')
                 : '<li>• Nothing but hope</li>';
 
-            // Location
             if (gameState.location) {
                 document.getElementById('location-display').innerText =
                     gameState.location.replace(/_/g, ' ').toUpperCase();
             }
+
+            // Combat banner
+            const cs     = gameState.combat_state || {};
+            const banner = document.getElementById('combat-banner');
+            if (cs.active) {
+                banner.classList.remove('hidden');
+                document.getElementById('combat-enemy-name').innerText = cs.enemy_name || '';
+                document.getElementById('combat-round').innerText      = `Round ${cs.round || 1}`;
+                const ePct = Math.max(0, (cs.enemy_hp / cs.enemy_max_hp) * 100);
+                document.getElementById('enemy-hp-fill').style.width  = ePct + '%';
+                document.getElementById('enemy-hp-text').innerText     = `${cs.enemy_hp} / ${cs.enemy_max_hp}`;
+                input.placeholder = "Attack, use a skill, or flee...";
+            } else {
+                banner.classList.add('hidden');
+                input.placeholder = "What is your command?";
+            }
         }
 
-        // --- INITIAL LOAD ---
+        // ── Death Screen ───────────────────────────────────────────────────────
+        function showDeathScreen(data) {
+            const screen = document.getElementById('death-screen');
+            screen.classList.add('active');
+
+            if (data.ancestor) {
+                document.getElementById('death-killed-by').innerText =
+                    `Slain by ${data.ancestor.killed_by} at level ${data.ancestor.level}.`;
+
+                const lineage = gameState.lineage || [];
+                const allAncestors = [data.ancestor, ...lineage];
+                document.getElementById('lineage-display').innerHTML = allAncestors.map(a => `
+                    <div class="border-l border-red-900/40 pl-3 mb-2">
+                        <span class="text-gray-300">${a.name}</span>
+                        <span class="text-gray-600 text-xs ml-2">${(a.class||'').replace(/_/g,' ')} · Lv${a.level}</span>
+                        <span class="text-red-700 text-xs ml-2">Killed by ${a.killed_by}</span>
+                    </div>
+                `).join('');
+            }
+
+            descendantId = data.descendant_id;
+        }
+
+        function continueAsHeir() {
+            document.getElementById('death-screen').classList.remove('active');
+            if (descendantId && gameState) {
+                sessionStorage.setItem('playerId', descendantId);
+                sessionStorage.setItem('playerName', gameState.house_name);
+                localStorage.setItem(`echoes_save_${gameState.house_name}`, JSON.stringify(gameState));
+            }
+            log.innerHTML = '<p class="text-purple-400 italic title-font text-sm tracking-widest text-center">— A NEW HEIR RISES. THE VOID REMEMBERS. —</p>';
+            updateUI();
+        }
+
+        // ── Initial Load ───────────────────────────────────────────────────────
         window.onload = () => {
             const playerId   = sessionStorage.getItem('playerId');
             const playerName = sessionStorage.getItem('playerName');
@@ -214,7 +299,7 @@
             }
         };
 
-        // --- ABANDON LEGACY ---
+        // ── Abandon Legacy ─────────────────────────────────────────────────────
         function abandonLegacy() {
             if (confirm("Are you sure you want to end this lineage? All current progress for this House will be lost forever.")) {
                 const playerName = gameState ? gameState.house_name : sessionStorage.getItem('playerName');
@@ -224,12 +309,11 @@
             }
         }
 
-        // --- ACTION LOOP ---
+        // ── Action Loop ────────────────────────────────────────────────────────
         async function sendAction() {
             const actionText = input.value.trim();
             if (!actionText || !gameState) return;
 
-            // Show player input
             const pMsg = document.createElement('p');
             pMsg.className = "text-green-500/80 font-mono text-xs opacity-60 italic";
             pMsg.innerText = `› ${actionText}`;
@@ -241,9 +325,9 @@
 
             try {
                 const response = await fetch('/action', {
-                    method: 'POST',
+                    method:  'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
+                    body:    JSON.stringify({
                         player_id: gameState.player_id,
                         action:    actionText,
                         state:     gameState
@@ -257,7 +341,6 @@
 
                 const data = await response.json();
 
-                // Sync state from backend
                 if (data.state) {
                     gameState = data.state;
                     localStorage.setItem(`echoes_save_${gameState.house_name}`, JSON.stringify(gameState));
@@ -265,11 +348,26 @@
 
                 updateUI();
 
-                // Show narrative
+                // Narrative message
                 const sMsg = document.createElement('p');
                 sMsg.className = "text-gray-300 leading-relaxed msg-fade";
                 sMsg.innerText = data.text;
                 log.appendChild(sMsg);
+
+                // Combat event messages
+                if (data.combat_event === 'victory') {
+                    const vMsg = document.createElement('p');
+                    vMsg.className = "text-yellow-500 title-font text-xs tracking-widest msg-fade";
+                    vMsg.innerText = `⚔ Victory! Your enemy has fallen.`;
+                    log.appendChild(vMsg);
+                } else if (data.combat_event === 'death') {
+                    showDeathScreen(data);
+                } else if (data.combat_event === 'fled') {
+                    const fMsg = document.createElement('p');
+                    fMsg.className = "text-blue-400 title-font text-xs tracking-widest msg-fade";
+                    fMsg.innerText = `You escaped.`;
+                    log.appendChild(fMsg);
+                }
 
                 log.scrollTop = log.scrollHeight;
 
