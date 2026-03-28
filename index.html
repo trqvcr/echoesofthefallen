@@ -314,7 +314,12 @@
                     </div>
                 </div>
 
-                <h3 class="title-font text-[10px] text-purple-500 tracking-[0.3em] uppercase mt-10 mb-4 border-b border-purple-900/30 pb-2">Possessions</h3>
+                <h3 class="title-font text-[10px] text-purple-500 tracking-[0.3em] uppercase mt-10 mb-3 border-b border-purple-900/30 pb-2">Skills</h3>
+                <ul id="skills-list" class="text-xs space-y-2 text-gray-500 mb-6">
+                    <li>• None</li>
+                </ul>
+
+                <h3 class="title-font text-[10px] text-purple-500 tracking-[0.3em] uppercase mt-4 mb-4 border-b border-purple-900/30 pb-2">Possessions</h3>
                 <ul id="inventory-list" class="text-xs space-y-2 text-gray-500 italic flex-1">
                     <li>• Nothing but hope</li>
                 </ul>
@@ -342,6 +347,10 @@
             <div class="relative w-full bg-gray-950 border-b border-purple-900/30 overflow-hidden flex-shrink-0" style="aspect-ratio:16/9">
                 <img id="scene-image-a" src="" class="w-full h-full object-cover opacity-0 absolute inset-0 transition-opacity duration-1000">
                 <img id="scene-image-b" src="" class="w-full h-full object-cover opacity-0 absolute inset-0 transition-opacity duration-1000">
+                <!-- NPC portrait overlay: bottom-right corner, circular, shown during NPC encounters -->
+                <div id="npc-portrait-wrap" class="hidden absolute bottom-3 right-3 w-20 h-20 rounded-full overflow-hidden border-2 border-red-800/80 shadow-[0_0_12px_rgba(185,28,28,0.6)] transition-opacity duration-500">
+                    <img id="npc-portrait-img" src="" class="w-full h-full object-cover">
+                </div>
                 <div id="image-placeholder" class="absolute inset-0 flex flex-col items-center justify-center gap-2 text-gray-800">
                     <span class="text-5xl">🌑</span>
                     <span class="title-font text-[10px] tracking-[0.5em] uppercase">Visualizing the Beyond</span>
@@ -370,9 +379,9 @@
                     <span class="title-font text-[9px] text-red-600 uppercase tracking-widest mr-1 flex-shrink-0">Threats:</span>
                     <div id="hostile-buttons" class="flex flex-wrap gap-1.5"></div>
                 </div>
-                <div class="flex flex-wrap gap-2 items-center">
-                    <span class="title-font text-[9px] text-purple-600 uppercase tracking-widest mr-1 flex-shrink-0">Paths:</span>
-                    <div id="exit-buttons" class="flex flex-wrap gap-1.5"></div>
+                <div id="hud-nearby" class="hidden flex-wrap gap-2 items-center">
+                    <span class="title-font text-[9px] text-gray-600 uppercase tracking-widest mr-1 flex-shrink-0">Nearby:</span>
+                    <div id="nearby-labels" class="flex flex-wrap gap-2"></div>
                 </div>
             </div>
 
@@ -475,6 +484,26 @@
                 }).join('')
                 : '<li>• Nothing but hope</li>';
 
+            const skills = gameState.skills || {};
+            const skillKeys = Object.keys(skills);
+            document.getElementById('skills-list').innerHTML = skillKeys.length
+                ? skillKeys.map(id => {
+                    const s    = skills[id];
+                    const name = id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                    const lvl  = s.level || 1;
+                    const xpS  = s.xp || 0;
+                    const xpN  = 10 * lvl;
+                    const pct  = Math.min((xpS / xpN) * 100, 100);
+                    return `<li class="space-y-0.5">
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">• ${name}</span>
+                            <span class="text-purple-600 text-[10px]">Lv${lvl}</span>
+                        </div>
+                        <div class="stat-bar-bg h-0.5 w-full rounded-full"><div class="h-full bg-purple-700/60 rounded-full" style="width:${pct}%"></div></div>
+                    </li>`;
+                }).join('')
+                : '<li>• None</li>';
+
             if (gameState.location) {
                 document.getElementById('location-display').innerText =
                     gameState.location.replace(/_/g, ' ').toUpperCase();
@@ -484,21 +513,34 @@
                 buildMiniMap(gameState.location);
             }
 
-            // Exit buttons
-            const exitBtns = document.getElementById('exit-buttons');
-            if (exitBtns && mapData && gameState.location && mapData[gameState.location]) {
-                const exits = mapData[gameState.location].exits || [];
-                exitBtns.innerHTML = exits.map(exitKey => {
-                    if (!mapData[exitKey]) return '';
-                    return `<button onclick="fastTravel('${exitKey}')"
-                        class="title-font text-[9px] uppercase tracking-wider px-3 py-1.5 border border-purple-900/40 hover:border-purple-600 hover:text-purple-300 text-purple-600 rounded transition-all">
-                        ${mapData[exitKey].name}
-                    </button>`;
-                }).join('');
-            }
-
             // NPC / threat buttons from last known location_npcs
             if (window._lastLocationNpcs) updateNpcHud(window._lastLocationNpcs);
+
+            // Nearby areas — text labels with compass direction, no buttons
+            const nearbyWrap   = document.getElementById('hud-nearby');
+            const nearbyLabels = document.getElementById('nearby-labels');
+            if (nearbyWrap && nearbyLabels && mapData && gameState.location && mapData[gameState.location]) {
+                const curLoc = mapData[gameState.location];
+                const exits  = (curLoc.exits || []).filter(k => mapData[k]);
+                const cx = curLoc.x, cy = curLoc.y;
+                const compass = (ex, ey) => {
+                    if (cx == null || ex == null) return '';
+                    const dx = ex - cx, dy = ey - cy;
+                    const adx = Math.abs(dx), ady = Math.abs(dy);
+                    if (!adx && !ady) return '';
+                    const r = adx / (adx + ady);
+                    if (r < 0.25) return dy < 0 ? 'N' : 'S';
+                    if (r > 0.75) return dx > 0 ? 'E' : 'W';
+                    if (dx > 0)   return dy < 0 ? 'NE' : 'SE';
+                    return dy < 0 ? 'NW' : 'SW';
+                };
+                nearbyLabels.innerHTML = exits.map(k => {
+                    const el  = mapData[k];
+                    const dir = compass(el.x, el.y);
+                    return `<span class="title-font text-[9px] text-gray-600 tracking-wider">${dir ? dir + ' · ' : ''}${el.name}</span>`;
+                }).join('<span class="text-gray-800 mx-1">·</span>');
+                nearbyWrap.classList.toggle('hidden', exits.length === 0);
+            }
 
             // Combat banner
             const cs     = gameState.combat_state || {};
@@ -1112,6 +1154,7 @@
                         saveState(gameState);
                     }
                     updateUI();
+                    showNpcPortrait('');
                     setSceneImage(data.image_base64 || null);
                     if (data.location_npcs) updateNpcHud(data.location_npcs);
                     const msg = document.createElement('p');
@@ -1567,11 +1610,31 @@
                 // Scene image
                 setSceneImage(data.image_base64 || null);
 
+                // NPC portrait overlay
+                showNpcPortrait(data.npc_portrait || '');
+
+                // Clear portrait on victory/fled
+                if (data.combat_event === 'victory' || data.combat_event === 'fled') {
+                    setTimeout(() => showNpcPortrait(''), 2000);
+                }
+
                 // Narrative message
                 const sMsg = document.createElement('p');
                 sMsg.className = "text-gray-300 leading-relaxed msg-fade";
                 sMsg.innerText = data.text;
                 log.appendChild(sMsg);
+
+                // Travel progress indicator
+                const tp = data.state && data.state.travel_progress;
+                if (tp && tp.target && tp.steps < tp.steps_needed) {
+                    const pips = Array.from({length: tp.steps_needed}, (_, i) =>
+                        `<span style="color:${i < tp.steps ? '#a855f7' : '#374151'}">◆</span>`
+                    ).join(' ');
+                    const tMsg = document.createElement('p');
+                    tMsg.className = "title-font text-[9px] tracking-widest uppercase msg-fade";
+                    tMsg.innerHTML = `heading toward ${(tp.target||'').replace(/_/g,' ')} &nbsp; ${pips}`;
+                    log.appendChild(tMsg);
+                }
 
                 // Environmental damage flash
                 if (data.env_damage > 0 && data.combat_event !== 'death') {
@@ -1644,6 +1707,18 @@
                 input.disabled = false;
                 btn.disabled   = false;
                 input.focus();
+            }
+        }
+
+        function showNpcPortrait(src) {
+            const wrap = document.getElementById('npc-portrait-wrap');
+            const img  = document.getElementById('npc-portrait-img');
+            if (src) {
+                img.src = src;
+                wrap.classList.remove('hidden');
+            } else {
+                wrap.classList.add('hidden');
+                img.src = '';
             }
         }
 

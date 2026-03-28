@@ -493,7 +493,8 @@
 
         // ── Shared: save session and redirect ─────────────────────────────
         function startSession(data, name) {
-            localStorage.setItem(`echoes_save_${name}`, JSON.stringify(data.state));
+            const { avatar_portrait, ...lean } = data.state || {};
+            localStorage.setItem(`echoes_save_${name}`, JSON.stringify(lean));
             sessionStorage.setItem('playerName',  name);
             sessionStorage.setItem('playerClass', data.state.class);
             sessionStorage.setItem('playerRace',  data.state.race);

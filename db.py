@@ -42,6 +42,9 @@ def get_world() -> dict:
         return res.data[0]["data"]
     raise HTTPException(status_code=500, detail="World state not found in Supabase. Did you run migrate.py?")
 
+def save_world(data: dict):
+    sb.table("world").update({"data": data, "updated_at": datetime.now(timezone.utc).isoformat()}).eq("id", 1).execute()
+
 def get_all_locations() -> dict:
     res = sb.table("locations").select("key, data").execute()
     return {row["key"]: row["data"] for row in res.data}

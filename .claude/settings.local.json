@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s http://localhost:8000/map.json)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(list\\(d.keys\\(\\)\\)[:3]\\)\")",
+      "Bash(curl -s -X POST http://localhost:8000/register -H \"Content-Type: application/json\" -d '{\"\"\"\"name\"\"\"\":\"\"\"\"TestHero2\"\"\"\",\"\"\"\"race\"\"\"\":\"\"\"\"human\"\"\"\",\"\"\"\"player_class\"\"\"\":\"\"\"\"void_knight\"\"\"\",\"\"\"\"password\"\"\"\":\"\"\"\"test123\"\"\"\"}')",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(''''player_id:'''', d.get\\(''''player_id''''\\)\\); print\\(''''error:'''', d.get\\(''''detail'''',''''none''''\\)\\)\")",
+      "Bash(python -c \":*)",
+      "Bash(cmd //c \"taskkill /F /IM python.exe\")",
+      "Bash(source .venv/Scripts/activate)",
+      "Bash(uvicorn main:app --port 8001)",
+      "Bash(python:*)",
+      "Bash(grep -n \"localStorage\\\\.setItem\\\\|saveState\" /Users/trevortan/Code/echoesofthefallen/*.html /Users/trevortan/Code/echoesofthefallen/*.js)",
+      "Bash(grep -n \"localStorage\\\\.setItem\\\\|saveState\" /Users/trevortan/Code/echoesofthefallen/static/*.js)",
+      "Bash(grep -rn localStorage.setItem /Users/trevortan/Code/echoesofthefallen/ --include=*.html --include=*.js)"
+    ]
+  }
+}

@@ -10,13 +10,17 @@ from google.genai.types import GenerateImagesConfig, GenerateContentConfig, Sche
 from dotenv import load_dotenv
 
 from models import RegisterRequest, LoginRequest, ActionRequest, RiseRequest, AvatarRequest, TravelRequest
-from db import get_player, save_player, get_world, get_all_locations, save_location, hash_password
+from db import get_player, save_player, get_world, save_world, get_all_locations, save_location, hash_password
 from enemies import tick_spawns, tick_story_npcs
 from world_tick import tick_world
 from combat import player_to_state, _start_combat, process_combat_turn, _make_ancestor_record, build_heir
-from images import generate_scene_image, generate_avatar_portrait
+from images import generate_scene_image, generate_avatar_portrait, generate_npc_portrait
+from story import (
+    get_story_context, get_story_nudge, check_act_advancement,
+    make_world_event, get_active_world_event, STORY_FLAGS,
+)
 from music import generate_ambient_music, get_music_context
-import base64;
+import base64
 
 load_dotenv()
 
@@ -91,6 +95,16 @@ async def serve_map():
             "has_friendly": has_friendly,
         }
     return result
+
+
+# ── /events ───────────────────────────────────────────────────────────────────
+
+@app.get("/events")
+async def get_events():
+    """Polled by clients every few seconds. Returns active world event if any."""
+    world = get_world()
+    event = get_active_world_event(world.get("story", {}))
+    return event or {}
 
 
 # ── /register ──────────────────────────────────────────────────────────────────
@@ -177,6 +191,7 @@ async def register(request: RegisterRequest):
         "reputation":        {"saltmarsh": 0, "ashen_ruins": 0, "void_wastes": 0},
         "combat_state":      {"active": False},
         "visited_locations": ["ashen_courtyard"],
+        "travel_progress":   {},
     }
 
     save_player(player_id, player)
@@ -348,18 +363,62 @@ async def _process_exploration(
             "player_id":    player_id,
         }
 
-    # Movement
-    for exit_key in current_location.get("exits", []):
-        if exit_key.replace("_", " ") in action_lower or exit_key in action_lower:
-            if exit_key in all_locations:
-                player["location"] = exit_key
-                current_location   = all_locations[exit_key]
-                location_key       = exit_key
-                location_changed   = True
-                visited = player.setdefault("visited_locations", ["ashen_courtyard"])
-                if exit_key not in visited:
-                    visited.append(exit_key)
+    # ── Movement ──────────────────────────────────────────────────────────────
+    # Direction vectors: x increases east, y increases south (screen space)
+    DIRECTION_VECTORS = {
+        "north": (0, -1), "south": (0, 1), "east": (1, 0), "west": (-1, 0),
+        "northeast": (1, -1), "northwest": (-1, -1),
+        "southeast": (1, 1),  "southwest": (-1, 1),
+        "ne": (1, -1), "nw": (-1, -1), "se": (1, 1), "sw": (-1, 1),
+    }
+
+    move_keywords = ["go ", "head ", "move ", "travel ", "walk ", "run ", "proceed "]
+    direction_detected = None
+    for phrase, vec in DIRECTION_VECTORS.items():
+        if any(f"{mv}{phrase}" in action_lower for mv in move_keywords) or action_lower.strip() == phrase:
+            direction_detected = (phrase, vec)
             break
+
+    destination_key = None
+
+    if direction_detected:
+        _, (dx, dy) = direction_detected
+        cx = current_location.get("x")
+        cy = current_location.get("y")
+        if cx is not None and cy is not None:
+            best_score = -1
+            for exit_key in current_location.get("exits", []):
+                exit_loc = all_locations.get(exit_key, {})
+                ex = exit_loc.get("x")
+                ey = exit_loc.get("y")
+                if ex is None or ey is None:
+                    continue
+                # Dot product of direction vector with delta to exit
+                delta_x = ex - cx
+                delta_y = ey - cy
+                length  = max(1, abs(delta_x) + abs(delta_y))
+                score   = (dx * delta_x + dy * delta_y) / length
+                if score > best_score:
+                    best_score = score
+                    destination_key = exit_key if score > 0 else None
+
+    # Fall back to name-based matching if no direction found (or direction had no good exit)
+    if not destination_key:
+        for exit_key in current_location.get("exits", []):
+            if exit_key.replace("_", " ") in action_lower or exit_key in action_lower:
+                destination_key = exit_key
+                break
+
+    # ── Travel: one movement action = arrive ──────────────────────────────────
+    travel_context = ""
+    if destination_key and destination_key in all_locations:
+        player["location"] = destination_key
+        current_location   = all_locations[destination_key]
+        location_key       = destination_key
+        location_changed   = True
+        visited = player.setdefault("visited_locations", ["ashen_courtyard"])
+        if destination_key not in visited:
+            visited.append(destination_key)
 
     # Combat initiation
     npcs             = current_location.get("npcs", {})
@@ -427,9 +486,25 @@ VISUAL: [scene description for image generation]"""
         player["history"] = player["history"][-20:]
         save_player(player_id, player)
 
+        # NPC portrait: generate once, cache in location DB
+        npc_portrait = npc_data.get("portrait", "")
+        location_dirty_combat = False
+        if not npc_portrait and client and npc_data.get("description"):
+            npc_portrait = generate_npc_portrait(client, npc_data["name"], npc_data["description"])
+            if npc_portrait:
+                current_location["npcs"][npc_id]["portrait"] = npc_portrait
+                location_dirty_combat = True
+        if location_dirty_combat:
+            save_location(location_key, current_location)
+
         return {
             "text":         display_text,
-            "image_base64": generate_scene_image(client, visual_prompt, player.get("avatar_description", "")),
+            "image_base64": generate_scene_image(
+                client, visual_prompt,
+                player.get("avatar_description", ""),
+                npc_description=npc_data.get("description", ""),
+            ),
+            "npc_portrait": npc_portrait,
             "status":       player["status"],
             "location":     current_location["name"],
             "state":        player_to_state(player, player_id),
@@ -439,6 +514,12 @@ VISUAL: [scene description for image generation]"""
     # Normal exploration
     player["history"].append(action)
     player["history"] = player["history"][-20:]
+
+    # ── Story context + nudge ──────────────────────────────────────────────────
+    story               = world_state.setdefault("story", {"act": 1, "flags": {}, "stats": {}, "world_event": None})
+    story_ctx           = get_story_context(story)
+    turns_no_progress   = player.get("story_turns_without_progress", 0)
+    nudge               = get_story_nudge(story, turns_no_progress)
 
     attrs = player["attributes"]
 
@@ -459,9 +540,10 @@ VISUAL: [scene description for image generation]"""
         npc_lines.append(entry)
     npc_block = "\n".join(npc_lines) if npc_lines else "none"
 
+
     prompt = f"""You are a dark fantasy dungeon master for 'Echoes of the Fallen'.
 
-WORLD HISTORY: {world_state['world_history']}
+{story_ctx}
 LOCATION: {current_location['name']}
 DESCRIPTION: {current_location['description']}
 CURRENT STATE: {_format_state_for_prompt(current_location.get('state', {}))}
@@ -470,6 +552,7 @@ NPCS HERE:
 LOCATION HISTORY: {current_location.get('history', [])[-5:]}
 
 PLAYER: {player['name']} | Race: {player['race']} | Class: {player['class']}
+APPEARANCE: {player.get('avatar_description', 'unknown')}
 HP: {player['hp']}/{player['max_hp']} | Level: {player['level']}
 STR:{attrs['STR']} AGI:{attrs['AGI']} CON:{attrs['CON']} ARC:{attrs['ARC']}
 SKILLS: {list(player['skills'].keys())}
@@ -477,12 +560,14 @@ INVENTORY: {player['inventory']}
 RECENT ACTIONS: {player['history'][-5:]}
 
 PLAYER ACTION: {action}
-
+{travel_context}
+{nudge}
 Guidelines:
+- Respond directly to the player's action above — do not redirect or ignore it.
 - If the player is talking to an NPC, write dialogue in their voice based on their personality. NPCs remember past interactions.
 - If the player is examining something, reveal lore and sensory detail — smells, sounds, inscriptions, textures.
 - If the player finds a clue or discovery, make it feel earned and specific to this location.
-- 2-3 sentences of pure prose. No bracketed annotations or mechanic text."""
+Respond with vivid narrative (2-3 sentences). Do NOT include any game mechanic notations, inventory updates, state updates, or bracketed annotations in your response — pure prose only."""
 
     narrative = "[The void is silent — no AI connected]"
     mutation  = {"env_damage": 0, "visual": "", "state_changes": [], "items_gained": [], "npc_id": "", "npc_delta": 0, "npc_memory": "", "history": ""}
@@ -492,42 +577,42 @@ Guidelines:
         response  = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
         narrative = response.text or "[The void is silent — no AI connected]"
 
-        # Call 2: structured mutations
-        mutation_prompt = f"""You are extracting world state changes from a dark fantasy RPG action.
+        # Call 2: structured mutations + visual scene description
+        mutation_prompt = f"""You are extracting world state changes and generating a visual scene description from a dark fantasy RPG action.
 
 LOCATION: {current_location['name']}
-PLAYER: {player['name']}
+DESCRIPTION: {current_location['description']}
 CURRENT STATE: {_format_state_for_prompt(current_location.get('state', {}))}
 NPCS HERE: {list(current_location.get('npcs', {}).keys())}
+
+PLAYER CHARACTER: {player['name']} | Race: {player['race']} | Class: {player['class']}
+***VISUAL APPEARANCE (YOU MUST USE IN VISUAL TAG)***: {player.get('avatar_description', 'A generic adventurer in a tattered cloak')}
+
+NPCS IN THIS LOCATION (include relevant one in visual if involved):
+{npc_block}
+
 PLAYER ACTION: {action}
 NARRATIVE: {narrative}
 
-Record any physical changes to the environment. If the player touched, broke, moved, marked, or damaged anything — record it.
-Only skip truly trivial actions with zero physical effect (looking around, standing still).
+---
+Strict Visual Guidelines (Crucial for image generation):
+- For the 'visual' field, you **must** write exactly ONE vivid sentence.
+- You **must** feature the player character, **described using their visual appearance description above**, performing the action.
+- You **must** incorporate specific descriptive details from their appearance. Do not use generic terms like "the hero" or "the adventurer". For example, if they are a "banana with white hair and a blindfold," say "the banana with white hair and a blindfold."
+- Describe the lighting, atmosphere (ash, void energy, fog), and dramatic framing.
 
-For each state_change entry:
-- key: snake_case descriptor, e.g. smashed_fountain, name_carved_north_wall, scorched_floor
-- value: current state string, e.g. "smashed", "carved", "scorched", "broken", "open"
-- description: one sentence including the player's name — what happened
-- stages: decay progression if applicable e.g. ["intact","cracked","rubble"] — empty list if permanent
-- stage_duration_seconds: seconds per stage. 0 = permanent.
-
-Stage duration guide: broken stone=14400 (4h/stage), broken furniture=0 (permanent), scorched marks=0 (permanent), spilled liquid=1800 (30 min/stage).
-
-items_gained: items the player physically picked up during this action. Each needs id (snake_case), name (display name), description (flavor text noting what it is and where it came from, e.g. "A brittle index finger pried from the dead soldier in the Ashen Courtyard"). Empty list if nothing was taken.
-
-For countable resources (fingers on a body, coins in a pouch, arrows in a quiver):
-- On first access, create a state entry tracking the count, e.g. dead_soldier_fingers_remaining="9" (humans have 10 fingers, deduct already taken ones from existing state)
-- Decrement the count each time one is taken via a state_change
-- If the count is already "0" in the current state, do NOT add to items_gained — nothing left to take
-
-The history field: one sentence in third person with the player's name. Empty string if nothing notable happened."""
+---
+World state change guidelines:
+Record any physical changes. Skip trivial actions (looking around, standing still).
+state_change: key (snake_case), value ("broken", "open"), description (what changed), stages (decay list or []), stage_duration_seconds (broken stone=14400, permanent=0).
+items_gained: items physically picked up. For countable resources, decrement a state counter first (e.g. dead_soldier_fingers_remaining). If count is "0", do NOT add to items_gained.
+history: one third-person sentence about {player['name']}. Empty string if trivial."""
 
         mutation_schema = Schema(
             type=Type.OBJECT,
             properties={
                 "env_damage": Schema(type=Type.INTEGER, description="HP damage from environment (falling, traps, fire), 0 if none"),
-                "visual":     Schema(type=Type.STRING,  description="One sentence scene description for image generation"),
+                "visual":     Schema(type=Type.STRING,  description="One vivid sentence for image generation. MUST describe the player using their specific visual appearance (not generic terms), performing the action, with atmospheric detail."),
                 "state_changes": Schema(
                     type=Type.ARRAY,
                     description="List of consequential world state changes. Include anything that physically alters the space.",
@@ -638,24 +723,38 @@ The history field: one sentence in third person with the player's name. Empty st
         current_location["history"] = current_location["history"][-30:]
         location_dirty = True
 
-    # ── Reference image: generate once per location, reuse for all visitors ──────
+    # ── NPC portrait for exploration interactions ─────────────────────────────
+    npc_portrait     = ""
+    npc_description  = ""
+    if npc_id and npc_id in current_location.get("npcs", {}):
+        npc_data_exp    = current_location["npcs"][npc_id]
+        npc_description = npc_data_exp.get("description", "")
+        npc_portrait    = npc_data_exp.get("portrait", "")
+        if not npc_portrait and client and npc_description:
+            npc_portrait = generate_npc_portrait(client, npc_data_exp.get("name", npc_id), npc_description)
+            if npc_portrait:
+                current_location["npcs"][npc_id]["portrait"] = npc_portrait
+                location_dirty = True
+
+    # ── Scene image: always action-specific; seed reference_image if missing ─────
     visual_prompt = mutation.get("visual", "")
     ref_image     = current_location.get("reference_image", "")
 
-    if location_changed:
-        if ref_image:
-            scene_img = ref_image
-        else:
-            loc_prompt = f"{current_location.get('name', '')}: {current_location.get('description', '')}"
-            scene_img  = generate_scene_image(client, loc_prompt, player.get("avatar_description", ""))
-            if scene_img:
-                current_location["reference_image"] = scene_img
-                location_dirty = True
-    else:
-        scene_img = generate_scene_image(client, visual_prompt, player.get("avatar_description", ""))
-        if scene_img and not ref_image:
-            current_location["reference_image"] = scene_img
-            location_dirty = True
+    # For action-driven movement, prefer the narrative's visual prompt so the
+    # image reflects what's actually happening on arrival. Fall back to the
+    # location description if Gemini didn't produce a visual tag.
+    if location_changed and not visual_prompt:
+        visual_prompt = f"{current_location.get('name', '')}: {current_location.get('description', '')}"
+
+    scene_img = generate_scene_image(
+        client, visual_prompt,
+        player.get("avatar_description", ""),
+        npc_description=npc_description,
+    )
+    # Cache as reference_image only if one doesn't exist yet (used by fast travel)
+    if scene_img and not ref_image:
+        current_location["reference_image"] = scene_img
+        location_dirty = True
 
     if location_dirty:
         save_location(location_key, current_location)
@@ -682,6 +781,7 @@ The history field: one sentence in third person with the player's name. Empty st
     result = {
         "text":         display_text,
         "image_base64": scene_img,
+        "npc_portrait": npc_portrait,
         "status":       player["status"],
         "location":     current_location["name"],
         "state":        player_to_state(player, player_id),
