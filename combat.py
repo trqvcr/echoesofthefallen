@@ -3,7 +3,7 @@ import time
 from typing import Optional
 
 from db import get_world, save_player, save_location
-from images import generate_scene_image
+from images import generate_scene_image, generate_npc_portrait
 
 
 # ── Damage Calculators ─────────────────────────────────────────────────────────
@@ -386,9 +386,29 @@ VISUAL: [one sentence describing the combat scene]"""
 
     current_location_name = all_locations.get(player["location"], current_location).get("name", player["location"])
 
+    # ── NPC portrait: generate once, cache in location DB ──────────────────────
+    enemy_id   = cs.get("enemy_id", "")
+    loc_npcs   = current_location.get("npcs", {})
+    enemy_data = loc_npcs.get(enemy_id, {})
+    npc_portrait = enemy_data.get("portrait", "")
+    if not npc_portrait and client and enemy_data.get("description"):
+        npc_portrait = generate_npc_portrait(client, cs.get("enemy_name", enemy_id), enemy_data["description"])
+        if npc_portrait:
+            current_location["npcs"][enemy_id]["portrait"] = npc_portrait
+            save_location(location_key, current_location)
+
+    visual_tag       = parse_tag("VISUAL", raw_text)
+    enemy_description = enemy_data.get("description", "")
+    scene_img = generate_scene_image(
+        client, visual_tag,
+        player.get("avatar_description", ""),
+        npc_description=enemy_description,
+    )
+
     return {
         "text":         display_text,
-        "image_base64": generate_scene_image(client, parse_tag("VISUAL", raw_text), player.get("avatar_description", "")),
+        "image_base64": scene_img,
+        "npc_portrait": npc_portrait,
         "status":       player["status"],
         "location":     current_location_name,
         "state":        player_to_state(player, player_id),

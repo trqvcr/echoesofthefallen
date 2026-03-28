@@ -14,7 +14,7 @@ from db import get_player, save_player, get_world, get_all_locations, save_locat
 from enemies import tick_spawns
 from world_tick import tick_world
 from combat import player_to_state, _start_combat, process_combat_turn, _make_ancestor_record, build_heir
-from images import generate_scene_image, generate_avatar_portrait
+from images import generate_scene_image, generate_avatar_portrait, generate_npc_portrait
 
 load_dotenv()
 
@@ -364,9 +364,25 @@ VISUAL: [scene description for image generation]"""
         player["history"] = player["history"][-20:]
         save_player(player_id, player)
 
+        # NPC portrait: generate once, cache in location DB
+        npc_portrait = npc_data.get("portrait", "")
+        location_dirty_combat = False
+        if not npc_portrait and client and npc_data.get("description"):
+            npc_portrait = generate_npc_portrait(client, npc_data["name"], npc_data["description"])
+            if npc_portrait:
+                current_location["npcs"][npc_id]["portrait"] = npc_portrait
+                location_dirty_combat = True
+        if location_dirty_combat:
+            save_location(location_key, current_location)
+
         return {
             "text":         display_text,
-            "image_base64": generate_scene_image(client, visual_prompt, player.get("avatar_description", "")),
+            "image_base64": generate_scene_image(
+                client, visual_prompt,
+                player.get("avatar_description", ""),
+                npc_description=npc_data.get("description", ""),
+            ),
+            "npc_portrait": npc_portrait,
             "status":       player["status"],
             "location":     current_location["name"],
             "state":        player_to_state(player, player_id),
@@ -552,6 +568,19 @@ The history field: one sentence in third person with the player's name. Empty st
         current_location["history"] = current_location["history"][-30:]
         location_dirty = True
 
+    # ── NPC portrait for exploration interactions ─────────────────────────────
+    npc_portrait     = ""
+    npc_description  = ""
+    if npc_id and npc_id in current_location.get("npcs", {}):
+        npc_data_exp    = current_location["npcs"][npc_id]
+        npc_description = npc_data_exp.get("description", "")
+        npc_portrait    = npc_data_exp.get("portrait", "")
+        if not npc_portrait and client and npc_description:
+            npc_portrait = generate_npc_portrait(client, npc_data_exp.get("name", npc_id), npc_description)
+            if npc_portrait:
+                current_location["npcs"][npc_id]["portrait"] = npc_portrait
+                location_dirty = True
+
     # ── Reference image: generate once per location, reuse for all visitors ──────
     visual_prompt = mutation.get("visual", "")
     ref_image     = current_location.get("reference_image", "")
@@ -566,7 +595,11 @@ The history field: one sentence in third person with the player's name. Empty st
                 current_location["reference_image"] = scene_img
                 location_dirty = True
     else:
-        scene_img = generate_scene_image(client, visual_prompt, player.get("avatar_description", ""))
+        scene_img = generate_scene_image(
+            client, visual_prompt,
+            player.get("avatar_description", ""),
+            npc_description=npc_description,
+        )
         if scene_img and not ref_image:
             current_location["reference_image"] = scene_img
             location_dirty = True
@@ -596,6 +629,7 @@ The history field: one sentence in third person with the player's name. Empty st
     result = {
         "text":         display_text,
         "image_base64": scene_img,
+        "npc_portrait": npc_portrait,
         "status":       player["status"],
         "location":     current_location["name"],
         "state":        player_to_state(player, player_id),

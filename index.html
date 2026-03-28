@@ -302,6 +302,10 @@
             <!-- Scene Image -->
             <div class="relative h-48 bg-gray-950 border-b border-purple-900/30 flex items-center justify-center overflow-hidden flex-shrink-0">
                 <img id="scene-image" src="" class="object-cover object-top w-full h-full opacity-0 absolute inset-0 transition-opacity duration-1000">
+                <!-- NPC portrait overlay: bottom-right corner, circular, shown during NPC encounters -->
+                <div id="npc-portrait-wrap" class="hidden absolute bottom-3 right-3 w-20 h-20 rounded-full overflow-hidden border-2 border-red-800/80 shadow-[0_0_12px_rgba(185,28,28,0.6)] transition-opacity duration-500">
+                    <img id="npc-portrait-img" src="" class="w-full h-full object-cover">
+                </div>
                 <div id="image-placeholder" class="flex flex-col items-center gap-2 text-gray-800">
                     <span class="text-5xl">🌑</span>
                     <span class="title-font text-[10px] tracking-[0.5em] uppercase">Visualizing the Beyond</span>
@@ -1051,6 +1055,7 @@
                         localStorage.setItem(`echoes_save_${gameState.house_name}`, JSON.stringify(gameState));
                     }
                     updateUI();
+                    showNpcPortrait('');
                     if (data.image_base64) {
                         sceneImg.onload = () => sceneImg.classList.remove('opacity-0');
                         sceneImg.src = data.image_base64;
@@ -1282,6 +1287,14 @@
                     if (scenePH) scenePH.classList.remove('hidden');
                 }
 
+                // NPC portrait overlay
+                showNpcPortrait(data.npc_portrait || '');
+
+                // Clear portrait on victory/fled
+                if (data.combat_event === 'victory' || data.combat_event === 'fled') {
+                    setTimeout(() => showNpcPortrait(''), 2000);
+                }
+
                 // Narrative message
                 const sMsg = document.createElement('p');
                 sMsg.className = "text-gray-300 leading-relaxed msg-fade";
@@ -1344,6 +1357,18 @@
                 input.disabled = false;
                 btn.disabled   = false;
                 input.focus();
+            }
+        }
+
+        function showNpcPortrait(src) {
+            const wrap = document.getElementById('npc-portrait-wrap');
+            const img  = document.getElementById('npc-portrait-img');
+            if (src) {
+                img.src = src;
+                wrap.classList.remove('hidden');
+            } else {
+                wrap.classList.add('hidden');
+                img.src = '';
             }
         }
 

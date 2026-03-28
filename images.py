@@ -14,24 +14,49 @@ PORTRAIT_STYLE = (
 )
 
 
-def generate_scene_image(client, visual_prompt: str, avatar_description: str = "") -> str:
+def generate_npc_portrait(client, npc_name: str, npc_description: str) -> str:
+    if not client or not npc_description.strip():
+        return ""
+
+    styled_prompt = f"{npc_name}: {npc_description.strip()}. {PORTRAIT_STYLE}"
+    print(f"[npc-portrait] prompt: {styled_prompt[:120]}...")
+
+    try:
+        result = client.models.generate_images(
+            model="imagen-4.0-fast-generate-001",
+            prompt=styled_prompt,
+            config=GenerateImagesConfig(
+                number_of_images=1,
+                aspect_ratio="1:1",
+                output_mime_type="image/jpeg",
+            ),
+        )
+        if result.generated_images:
+            img_bytes = result.generated_images[0].image.image_bytes
+            return f"data:image/jpeg;base64,{base64.b64encode(img_bytes).decode()}"
+    except Exception as e:
+        print(f"[npc-portrait] generation failed: {e}")
+
+    return ""
+
+
+def generate_scene_image(client, visual_prompt: str, avatar_description: str = "", npc_description: str = "") -> str:
     if not client or not visual_prompt or visual_prompt.strip().lower() in ("", "[none]"):
         return ""
 
     scene = visual_prompt.strip().rstrip(".")
 
-    # Scene is the primary subject; avatar is a secondary "featuring" clause so
-    # Imagen doesn't let the character description hijack the composition.
+    # Build the prompt: scene leads, NPC and avatar are secondary "featuring" clauses
+    # so Imagen doesn't let character descriptions hijack the composition.
+    parts = [f"{scene}, dark fantasy scene."]
+    if npc_description:
+        parts.append(f"Featuring {npc_description}.")
     if avatar_description:
-        styled_prompt = (
-            f"{scene}, dark fantasy scene. "
-            f"Featuring a character: {avatar_description}. "
-            f"{STYLE}"
-        )
-    else:
-        styled_prompt = f"{scene}, dark fantasy scene. {STYLE}"
+        parts.append(f"Also featuring a hero: {avatar_description}.")
+    parts.append(STYLE)
+    styled_prompt = " ".join(parts)
 
-    print(f"[image] prompt: {styled_prompt[:120]}...")
+    print(f"[scene] prompt: {styled_prompt[:120]}...")
 
     try:
         result = client.models.generate_images(
