@@ -787,6 +787,20 @@
                     log.appendChild(dMsg);
                 }
 
+                // Combat damage readout
+                if (data.player_dmg !== undefined || data.enemy_dmg !== undefined) {
+                    const parts = [];
+                    if (data.player_dmg > 0) parts.push(`⚔ You dealt ${data.player_dmg} dmg`);
+                    if (data.enemy_dmg  > 0) parts.push(`🩸 You took ${data.enemy_dmg} dmg`);
+                    if (parts.length) {
+                        const dmgMsg = document.createElement('p');
+                        dmgMsg.className = "text-xs title-font tracking-widest msg-fade";
+                        dmgMsg.style.color = "#a78bfa";
+                        dmgMsg.innerText = parts.join('   ·   ');
+                        log.appendChild(dmgMsg);
+                    }
+                }
+
                 // Combat event messages
                 if (data.combat_event === 'victory') {
                     const vMsg = document.createElement('p');

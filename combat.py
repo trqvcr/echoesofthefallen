@@ -371,5 +371,7 @@ VISUAL: [one sentence describing the combat scene]"""
         "location":     current_location_name,
         "state":        player_to_state(player),
         "combat_event": combat_event,
+        "player_dmg":   player_dmg if flee_outcome not in ("success", "captured") else 0,
+        "enemy_dmg":    enemy_dmg  if flee_outcome not in ("success",)            else 0,
         **extra_data,
     }
