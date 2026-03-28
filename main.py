@@ -15,6 +15,8 @@ from enemies import tick_spawns
 from world_tick import tick_world
 from combat import player_to_state, _start_combat, process_combat_turn, _make_ancestor_record, build_heir
 from images import generate_scene_image, generate_avatar_portrait
+from music import generate_ambient_music, get_music_context
+import base64;
 
 load_dotenv()
 
@@ -240,18 +242,37 @@ async def handle_action(request: ActionRequest):
     current_location = all_locations.get(location_key, {})
     skill_defs       = world_state.get("skill_definitions", {})
 
-    if player.get("combat_state", {}).get("active"):
-        return await process_combat_turn(
+    pre_location = player["location"]
+    pre_combat   = player.get("combat_state", {}).get("active", False)
+
+    if pre_combat:
+        result = await process_combat_turn(
             player, request.action, current_location,
             location_key, world_state, all_locations,
             request.player_id, skill_defs, client
         )
     else:
-        return await _process_exploration(
+        result = await _process_exploration(
             player, request.action, current_location,
             location_key, world_state, all_locations,
             request.player_id, skill_defs
         )
+
+    # Generate ambient music when game context changes
+    combat_event  = result.get("combat_event")
+    post_location = result.get("state", {}).get("location", pre_location)
+    post_combat   = result.get("state", {}).get("combat_state", {}).get("active", False)
+
+    prev_context = get_music_context(pre_location, pre_combat)
+    new_context  = get_music_context(post_location, post_combat)
+
+    if new_context != prev_context or combat_event in ("start", "victory", "fled"):
+        music_data, music_ctx = generate_ambient_music(client, post_location, post_combat)
+        if music_data:
+            result["music_base64"]  = music_data
+            result["music_context"] = music_ctx
+
+    return result
 
 # ── State Formatter ───────────────────────────────────────────────────────────
 
@@ -275,7 +296,6 @@ def _format_state_for_prompt(state: dict) -> str:
             parts.append(f"{k}={v}")
     return "; ".join(parts)
 
-
 # ── Exploration Handler ────────────────────────────────────────────────────────
 
 async def _process_exploration(
@@ -284,6 +304,29 @@ async def _process_exploration(
 ):
     action_lower     = action.lower()
     location_changed = False
+
+    # Self-harm / suicide
+    self_harm_keywords = [
+        "kill myself", "kill my self", "suicide", "end my life",
+        "slay myself", "slit my throat", "stab myself", "end it",
+    ]
+    if any(kw in action_lower for kw in self_harm_keywords):
+        player["hp"]     = 0
+        player["status"] = "dead"
+        player["history"].append(action)
+        player["history"] = player["history"][-20:]
+        save_player(player_id, player)
+        return {
+            "text":         f"{player['name']} chose to end their own life. The void claims another soul.",
+            "image_base64": "",
+            "status":       "dead",
+            "location":     current_location.get("name", location_key),
+            "state":        player_to_state(player),
+            "combat_event": "death",
+            "env_damage":   0,
+            "ancestor":     _make_ancestor_record(player),
+            "player_id":    player_id,
+        }
 
     # Movement
     for exit_key in current_location.get("exits", []):

@@ -250,6 +250,29 @@ async def process_combat_turn(
 
     flee_attempt = any(w in action.lower() for w in ["flee", "run", "escape", "retreat"])
 
+    self_harm = any(w in action.lower() for w in [
+        "kill myself", "kill my self", "suicide", "end my life",
+        "slay myself", "slit my throat", "stab myself", "end it",
+    ])
+    if self_harm:
+        player["hp"]     = 0
+        player["status"] = "dead"
+        player["history"].append(f"[COMBAT R{cs.get('round',1)}] {action}")
+        player["history"] = player["history"][-20:]
+        save_player(player_id, player)
+        return {
+            "text":         f"{player['name']} chose death over defeat. The void claims another soul.",
+            "image_base64": "",
+            "status":       "dead",
+            "location":     current_location.get("name", location_key),
+            "state":        player_to_state(player, player_id),
+            "combat_event": "death",
+            "player_dmg":   0,
+            "enemy_dmg":    0,
+            "ancestor":     _make_ancestor_record(player),
+            "player_id":    player_id,
+        }
+
     p_min, p_max = _calc_player_damage_range(player, skill_used, skill_defs)
     e_min, e_max = _calc_enemy_damage_range({"atk": cs["enemy_atk"]}, player["derived_stats"]["def"])
 
@@ -323,6 +346,8 @@ VISUAL: [one sentence describing the combat scene]"""
     # ── Apply results ──────────────────────────────────────────────────────────
     combat_event = "ongoing"
     extra_data   = {}
+    victory_loot = []
+    victory_xp   = 0
 
     if flee_outcome == "success":
         exits = current_location.get("exits", [])
@@ -347,7 +372,9 @@ VISUAL: [one sentence describing the combat scene]"""
             cs["enemy_hp"] = max(0, cs["enemy_hp"] - player_dmg)
             player["milestones"]["total_damage_dealt"] += player_dmg
             if cs["enemy_hp"] <= 0:
-                combat_event = "victory"
+                combat_event  = "victory"
+                victory_loot  = list(cs.get("enemy_loot", []))
+                victory_xp    = cs.get("enemy_xp", 0)
                 player = _end_combat(player, "victory", all_locations, location_key)
             else:
                 player["hp"] = max(0, player["hp"] - enemy_dmg)
@@ -362,7 +389,9 @@ VISUAL: [one sentence describing the combat scene]"""
                 cs["enemy_hp"] = max(0, cs["enemy_hp"] - player_dmg)
                 player["milestones"]["total_damage_dealt"] += player_dmg
                 if cs["enemy_hp"] <= 0:
-                    combat_event = "victory"
+                    combat_event  = "victory"
+                    victory_loot  = list(cs.get("enemy_loot", []))
+                    victory_xp    = cs.get("enemy_xp", 0)
                     player = _end_combat(player, "victory", all_locations, location_key)
                 else:
                     cs["round"] += 1
@@ -395,5 +424,7 @@ VISUAL: [one sentence describing the combat scene]"""
         "combat_event": combat_event,
         "player_dmg":   player_dmg if flee_outcome not in ("success", "captured") else 0,
         "enemy_dmg":    enemy_dmg  if flee_outcome not in ("success",)            else 0,
+        "victory_loot": victory_loot,
+        "victory_xp":   victory_xp,
         **extra_data,
     }
