@@ -161,7 +161,7 @@
             
             const stats = ['str', 'agi', 'con', 'arc'];
             stats.forEach(s => {
-                const val = gameState[s] || gameState[['strength','agility','constitution','arcane'][stats.indexOf(s)]] || 0;
+                const val = gameState[s] || gameState[['strength','agility','constitution','arcane'][stats.indexOf(s)]];
                 document.getElementById(`stat-${s}`).innerText = val;
                 document.getElementById(`bar-${s}`).style.width = Math.min(100, val * 5) + '%'; 
             });
