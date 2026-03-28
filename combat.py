@@ -271,10 +271,10 @@ VISUAL: [one sentence describing the combat scene]"""
     raw_text  = ""
     if client:
         response = client.models.generate_content(model="gemini-2.5-flash", contents=combat_prompt)
-        raw_text = response.text
-        narrative = raw_text
+        raw_text = response.text or ""
+        narrative = raw_text or "[Combat continues]"
 
-    def parse_tag(tag, text, default):
+    def parse_tag(tag, text, default=""):
         for line in text.splitlines():
             if line.strip().startswith(f"{tag}:"):
                 return line.split(":", 1)[1].strip()
