@@ -49,18 +49,23 @@ async def health():
 @app.get("/map.json")
 async def serve_map():
     locs = get_all_locations()
-    return {
-        key: {
-            "name":        data.get("name", key),
-            "type":        data.get("type", "location"),
-            "parent":      data.get("parent", ""),
-            "description": data.get("description", ""),
-            "exits":       data.get("exits", []),
-            "x":           data.get("x"),
-            "y":           data.get("y"),
+    result = {}
+    for key, data in locs.items():
+        npcs = data.get("npcs", {})
+        has_hostile  = any(n.get("disposition", 0) <= -50 and n.get("status") != "dead" for n in npcs.values())
+        has_friendly = any(n.get("disposition", 0) > 0  and n.get("status") != "dead" for n in npcs.values())
+        result[key] = {
+            "name":         data.get("name", key),
+            "type":         data.get("type", "location"),
+            "parent":       data.get("parent", ""),
+            "description":  data.get("description", ""),
+            "exits":        data.get("exits", []),
+            "x":            data.get("x"),
+            "y":            data.get("y"),
+            "has_hostile":  has_hostile,
+            "has_friendly": has_friendly,
         }
-        for key, data in locs.items()
-    }
+    return result
 
 
 # ── /register ──────────────────────────────────────────────────────────────────

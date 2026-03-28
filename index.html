@@ -601,11 +601,16 @@
                 ctx.fillStyle = `rgba(200,180,255,${a})`; ctx.fill();
             }
             const patches = [
-                {x:220,y:230,rx:200,ry:180,c:'rgba(80,20,20,0.18)'},
-                {x:720,y:360,rx:200,ry:160,c:'rgba(20,20,70,0.18)'},
-                {x:420,y:300,rx:100,ry:80, c:'rgba(60,20,100,0.2)'},
-                {x:700,y:140,rx:140,ry:100,c:'rgba(80,5,5,0.28)'},
-                {x:230,y:440,rx:140,ry:100,c:'rgba(10,50,25,0.2)'},
+                // Ashen Ruins (left): purple-grey mist
+                {x:190, y:360, rx:260, ry:220, c:'rgba(45,15,75,0.22)'},
+                // Saltmarsh (right): amber warmth
+                {x:710, y:390, rx:230, ry:190, c:'rgba(65,25,0,0.24)'},
+                // Void Wastes (top right): blood-red
+                {x:630, y:125, rx:240, ry:130, c:'rgba(90,5,5,0.32)'},
+                // Void Bridge (center): cold void-blue
+                {x:450, y:280, rx:110, ry:75,  c:'rgba(8,18,60,0.22)'},
+                // Sunken Library (bottom left): dark teal void-water
+                {x:190, y:435, rx:90,  ry:60,  c:'rgba(5,28,25,0.28)'},
             ];
             patches.forEach(p => {
                 const g = ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,Math.max(p.rx,p.ry));
@@ -624,6 +629,119 @@
                 for (let j = 0; j < 4; j++) { cx += (Math.random()-0.5)*120; cy += (Math.random()-0.5)*120; ctx.lineTo(cx,cy); }
                 ctx.stroke();
             }
+        }
+
+        // ── Terrain Drawing ───────────────────────────────────────────────────
+        function drawTerrainSVG(svg, nodes) {
+            const visited = new Set((gameState && gameState.visited_locations) || []);
+
+            function gp(gx, gy) {
+                const p = gridToSvg(gx, gy);
+                return `${Math.round(p.x)},${Math.round(p.y)}`;
+            }
+
+            // ── Region fills ──────────────────────────────────────────────────
+            const regionG = svgEl('g', {id:'terrain-regions', opacity:'1'});
+            [
+                { pts:[gp(-0.5,-0.5),gp(3.8,-0.5),gp(5.5,1.2),gp(5.2,3.2),gp(5.2,6.5),gp(-0.5,6.5)].join(' '),
+                  fill:'rgba(22,8,38,0.72)' },                                    // Ashen Ruins (left)
+                { pts:[gp(3.8,-0.5),gp(12.5,-0.5),gp(12.5,2.8),gp(8,2.8),gp(7,2),gp(5.5,1.2),gp(3.8,-0.5)].join(' '),
+                  fill:'rgba(40,0,0,0.78)' },                                     // Void Wastes (top right)
+                { pts:[gp(8,2.8),gp(12.5,2.8),gp(12.5,6.5),gp(8,6.5)].join(' '),
+                  fill:'rgba(38,14,0,0.72)' },                                    // Saltmarsh (right)
+                { pts:[gp(5.2,3.2),gp(8,3),gp(8,6.5),gp(5.2,6.5)].join(' '),
+                  fill:'rgba(14,8,24,0.65)' },                                    // Center scrubland
+            ].forEach(r => regionG.appendChild(svgEl('polygon', {points:r.pts, fill:r.fill, stroke:'none'})));
+            svg.appendChild(regionG);
+
+            // ── Terrain details ───────────────────────────────────────────────
+            const detailG = svgEl('g', {id:'terrain-details'});
+
+            // Dead trees (Ashen Ruins)
+            const treeSizes = [1.0,0.82,1.12,0.9,0.88,1.05,0.75,0.96];
+            [[0.6,3.4],[0.4,4.7],[1.8,5.7],[3.2,3.2],[3.6,4.7],[0.8,2.5],[2.5,5.8],[1.5,4.2]]
+            .forEach(([gx,gy],i) => {
+                const {x,y} = gridToSvg(gx,gy);
+                const s = treeSizes[i];
+                detailG.appendChild(svgEl('line',{x1:x,y1:y+10*s,x2:x,y2:y-10*s,stroke:'#160a25','stroke-width':String(1.3*s)}));
+                [[-7*s,8*s],[-4*s,6.5*s],[-1*s,5*s]].forEach(([dy,len]) => {
+                    detailG.appendChild(svgEl('line',{x1:x-len,y1:y+dy,x2:x+len,y2:y+dy,stroke:'#160a25','stroke-width':String(0.8*s)}));
+                });
+            });
+
+            // Ash rubble mounds
+            [[1.2,3.8],[2.8,4.5],[0.6,5.3],[4.2,3.7]].forEach(([gx,gy]) => {
+                const {x,y} = gridToSvg(gx,gy);
+                detailG.appendChild(svgEl('ellipse',{cx:x,cy:y,rx:'14',ry:'5',
+                    fill:'rgba(28,12,42,0.5)',stroke:'rgba(55,28,75,0.2)','stroke-width':'0.5'}));
+            });
+
+            // Void-water pool (near Sunken Library)
+            const wp = gridToSvg(1.4, 5.4);
+            detailG.appendChild(svgEl('ellipse',{cx:wp.x,cy:wp.y,rx:'30',ry:'13',
+                fill:'rgba(0,12,32,0.6)',stroke:'rgba(0,45,90,0.25)','stroke-width':'0.8'}));
+            [[-10,0],[0,-3],[12,0]].forEach(([dx,dy]) => {
+                detailG.appendChild(svgEl('line',{x1:wp.x+dx-9,y1:wp.y+dy,x2:wp.x+dx+9,y2:wp.y+dy,
+                    stroke:'rgba(0,70,130,0.22)','stroke-width':'0.7'}));
+            });
+
+            // Building silhouettes (Saltmarsh)
+            [[9.2,3.6,14,10],[10.7,4.2,12,8],[11.5,4.7,16,12],[9.5,5.3,10,8],[11.2,5.5,14,10],[8.5,5.5,11,7]]
+            .forEach(([gx,gy,w,h]) => {
+                const {x,y} = gridToSvg(gx,gy);
+                detailG.appendChild(svgEl('rect',{x:x-w/2,y:y-h,width:w,height:h,
+                    fill:'rgba(52,20,0,0.48)',stroke:'rgba(105,45,0,0.22)','stroke-width':'0.5'}));
+                detailG.appendChild(svgEl('polygon',{
+                    points:`${x-w/2-2},${y-h} ${x},${y-h-7} ${x+w/2+2},${y-h}`,
+                    fill:'rgba(38,12,0,0.52)',stroke:'rgba(90,35,0,0.18)','stroke-width':'0.5'}));
+                detailG.appendChild(svgEl('rect',{x:x-2,y:y-h+3,width:4,height:3,fill:'rgba(255,140,0,0.1)'}));
+            });
+
+            // Void cracks (Wastes)
+            [[[5.8,0.4],[7.2,1.0]],[[7.5,0.2],[8.8,0.9]],[[8.5,0.5],[10,1.2]],
+             [[6.2,1.5],[7.8,2.0]],[[9.5,1.0],[11,1.5]],[[6.8,0.8],[7.5,1.5]]]
+            .forEach(([a,b]) => {
+                const pa = gridToSvg(a[0],a[1]), pb = gridToSvg(b[0],b[1]);
+                detailG.appendChild(svgEl('line',{x1:pa.x,y1:pa.y,x2:pb.x,y2:pb.y,
+                    stroke:'rgba(170,0,0,0.28)','stroke-width':'1.3','stroke-dasharray':'3 4'}));
+            });
+
+            // Void glow ellipses (Wastes)
+            [[7,0.5],[9,1],[6.5,1.8],[10.5,0.8],[8.5,1.5]].forEach(([gx,gy]) => {
+                const {x,y} = gridToSvg(gx,gy);
+                detailG.appendChild(svgEl('ellipse',{cx:x,cy:y,rx:'22',ry:'10',
+                    fill:'rgba(130,0,0,0.09)',stroke:'rgba(160,0,0,0.12)','stroke-width':'0.5'}));
+            });
+
+            // Dark firs (center scrubland)
+            [[6,4],[6.5,5],[7,3.8],[6.3,5.5]].forEach(([gx,gy]) => {
+                const {x,y} = gridToSvg(gx,gy);
+                [[0,0,11,9],[0,-6,8,7],[0,-12,6,5]].forEach(([dy,tyO,tw,th]) => {
+                    detailG.appendChild(svgEl('polygon',{
+                        points:`${x-tw/2},${y+dy} ${x},${y+tyO-th} ${x+tw/2},${y+dy}`,
+                        fill:'rgba(8,22,10,0.55)',stroke:'none'}));
+                });
+            });
+
+            svg.appendChild(detailG);
+
+            // ── NPC dots (visited locations only) ─────────────────────────────
+            const npcG = svgEl('g', {id:'npc-indicators'});
+            nodes.forEach(node => {
+                if (!visited.has(node.id)) return;
+                const loc = mapData[node.id];
+                if (!loc) return;
+                if (loc.has_hostile) {
+                    npcG.appendChild(svgEl('circle',{cx:String(node.x+15),cy:String(node.y-15),r:'4.5',
+                        fill:'#7f1d1d',stroke:'#ef4444','stroke-width':'1',opacity:'0.92'}));
+                }
+                if (loc.has_friendly) {
+                    const yo = loc.has_hostile ? 12 : 0;
+                    npcG.appendChild(svgEl('circle',{cx:String(node.x-15),cy:String(node.y-15+yo),r:'4',
+                        fill:'#14532d',stroke:'#22c55e','stroke-width':'0.9',opacity:'0.88'}));
+                }
+            });
+            svg.appendChild(npcG);
         }
 
         function buildMapSVG() {
@@ -645,6 +763,9 @@
             const nodes   = getMapNodes();
             const edges   = getMapEdges(nodes);
             const nodeMap = Object.fromEntries(nodes.map(n => [n.id, n]));
+
+            // Terrain (drawn before edges and nodes)
+            drawTerrainSVG(svg, nodes);
 
             // Edges
             const edgeG = svgEl('g', {id:'map-edges'});
