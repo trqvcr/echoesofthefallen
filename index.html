@@ -885,16 +885,24 @@
 
                 // Combat damage readout
                 if (data.player_dmg !== undefined || data.enemy_dmg !== undefined) {
-                    const parts = [];
-                    if (data.player_dmg > 0) parts.push(`⚔ You dealt ${data.player_dmg} dmg`);
-                    if (data.enemy_dmg  > 0) parts.push(`🩸 You took ${data.enemy_dmg} dmg`);
-                    if (parts.length) {
-                        const dmgMsg = document.createElement('p');
-                        dmgMsg.className = "text-xs title-font tracking-widest msg-fade";
-                        dmgMsg.style.color = "#a78bfa";
-                        dmgMsg.innerText = parts.join('   ·   ');
-                        log.appendChild(dmgMsg);
+                    const wrap = document.createElement('div');
+                    wrap.className = "flex gap-4 msg-fade";
+
+                    if (data.player_dmg > 0) {
+                        const atk = document.createElement('span');
+                        atk.className = "title-font text-sm tracking-widest font-bold";
+                        atk.style.color = "#facc15";
+                        atk.innerText = `⚔ ${data.player_dmg} DMG dealt`;
+                        wrap.appendChild(atk);
                     }
+                    if (data.enemy_dmg > 0) {
+                        const hit = document.createElement('span');
+                        hit.className = "title-font text-sm tracking-widest font-bold";
+                        hit.style.color = "#f87171";
+                        hit.innerText = `🩸 ${data.enemy_dmg} DMG received`;
+                        wrap.appendChild(hit);
+                    }
+                    if (wrap.children.length) log.appendChild(wrap);
                 }
 
                 // Combat event messages
