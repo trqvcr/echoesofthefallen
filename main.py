@@ -26,6 +26,7 @@ from video import (
     intro_video_status, start_intro_generation,
     INTRO_VIDEO_PATH, INTRO_CLIPS, INTRO_NARRATIONS, INTRO_IMAGES, CLIP_IMAGE_MAP,
     clip_status, audio_status, image_status, generate_tts_audio,
+    start_cutscene_generation, cutscene_status, get_cutscene_url, CUTSCENE_CLIPS,
 )
 import base64
 
@@ -105,6 +106,7 @@ async def get_intro_status():
 @app.post("/generate-intro")
 async def generate_intro():
     status = start_intro_generation(client)
+    start_cutscene_generation(client)
     return {"status": status}
 
 @app.post("/tts")
@@ -113,6 +115,19 @@ async def tts_endpoint(req: TTSRequest):
     if not audio_b64:
         raise HTTPException(status_code=503, detail="TTS generation failed or unavailable")
     return {"audio_base64": audio_b64}
+
+@app.get("/cutscene/{key}")
+async def serve_cutscene(key: str):
+    clip = CUTSCENE_CLIPS.get(key)
+    if not clip:
+        raise HTTPException(status_code=404, detail="Unknown cutscene")
+    if not os.path.exists(clip["path"]):
+        raise HTTPException(status_code=404, detail="Cutscene not ready yet")
+    return FileResponse(clip["path"], media_type="video/mp4")
+
+@app.get("/cutscene-status")
+async def get_cutscene_statuses():
+    return {key: cutscene_status(key) for key in CUTSCENE_CLIPS}
 
 @app.get("/map-bg.jpg")
 async def serve_map_bg():
@@ -455,6 +470,9 @@ async def handle_action(request: ActionRequest):
         act_event_id = f"act_{new_act}_begins"
         story["world_event"] = make_world_event(act_event_id)
         world_dirty = True
+        act_cutscene = get_cutscene_url(act_event_id)
+        if act_cutscene:
+            result["cutscene_url"] = act_cutscene
 
     if world_dirty:
         world_state["story"] = story
@@ -1050,6 +1068,18 @@ history: one third-person sentence about {player['name']}. Empty string if trivi
     }
     if combat_event:
         result["combat_event"] = combat_event
+
+    # Inject cutscene URL if player just entered a location that has one (first visit only)
+    if location_changed:
+        cutscene_url = get_cutscene_url(location_key)
+        if cutscene_url:
+            visited_before = location_key in (player.get("visited_locations", [])[:])
+            # visited_locations already has the new location appended — check if it was there before this move
+            prev_visits = player.get("visited_locations", [])
+            first_visit = prev_visits.count(location_key) <= 1
+            if first_visit:
+                result["cutscene_url"] = cutscene_url
+
     result.update(extra_data)
     result.update(result_extra)
     return result

@@ -215,6 +215,17 @@
         </div>
     </div>
 
+    <!-- ── CUTSCENE MODAL ── -->
+    <div id="cutscene-modal" class="hidden fixed inset-0 z-[100] bg-black flex items-center justify-center">
+        <video id="cutscene-video" class="w-full h-full object-cover" autoplay playsinline></video>
+        <div id="cutscene-vignette" class="pointer-events-none absolute inset-0"
+            style="background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.8) 100%)"></div>
+        <button onclick="dismissCutscene()"
+            class="absolute bottom-8 right-8 title-font text-xs tracking-widest uppercase text-gray-500 hover:text-white transition-colors opacity-60 hover:opacity-100">
+            Skip
+        </button>
+    </div>
+
     <!-- ── SKILL OFFER MODAL ── -->
     <div id="skill-offer-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80">
         <div class="sidebar-box rounded-lg p-6 max-w-md w-full mx-4">
@@ -1742,6 +1753,24 @@
             }
         }
 
+        // ── Cutscene ───────────────────────────────────────────────────────────
+        function playCutscene(url) {
+            const modal = document.getElementById('cutscene-modal');
+            const video = document.getElementById('cutscene-video');
+            video.src = url;
+            modal.classList.remove('hidden');
+            video.play().catch(() => {});
+            video.onended = dismissCutscene;
+        }
+
+        function dismissCutscene() {
+            const modal = document.getElementById('cutscene-modal');
+            const video = document.getElementById('cutscene-video');
+            modal.classList.add('hidden');
+            video.pause();
+            video.src = '';
+        }
+
         // ── Action Loop ────────────────────────────────────────────────────────
         async function sendAction() {
             unlockAudio();
@@ -1806,6 +1835,9 @@
                 if (data.combat_event === 'victory' || data.combat_event === 'fled') {
                     setTimeout(() => showNpcPortrait(''), 2000);
                 }
+
+                // Cutscene
+                if (data.cutscene_url) playCutscene(data.cutscene_url);
 
                 // Narrative message
                 const sMsg = document.createElement('p');

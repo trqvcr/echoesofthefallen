@@ -1,5 +1,5 @@
 """
-video.py — Veo video + Gemini TTS narration generation for intro cinematic.
+video.py — Veo video + Gemini TTS narration generation for intro cinematic and in-game cutscenes.
 """
 import io
 import os
@@ -406,3 +406,162 @@ def start_intro_generation(client) -> str:
             threading.Thread(target=_run_tts_generation, args=(client, idx), daemon=True).start()
 
     return intro_video_status()
+
+
+# ── In-game cutscenes ──────────────────────────────────────────────────────────
+
+CUTSCENE_CLIPS = {
+    # location entry cutscenes
+    "ruined_keep": {
+        "path": "cutscene_ruined_keep.mp4",
+        "prompt": (
+            "Epic dark fantasy cinematic. A lone armored warrior pushes open massive rusted iron gates "
+            "into a crumbling fortress keep. Inside: collapsed stone halls choked with ash, "
+            "void energy crackling faintly along cracked pillars, ravens scattering into a grey sky. "
+            "The camera drifts forward through the gate into shadow. "
+            "Cinematic dark fantasy, dramatic volumetric lighting, League of Legends cutscene quality."
+        ),
+    },
+    "throne_vault": {
+        "path": "cutscene_throne_vault.mp4",
+        "prompt": (
+            "Epic dark fantasy cinematic. A vast underground throne room revealed as a stone door grinds open. "
+            "A colossal obsidian throne sits at the far end, surrounded by the skeletal remains of ancient guards "
+            "still standing at their posts. Void energy pulses faintly in the cracks of the floor. "
+            "The camera glides slowly toward the throne through drifting ash and cold blue light. "
+            "Cinematic dark fantasy, eerie and grand, League of Legends cutscene quality."
+        ),
+    },
+    "sunken_library": {
+        "path": "cutscene_sunken_library.mp4",
+        "prompt": (
+            "Epic dark fantasy cinematic. A vast library half-submerged in dark water. "
+            "Towering shelves of ancient tomes stretch upward into a vaulted stone ceiling. "
+            "Candles burn impossibly on floating debris. Void-touched pages drift through the air like moths. "
+            "The camera descends a mossy staircase into the flooded hall, water rippling with strange light. "
+            "Cinematic dark fantasy, atmospheric and mysterious, League of Legends cutscene quality."
+        ),
+    },
+    "ritual_chamber": {
+        "path": "cutscene_ritual_chamber.mp4",
+        "prompt": (
+            "Epic dark fantasy cinematic. A hidden ritual chamber unearthed. "
+            "A perfect circle of black stone altars surrounds a cracked obsidian shard at the center — "
+            "pulsing with deep crimson void energy. Ancient runes carved into the floor glow and dim. "
+            "The camera descends slowly from above, rotating around the shard. "
+            "Oppressive silence. Ash drifts downward through a crack in the vaulted ceiling. "
+            "Cinematic dark fantasy, foreboding and epic, League of Legends cutscene quality."
+        ),
+    },
+    "void_wastes_edge": {
+        "path": "cutscene_void_wastes_edge.mp4",
+        "prompt": (
+            "Epic dark fantasy cinematic. A warrior reaches the edge of the void wastes — "
+            "a devastated landscape of cracked black earth stretching to a massive crimson rift in the sky. "
+            "The air shimmers with dark energy. Dead twisted trees line the horizon. "
+            "The camera pulls back slowly as the warrior stands small against the vast corrupted sky. "
+            "Cinematic dark fantasy, massive scale, ominous and awe-inspiring, League of Legends cutscene quality."
+        ),
+    },
+    "saltmarsh_gate": {
+        "path": "cutscene_saltmarsh_gate.mp4",
+        "prompt": (
+            "Epic dark fantasy cinematic. A survivor's settlement emerges from the ash — "
+            "rough stone walls lit by torchlight, a heavy iron gate swinging open. "
+            "Inside: people huddle around fires, merchants call out in hoarse voices, "
+            "guards with hollow eyes patrol the walls. "
+            "The camera moves through the gate into the crowded, desperate settlement. "
+            "Cinematic dark fantasy, gritty and human, League of Legends cutscene quality."
+        ),
+    },
+    # story moment cutscenes
+    "act_2_begins": {
+        "path": "cutscene_act2.mp4",
+        "prompt": (
+            "Epic dark fantasy cinematic. The corruption spreads. "
+            "A massive void tendril tears through the sky above the ruined island, "
+            "crackling with dark energy, splitting storm clouds apart. "
+            "Below, the land itself darkens — ash deepens, the void rift grows. "
+            "The camera tilts upward slowly from ground level toward the expanding rift. "
+            "Dread and inevitability. Cinematic dark fantasy, League of Legends cutscene quality."
+        ),
+    },
+    "act_3_begins": {
+        "path": "cutscene_act3.mp4",
+        "prompt": (
+            "Epic dark fantasy cinematic. The final hour. "
+            "The void rift has split the sky in two — a colossal tear from horizon to horizon, "
+            "pouring dark energy down onto the dying island. "
+            "A lone figure stands on the highest ruined parapet, sword drawn, facing the sky. "
+            "Wind howls. Ash swirls. The world is ending. "
+            "The camera orbits the figure slowly. Cinematic dark fantasy, epic and final, League of Legends cutscene quality."
+        ),
+    },
+}
+
+_cutscene_states = {key: {"generating": False, "error": None} for key in CUTSCENE_CLIPS}
+
+
+def cutscene_status(key: str) -> str:
+    """Returns 'ready', 'generating', 'error', or 'none'."""
+    clip = CUTSCENE_CLIPS.get(key)
+    if not clip:
+        return "none"
+    if os.path.exists(clip["path"]):
+        return "ready"
+    state = _cutscene_states[key]
+    if state["generating"]:
+        return "generating"
+    if state["error"]:
+        return "error"
+    return "none"
+
+
+def get_cutscene_url(key: str) -> str:
+    """Returns the server URL for a ready cutscene, or empty string."""
+    if cutscene_status(key) == "ready":
+        return f"/cutscene/{key}"
+    return ""
+
+
+def _run_cutscene_generation(client, key: str):
+    state = _cutscene_states[key]
+    clip  = CUTSCENE_CLIPS[key]
+    try:
+        from google.genai.types import GenerateVideosConfig
+        print(f"[veo] starting cutscene '{key}' generation...")
+        operation = client.models.generate_videos(
+            model="veo-2.0-generate-001",
+            prompt=clip["prompt"],
+            config=GenerateVideosConfig(
+                aspect_ratio="16:9",
+                number_of_videos=1,
+                duration_seconds=8,
+            ),
+        )
+        print(f"[veo] polling cutscene '{key}'...")
+        while not operation.done:
+            time.sleep(8)
+            operation = client.operations.get(operation)
+
+        video_bytes = operation.response.generated_videos[0].video.video_bytes
+        with open(clip["path"], "wb") as f:
+            f.write(video_bytes)
+        print(f"[veo] cutscene '{key}' saved to {clip['path']}")
+    except Exception as e:
+        state["error"] = str(e)
+        print(f"[veo] cutscene '{key}' failed: {e}")
+    finally:
+        state["generating"] = False
+
+
+def start_cutscene_generation(client):
+    """Kick off background generation for all cutscenes not yet on disk."""
+    if not client:
+        return
+    for key, clip in CUTSCENE_CLIPS.items():
+        if not os.path.exists(clip["path"]) and not _cutscene_states[key]["generating"]:
+            _cutscene_states[key]["generating"] = True
+            _cutscene_states[key]["error"]      = None
+            t = threading.Thread(target=_run_cutscene_generation, args=(client, key), daemon=True)
+            t.start()
