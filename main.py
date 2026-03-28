@@ -147,6 +147,15 @@ async def login(request: LoginRequest):
     if player.get("password_hash") != hash_password(request.password):
         raise HTTPException(status_code=401, detail="Incorrect password.")
 
+    # Walk the heir chain until we find a living descendant
+    while player.get("status") == "dead":
+        heir_id   = player_id + "_heir"
+        heir      = get_player(heir_id)
+        if not heir:
+            break
+        player_id = heir_id
+        player    = heir
+
     return {"player_id": player_id, "state": player_to_state(player)}
 
 
