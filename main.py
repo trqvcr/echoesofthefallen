@@ -703,19 +703,21 @@ CURRENT STATE: {_format_state_for_prompt(current_location.get('state', {}))}
 NPCS HERE: {list(current_location.get('npcs', {}).keys())}
 
 PLAYER CHARACTER: {player['name']} | Race: {player['race']} | Class: {player['class']}
-PLAYER VISUAL APPEARANCE (for your narrative context only — do NOT repeat in visual tag): {player.get('avatar_visual_prompt', player.get('avatar_description', 'A generic adventurer in a tattered cloak'))}
+PLAYER APPEARANCE: {player.get('avatar_visual_prompt', player.get('avatar_description', 'a weathered adventurer in dark armor'))}
 
-NPCS IN THIS LOCATION (include relevant one in visual if involved):
+NPCS IN THIS LOCATION:
 {npc_block}
 
 PLAYER ACTION: {action}
 NARRATIVE: {narrative}
 
 ---
-Strict Visual Guidelines (Crucial for image generation):
-- For the 'visual' field, write exactly ONE vivid sentence describing the SCENE/ENVIRONMENT/ATMOSPHERE only.
-- Do NOT describe the player character in the visual field — that is added separately by the image generator.
-- Describe the location, lighting, atmosphere (ash, void energy, fog), and dramatic framing.
+VISUAL SCENE PROMPT — write this as a direct prompt for an AI image generator:
+- Describe what the {player['race']} {player['class']} is physically DOING (specific action, pose, motion)
+- Include the environment: {current_location['name']} — key details, ruins, structures, ash, void energy
+- Lighting and mood: time of day, shadows, fog, void glow, dramatic angle
+- If an NPC is involved, include them and their position relative to the player
+- Write 1-2 rich sentences. Be concrete and visual — this feeds directly into image generation.
 
 ---
 World state change guidelines:
@@ -926,8 +928,8 @@ history: one third-person sentence about {player['name']}. Empty string if trivi
 
     scene_img = generate_scene_image(
         client, visual_prompt,
-        player.get("avatar_visual_prompt", player.get("avatar_description", "")),
-        npc_description=npc_description,
+        avatar_portrait_b64=player.get("avatar_portrait", ""),
+        npc_portrait_b64=npc_portrait,
     )
     # Cache as reference_image only if one doesn't exist yet (used by fast travel)
     if scene_img and not ref_image:
@@ -999,7 +1001,7 @@ async def fast_travel(request: TravelRequest):
 
     if not ref_image and client:
         loc_prompt = f"{current_location.get('name', destination)}: {current_location.get('description', '')}"
-        ref_image  = generate_scene_image(client, loc_prompt, player.get("avatar_visual_prompt", player.get("avatar_description", "")))
+        ref_image  = generate_scene_image(client, loc_prompt, avatar_portrait_b64=player.get("avatar_portrait", ""))
         if ref_image:
             current_location["reference_image"] = ref_image
             location_dirty = True

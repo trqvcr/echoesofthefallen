@@ -468,7 +468,7 @@ PLAYER_DAMAGE: [integer — normal = {p_min}-{p_max_eff}. Weak/silly = 1 to {max
 ENEMY_DAMAGE: [integer {e_min}-{e_max}, or 0 if stunned/missed/fled]
 SKILL_USED: [skill_id or none]
 FLEE_OUTCOME: [none / success / fail / captured]
-VISUAL: [one sentence describing the combat scene]"""
+VISUAL: [image generation prompt: describe what the {player['race']} {player['class']} is doing — the specific attack, skill animation, or evasion — then the {cs['enemy_name']} reaction, set in {current_location.get('name','the location')} with atmospheric lighting. 1-2 vivid sentences, concrete and visual.]"""
 
     narrative = "[Combat continues]"
     raw_text  = ""
@@ -621,13 +621,12 @@ VISUAL: [one sentence describing the combat scene]"""
             current_location["npcs"][enemy_id]["portrait"] = npc_portrait
             save_location(location_key, current_location)
 
-    visual_tag        = parse_tag("VISUAL", raw_text)
-    enemy_description = "" if combat_event == "victory" else enemy_data.get("description", "")
-    avatar_prompt     = player.get("avatar_visual_prompt", player.get("avatar_description", ""))
+    visual_tag   = parse_tag("VISUAL", raw_text)
+    npc_portrait_for_scene = "" if combat_event == "victory" else npc_portrait
     scene_img = generate_scene_image(
         client, visual_tag,
-        avatar_prompt,
-        npc_description=enemy_description,
+        avatar_portrait_b64=player.get("avatar_portrait", ""),
+        npc_portrait_b64=npc_portrait_for_scene,
     )
 
     return {
