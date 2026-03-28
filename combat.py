@@ -84,8 +84,8 @@ def _end_combat(player: dict, outcome: str, all_locations: dict, location_key: s
     return player
 
 
-def _handle_death(player: dict, player_id: str) -> tuple:
-    ancestor = {
+def _make_ancestor_record(player: dict) -> dict:
+    return {
         "name":       player["name"],
         "race":       player["race"],
         "class":      player["class"],
@@ -95,9 +95,11 @@ def _handle_death(player: dict, player_id: str) -> tuple:
         "milestones": player["milestones"],
     }
 
+
+def build_heir(dead_player: dict, heir_name: str) -> dict:
     world_state = get_world()
-    race_data   = world_state["races"][player["race"]]
-    class_data  = world_state["classes"][player["class"]]
+    race_data   = world_state["races"][dead_player["race"]]
+    class_data  = world_state["classes"][dead_player["class"]]
 
     base = class_data["starting_attributes"]
     mods = race_data["stat_modifiers"]
@@ -109,23 +111,24 @@ def _handle_death(player: dict, player_id: str) -> tuple:
     max_hp      = 20 + CON * 5
     max_stamina = 10
     max_mana    = ARC * 2
+    generation  = len(dead_player.get("lineage", [])) + 2
 
     skills = {
         skill_id: {"level": 1, "xp": 0, "modifications": []}
         for skill_id in class_data["starting_skills"]
     }
 
-    descendant_id = player_id
-    generation    = len(player.get("lineage", [])) + 2
-    descendant = {
-        "name":             player["name"],
-        "password_hash":    player.get("password_hash", ""),
-        "race":             player["race"],
+    ancestor = _make_ancestor_record(dead_player)
+
+    return {
+        "name":             f"{heir_name}, Heir of {dead_player['name']}",
+        "password_hash":    dead_player.get("password_hash", ""),
+        "race":             dead_player["race"],
         "subrace":          None,
-        "class":            player["class"],
+        "class":            dead_player["class"],
         "subclass":         None,
         "status":           "alive",
-        "history":          [f"Generation {generation}. {player['name']} rises from the ashes of their fallen ancestor."],
+        "history":          [f"Generation {generation}. {heir_name} rises from the ashes of {dead_player['name']}."],
         "location":         "ashen_courtyard",
         "hp":               max_hp,
         "max_hp":           max_hp,
@@ -160,13 +163,10 @@ def _handle_death(player: dict, player_id: str) -> tuple:
             "subclass_unlocked":        False,
             "subrace_unlocked":         False,
         },
-        "lineage":      [ancestor] + player.get("lineage", []),
-        "reputation":   player.get("reputation", {"saltmarsh": 0, "ashen_ruins": 0, "void_wastes": 0}),
+        "lineage":      [ancestor] + dead_player.get("lineage", []),
+        "reputation":   dead_player.get("reputation", {"saltmarsh": 0, "ashen_ruins": 0, "void_wastes": 0}),
         "combat_state": {"active": False},
     }
-
-    save_player(descendant_id, descendant)
-    return descendant, descendant_id, ancestor
 
 
 # ── Player State Serializer ────────────────────────────────────────────────────
@@ -352,18 +352,16 @@ VISUAL: [one sentence describing the combat scene]"""
         player["status"] = "dead"
         player["hp"]     = 0
         combat_event     = "death"
+        player["history"].append(f"[COMBAT R{cs.get('round',1)}] {action}")
+        player["history"] = player["history"][-20:]
         save_player(player_id, player)
-        descendant, descendant_id, ancestor = _handle_death(player, player_id)
-        extra_data = {"ancestor": ancestor, "descendant_id": descendant_id}
-        player = descendant
-
-    player["history"].append(f"[COMBAT R{cs.get('round',1)}] {action}")
-    player["history"] = player["history"][-20:]
+        extra_data = {"ancestor": _make_ancestor_record(player), "player_id": player_id}
+    else:
+        player["history"].append(f"[COMBAT R{cs.get('round',1)}] {action}")
+        player["history"] = player["history"][-20:]
+        save_player(player_id, player)
 
     current_location_name = all_locations.get(player["location"], current_location).get("name", player["location"])
-
-    if combat_event != "death":
-        save_player(player_id, player)
 
     return {
         "text":         display_text,

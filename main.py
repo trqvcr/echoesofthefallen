@@ -8,10 +8,10 @@ from google import genai
 from google.genai.types import GenerateImagesConfig
 from dotenv import load_dotenv
 
-from models import RegisterRequest, LoginRequest, ActionRequest
+from models import RegisterRequest, LoginRequest, ActionRequest, RiseRequest
 from db import get_player, save_player, get_world, get_all_locations, save_location, hash_password
 from enemies import tick_spawns
-from combat import player_to_state, _start_combat, process_combat_turn, _handle_death
+from combat import player_to_state, _start_combat, process_combat_turn, _make_ancestor_record, build_heir
 import base64;
 
 load_dotenv()
@@ -151,6 +151,27 @@ async def login(request: LoginRequest):
         raise HTTPException(status_code=401, detail="Incorrect password.")
 
     return {"player_id": player_id, "state": player_to_state(player)}
+
+
+# ── /rise ──────────────────────────────────────────────────────────────────────
+
+@app.post("/rise")
+async def rise_as_heir(request: RiseRequest):
+    player_id   = request.player_id
+    dead_player = get_player(player_id)
+
+    if not dead_player:
+        raise HTTPException(status_code=404, detail="Player not found")
+    if dead_player.get("status") != "dead":
+        raise HTTPException(status_code=400, detail="Player is not dead")
+
+    heir_name = request.heir_name.strip()
+    if not heir_name:
+        raise HTTPException(status_code=400, detail="Heir name cannot be empty")
+
+    heir = build_heir(dead_player, heir_name)
+    save_player(player_id, heir)
+    return {"player_id": player_id, "state": player_to_state(heir)}
 
 
 # ── /action ────────────────────────────────────────────────────────────────────
@@ -405,9 +426,7 @@ HISTORY: [one sentence to append to this location's history log — or none]"""
             player["hp"]     = 0
             combat_event     = "death"
             save_player(player_id, player)
-            descendant, descendant_id, ancestor = _handle_death(player, player_id)
-            extra_data = {"ancestor": ancestor, "descendant_id": descendant_id}
-            player = descendant
+            extra_data = {"ancestor": _make_ancestor_record(player), "player_id": player_id}
 
     if combat_event != "death":
         save_player(player_id, player)

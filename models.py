@@ -18,3 +18,7 @@ class ActionRequest(BaseModel):
     player_id: str
     action: str
     state: Optional[Dict[str, Any]] = None
+
+class RiseRequest(BaseModel):
+    player_id: str
+    heir_name: str

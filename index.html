@@ -141,10 +141,15 @@
                 <div id="lineage-display" class="space-y-2 text-sm text-gray-400"></div>
             </div>
 
-            <p class="text-purple-400 italic mb-6">Your heir rises from the ashes. The world remembers what you did.</p>
+            <p class="text-purple-400 italic mb-4">Your heir rises from the ashes. The world remembers what you did.</p>
+            <input id="heir-name-input" type="text" maxlength="32"
+                placeholder="Name your heir..."
+                class="w-full bg-black border border-purple-900 text-gray-200 text-center title-font tracking-widest px-4 py-3 rounded mb-4 focus:outline-none focus:border-purple-500"
+                onkeydown="if(event.key==='Enter') continueAsHeir()" />
             <button onclick="continueAsHeir()" class="title-font text-sm uppercase tracking-widest px-8 py-4 bg-purple-900 hover:bg-purple-700 text-white rounded transition-all">
                 Rise as Heir
             </button>
+            <p id="heir-error" class="text-red-500 text-xs mt-3 hidden"></p>
         </div>
     </div>
 
@@ -611,19 +616,48 @@
             descendantId = data.descendant_id;
         }
 
-        function continueAsHeir() {
-            document.getElementById('death-screen').classList.remove('active');
-            document.getElementById('action-input').disabled = false;
-            document.getElementById('submit-btn').disabled   = false;
-            document.getElementById('action-input').focus();
-            if (descendantId && gameState) {
-                gameState.player_id = descendantId;
-                sessionStorage.setItem('playerId', descendantId);
-                sessionStorage.setItem('playerName', gameState.house_name);
-                localStorage.setItem(`echoes_save_${gameState.house_name}`, JSON.stringify(gameState));
+        async function continueAsHeir() {
+            const heirName = document.getElementById('heir-name-input').value.trim();
+            const errEl    = document.getElementById('heir-error');
+            if (!heirName) {
+                errEl.textContent = 'Enter a name for your heir.';
+                errEl.classList.remove('hidden');
+                return;
             }
-            log.innerHTML = '<p class="text-purple-400 italic title-font text-sm tracking-widest text-center">— A NEW HEIR RISES. THE VOID REMEMBERS. —</p>';
-            updateUI();
+            errEl.classList.add('hidden');
+
+            try {
+                const res = await fetch('/rise', {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({
+                        player_id: sessionStorage.getItem('playerId'),
+                        heir_name: heirName
+                    })
+                });
+                if (!res.ok) {
+                    const e = await res.json().catch(() => ({}));
+                    throw new Error(e.detail || 'Failed to rise as heir');
+                }
+                const data = await res.json();
+
+                gameState = data.state;
+                sessionStorage.setItem('playerId',    data.player_id);
+                sessionStorage.setItem('playerName',  gameState.house_name);
+                localStorage.setItem(`echoes_save_${gameState.house_name}`, JSON.stringify(gameState));
+
+                document.getElementById('death-screen').classList.remove('active');
+                document.getElementById('heir-name-input').value = '';
+                document.getElementById('action-input').disabled = false;
+                document.getElementById('submit-btn').disabled   = false;
+                document.getElementById('action-input').focus();
+
+                log.innerHTML = '<p class="text-purple-400 italic title-font text-sm tracking-widest text-center">— A NEW HEIR RISES. THE VOID REMEMBERS. —</p>';
+                updateUI();
+            } catch (e) {
+                errEl.textContent = e.message;
+                errEl.classList.remove('hidden');
+            }
         }
 
         // ── Initial Load ───────────────────────────────────────────────────────
