@@ -348,6 +348,24 @@
                 syncMapLocation(gameState.location);
             }
 
+            // Combat banner
+            const cs     = gameState.combat_state || {};
+            const banner = document.getElementById('combat-banner');
+            if (banner) {
+                if (cs.active) {
+                    banner.classList.remove('hidden');
+                    document.getElementById('combat-enemy-name').innerText = cs.enemy_name || '';
+                    document.getElementById('combat-round').innerText      = `Round ${cs.round || 1}`;
+                    const ePct = Math.max(0, (cs.enemy_hp / cs.enemy_max_hp) * 100);
+                    document.getElementById('enemy-hp-fill').style.width  = ePct + '%';
+                    document.getElementById('enemy-hp-text').innerText     = `${cs.enemy_hp} / ${cs.enemy_max_hp}`;
+                    input.placeholder = "Attack, use a skill, or flee...";
+                } else {
+                    banner.classList.add('hidden');
+                    input.placeholder = "What is your command?";
+                }
+            }
+
             // Trigger Level Up Modal if ready
             const levelupModal = document.getElementById('levelup-modal');
             if (levelupModal && gameState.xp >= gameState.xp_to_next_level) {
