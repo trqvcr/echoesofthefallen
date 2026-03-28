@@ -1,20 +1,16 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
-import os
-import json
+from typing import Dict, Any, Optional
+import os, json
 from google import genai
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# 1. Initialize App
 app = FastAPI(title="Echoes of the Fallen")
 
-# 2. CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -23,11 +19,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 3. Gemini Client (Crash-proof)
 api_key = os.getenv("GEMINI_API_KEY")
 client = genai.Client(api_key=api_key) if api_key and api_key != "placeholder" else None
 
-# 4. Pydantic Models
+# ── Pydantic Models ────────────────────────────────────────────────────────────
+
 class RegisterRequest(BaseModel):
     name: str
     race: str
@@ -36,10 +32,10 @@ class RegisterRequest(BaseModel):
 class ActionRequest(BaseModel):
     player_id: str
     action: str
-    # Changed to Dict to seamlessly accept the complex new state without validation errors
-    state: Dict[str, Any] 
+    state: Optional[Dict[str, Any]] = None
 
-# 5. Helpers
+# ── JSON Helpers ───────────────────────────────────────────────────────────────
+
 def load_json(path):
     with open(path, "r") as f:
         return json.load(f)
@@ -48,7 +44,8 @@ def save_json(path, data):
     with open(path, "w") as f:
         json.dump(data, f, indent=2)
 
-# 6. Serve HTML pages
+# ── Static Pages ───────────────────────────────────────────────────────────────
+
 @app.get("/")
 async def serve_login():
     return FileResponse("login.html")
@@ -57,69 +54,207 @@ async def serve_login():
 async def serve_game():
     return FileResponse("index.html")
 
-# 7. Health Check
 @app.get("/health")
-async def health_check():
-    return {"message": "Echoes of the Fallen server is running."}
+async def health():
+    return {"status": "ok"}
 
-# 8. Core Game Loop
+# ── /register ──────────────────────────────────────────────────────────────────
+
+@app.post("/register")
+async def register(request: RegisterRequest):
+    world_state = load_json("world_state.json")
+
+    # Validate race and class exist
+    if request.race not in world_state["races"]:
+        raise HTTPException(status_code=400, detail=f"Unknown race: {request.race}")
+    if request.player_class not in world_state["classes"]:
+        raise HTTPException(status_code=400, detail=f"Unknown class: {request.player_class}")
+
+    # Build player_id from name
+    player_id = request.name.strip().lower().replace(" ", "_")
+
+    # Resume existing player if found
+    if player_id in world_state["players"]:
+        player = world_state["players"][player_id]
+        return {"player_id": player_id, "state": _player_to_state(player)}
+
+    # Pull base stats from class + race modifiers
+    race_data  = world_state["races"][request.race]
+    class_data = world_state["classes"][request.player_class]
+
+    base   = class_data["starting_attributes"]
+    mods   = race_data["stat_modifiers"]
+
+    STR = base["STR"] + mods.get("STR", 0)
+    AGI = base["AGI"] + mods.get("AGI", 0)
+    CON = base["CON"] + mods.get("CON", 0)
+    ARC = base["ARC"] + mods.get("ARC", 0)
+
+    max_hp      = 20 + CON * 5
+    max_stamina = 10
+    max_mana    = ARC * 2
+
+    # Build starting skills dict
+    skills = {
+        skill_id: {"level": 1, "xp": 0, "modifications": []}
+        for skill_id in class_data["starting_skills"]
+    }
+
+    player = {
+        "name":           request.name.strip(),
+        "race":           request.race,
+        "subrace":        None,
+        "class":          request.player_class,
+        "subclass":       None,
+        "status":         "alive",
+        "history":        [],
+        "location":       "ashen_courtyard",
+        "hp":             max_hp,
+        "max_hp":         max_hp,
+        "stamina":        max_stamina,
+        "max_stamina":    max_stamina,
+        "mana":           max_mana,
+        "max_mana":       max_mana,
+        "xp":             0,
+        "xp_to_next_level": 100,
+        "level":          1,
+        "attributes": {"STR": STR, "AGI": AGI, "CON": CON, "ARC": ARC},
+        "derived_stats": {
+            "max_hp":       max_hp,
+            "atk":          STR + 2,          # weapon placeholder
+            "def":          CON // 2,
+            "dodge_chance": AGI * 2,
+        },
+        "skills":    skills,
+        "inventory": list(class_data["starting_gear"]),
+        "equipped": {
+            "weapon":    class_data["starting_gear"][0] if class_data["starting_gear"] else None,
+            "armor":     class_data["starting_gear"][1] if len(class_data["starting_gear"]) > 1 else None,
+            "accessory": None,
+        },
+        "milestones": {
+            "bosses_defeated":       [],
+            "total_kills":           0,
+            "total_damage_dealt":    0,
+            "total_damage_absorbed": 0,
+            "times_nearly_died":     0,
+            "skill_modifications_used": 0,
+            "subclass_unlocked":     False,
+            "subrace_unlocked":      False,
+        },
+        "lineage":     [],
+        "reputation":  {"saltmarsh": 0, "ashen_ruins": 0, "void_wastes": 0},
+    }
+
+    world_state["players"][player_id] = player
+    save_json("world_state.json", world_state)
+
+    return {"player_id": player_id, "state": _player_to_state(player)}
+
+# ── /action ────────────────────────────────────────────────────────────────────
+
 @app.post("/action")
 async def handle_action(request: ActionRequest):
     world_state = load_json("world_state.json")
-    map_data = load_json("map.json")
+    map_data    = load_json("map.json")
 
-    # Get player
     player = world_state["players"].get(request.player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
 
-    # Get location
-    location_key = player["location"]
+    location_key     = player["location"]
     current_location = map_data.get(location_key)
     if not current_location:
         raise HTTPException(status_code=404, detail="Location not found")
 
-    # Check for movement
+    # Movement check
     action_lower = request.action.lower()
-    for exit_location in current_location.get("exits", []):
-        if exit_location.replace("_", " ") in action_lower or exit_location in action_lower:
-            player["location"] = exit_location
-            current_location = map_data[exit_location]
+    for exit_key in current_location.get("exits", []):
+        if exit_key.replace("_", " ") in action_lower or exit_key in action_lower:
+            player["location"] = exit_key
+            current_location   = map_data[exit_key]
             break
 
+    # Append to player history (keep last 20)
+    player["history"].append(request.action)
+    player["history"] = player["history"][-20:]
+
     # Build Gemini prompt
-    prompt = f"""
-You are a dark fantasy dungeon master for 'Echoes of the Fallen'.
+    attrs = player["attributes"]
+    prompt = f"""You are a dark fantasy dungeon master for 'Echoes of the Fallen'.
 
-    WORLD HISTORY: {world_state["world_history"]}
-    CURRENT LOCATION: {current_location["description"]}
-    LOCATION HISTORY: {current_location.get("history", [])}
-    PLAYER NAME: {player["name"]}
-    PLAYER CLASS: {player["class"]}
-    PLAYER HP: {player["hp"]}/{player["max_hp"]}
-    PLAYER INVENTORY: {player["inventory"]}
-    PLAYER ACTION: {request.action}
+WORLD HISTORY: {world_state['world_history']}
 
-    Respond with vivid narrative (2-3 sentences). Then on a new line write:
-    VISUAL: [one sentence describing the scene for image generation]
-    """
+LOCATION: {current_location['name']}
+DESCRIPTION: {current_location['description']}
+LOCATION STATE: {current_location.get('state', {})}
+NPCS PRESENT: {list(current_location.get('npcs', {}).keys())}
+LOCATION HISTORY: {current_location.get('history', [])[-5:]}
 
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=prompt
-    )
+PLAYER: {player['name']} | Race: {player['race']} | Class: {player['class']}
+HP: {player['hp']}/{player['max_hp']} | Level: {player['level']}
+STR:{attrs['STR']} AGI:{attrs['AGI']} CON:{attrs['CON']} ARC:{attrs['ARC']}
+SKILLS: {list(player['skills'].keys())}
+INVENTORY: {player['inventory']}
+RECENT ACTIONS: {player['history'][-5:]}
 
-    narrative = response.text
+PLAYER ACTION: {request.action}
 
-    # Save updated world state
+Respond with vivid narrative (2-3 sentences). Then on a new line:
+VISUAL: [one sentence describing the scene for image generation]"""
+
+    narrative = "[The void is silent — no AI connected]"
+    if client:
+        response  = client.models.generate_content(model="gemini-2.5-flash-preview-04-17", contents=prompt)
+        narrative = response.text
+
+    # Strip the VISUAL line from what's shown to the player
+    display_text = "\n".join(
+        line for line in narrative.splitlines()
+        if not line.strip().startswith("VISUAL:")
+    ).strip()
+
+    # Save player back
     world_state["players"][request.player_id] = player
     save_json("world_state.json", world_state)
 
     return {
-        "text": narrative,
+        "text":     display_text,
         "image_base64": "",
-        "status": player["status"],
-        "location": player["location"],
-        "hp": player["hp"],
-        "max_hp": player["max_hp"]
+        "status":   player["status"],
+        "location": current_location["name"],   # human-readable name now
+        "state":    _player_to_state(player),   # ← full state for the frontend
+    }
+
+# ── State serializer (player → frontend-friendly dict) ────────────────────────
+
+def _player_to_state(player: dict) -> dict:
+    attrs = player.get("attributes", {})
+    return {
+        "house_name":  player["name"],
+        "player_id":   player["name"].lower().replace(" ", "_"),
+        "race":        player["race"],
+        "class":       player["class"],
+        "status":      player["status"],
+        "location":    player["location"],
+        "hp":          player["hp"],
+        "max_hp":      player["max_hp"],
+        "stamina":     player["stamina"],
+        "max_stamina": player["max_stamina"],
+        "mana":        player["mana"],
+        "max_mana":    player["max_mana"],
+        "level":       player["level"],
+        "xp":          player["xp"],
+        "xp_to_next_level": player["xp_to_next_level"],
+        # Flat stat keys the frontend reads directly
+        "str": attrs.get("STR", 0),
+        "agi": attrs.get("AGI", 0),
+        "con": attrs.get("CON", 0),
+        "arc": attrs.get("ARC", 0),
+        "inventory":   player["inventory"],
+        "equipped":    player.get("equipped", {}),
+        "skills":      player.get("skills", {}),
+        "milestones":  player.get("milestones", {}),
+        "lineage":     player.get("lineage", []),
+        "reputation":  player.get("reputation", {}),
     }
