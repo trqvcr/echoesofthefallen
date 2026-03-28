@@ -3,9 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
-import os, json, random
+import os, random, time, hashlib
 from google import genai
 from dotenv import load_dotenv
+from supabase import create_client
 
 load_dotenv()
 
@@ -19,8 +20,53 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Clients ────────────────────────────────────────────────────────────────────
+
 api_key = os.getenv("GEMINI_API_KEY")
-client = genai.Client(api_key=api_key) if api_key and api_key != "placeholder" else None
+client  = genai.Client(api_key=api_key) if api_key and api_key != "placeholder" else None
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+sb = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# ── Roaming Enemy Pool ─────────────────────────────────────────────────────────
+# Enemies are no longer hardcoded in map.json locations.
+# The spawn system injects them dynamically at runtime.
+
+ENEMY_POOL = {
+    "void_wolf": {
+        "name": "Void-Touched Wolf",
+        "status": "alive",
+        "disposition": -100,
+        "hp": 20,
+        "max_hp": 20,
+        "atk": 5,
+        "def": 1,
+        "xp_reward": 30,
+        "loot": ["void_fang", "shredded_leather"],
+        "memory": [],
+        "description": "A large wolf whose fur has turned ashen grey. Void energy pulses beneath its skin in veins of purple light.",
+        "valid_locations": ["ruined_keep", "ashen_courtyard", "void_bridge"],
+        "max_alive": 2,
+        "respawn_seconds": 120,
+    },
+    "void_shade": {
+        "name": "Void Shade",
+        "status": "alive",
+        "disposition": -100,
+        "hp": 15,
+        "max_hp": 15,
+        "atk": 7,
+        "def": 0,
+        "xp_reward": 25,
+        "loot": ["shadow_essence"],
+        "memory": [],
+        "description": "A flickering humanoid shape of pure void energy. It moves faster than the eye can follow.",
+        "valid_locations": ["void_bridge", "void_wastes_edge", "sunken_library"],
+        "max_alive": 2,
+        "respawn_seconds": 180,
+    },
+}
 
 # ── Pydantic Models ────────────────────────────────────────────────────────────
 
@@ -28,30 +74,120 @@ class RegisterRequest(BaseModel):
     name: str
     race: str
     player_class: str
+    password: str
+
+class LoginRequest(BaseModel):
+    name: str
+    password: str
 
 class ActionRequest(BaseModel):
     player_id: str
     action: str
     state: Optional[Dict[str, Any]] = None
 
-# ── JSON Helpers ───────────────────────────────────────────────────────────────
+# ── Supabase Helpers ───────────────────────────────────────────────────────────
 
-def load_json(path):
-    try:
-        with open(path, "r") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        if "world_state" in path:
-            return {"world_history": [], "races": {}, "classes": {}, "skill_definitions": {}}
-        if "saves" in path:
-            return {}
-        return {}
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=500, detail=f"{path} is corrupted. Check your JSON syntax.")
+def get_player(player_id: str) -> Optional[dict]:
+    res = sb.table("players").select("state").eq("id", player_id).execute()
+    if res.data:
+        return res.data[0]["state"]
+    return None
 
-def save_json(path, data):
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
+def save_player(player_id: str, state: dict):
+    sb.table("players").upsert({
+        "id":         player_id,
+        "state":      state,
+        "updated_at": "now()"
+    }).execute()
+
+def get_world() -> dict:
+    res = sb.table("world").select("data").eq("id", 1).execute()
+    if res.data:
+        return res.data[0]["data"]
+    raise HTTPException(status_code=500, detail="World state not found in Supabase. Did you run migrate.py?")
+
+def get_all_locations() -> dict:
+    res = sb.table("locations").select("key, data").execute()
+    return {row["key"]: row["data"] for row in res.data}
+
+def get_location(key: str) -> Optional[dict]:
+    res = sb.table("locations").select("data").eq("key", key).execute()
+    if res.data:
+        return res.data[0]["data"]
+    return None
+
+def save_location(key: str, data: dict):
+    sb.table("locations").upsert({"key": key, "data": data}).execute()
+
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
+# ── Roaming Spawn System ───────────────────────────────────────────────────────
+
+def tick_spawns(all_locations: dict) -> dict:
+    """
+    Called on every /action. Checks if any roaming enemies should respawn
+    and injects them into a random valid location.
+    Returns the (possibly mutated) all_locations dict.
+    Saves changed locations back to Supabase.
+    """
+    now = time.time()
+    changed_keys = set()
+
+    for enemy_id, enemy_def in ENEMY_POOL.items():
+        # Count how many of this enemy are currently alive across all locations
+        alive_count = sum(
+            1 for loc in all_locations.values()
+            if loc.get("npcs", {}).get(enemy_id, {}).get("status") == "alive"
+        )
+
+        if alive_count >= enemy_def["max_alive"]:
+            continue
+
+        # Find when it last died (most recent died_at across all locations)
+        died_at = 0
+        for loc in all_locations.values():
+            npc = loc.get("npcs", {}).get(enemy_id)
+            if npc and npc.get("status") == "dead":
+                died_at = max(died_at, npc.get("died_at", 0))
+
+        # If never died (first spawn) or respawn timer elapsed, spawn it
+        if died_at == 0 or (now - died_at) >= enemy_def["respawn_seconds"]:
+            # Pick a random valid location that doesn't already have this enemy alive
+            candidates = [
+                loc_key for loc_key in enemy_def["valid_locations"]
+                if loc_key in all_locations and
+                all_locations[loc_key].get("npcs", {}).get(enemy_id, {}).get("status") != "alive"
+            ]
+            if not candidates:
+                continue
+
+            spawn_key = random.choice(candidates)
+            loc = all_locations[spawn_key]
+            if "npcs" not in loc:
+                loc["npcs"] = {}
+
+            loc["npcs"][enemy_id] = {
+                "name":        enemy_def["name"],
+                "status":      "alive",
+                "disposition": enemy_def["disposition"],
+                "hp":          enemy_def["hp"],
+                "max_hp":      enemy_def["max_hp"],
+                "atk":         enemy_def["atk"],
+                "def":         enemy_def["def"],
+                "xp_reward":   enemy_def["xp_reward"],
+                "loot":        list(enemy_def["loot"]),
+                "memory":      [],
+                "description": enemy_def["description"],
+            }
+            all_locations[spawn_key] = loc
+            changed_keys.add(spawn_key)
+
+    # Save any locations that changed
+    for key in changed_keys:
+        save_location(key, all_locations[key])
+
+    return all_locations
 
 # ── Static Pages ───────────────────────────────────────────────────────────────
 
@@ -67,194 +203,31 @@ async def serve_game():
 async def health():
     return {"status": "ok"}
 
-# ── Combat Helpers ─────────────────────────────────────────────────────────────
-
-def _calc_player_damage_range(player: dict, skill_id: Optional[str], skill_defs: dict) -> tuple:
-    """Return (min_dmg, max_dmg) for player attack."""
-    attrs    = player["attributes"]
-    base_atk = player["derived_stats"]["atk"]
-
-    if skill_id and skill_id in skill_defs:
-        skill     = skill_defs[skill_id]
-        base_dmg  = skill["base_damage"]
-        scale_key = skill.get("scales_with", "STR")
-        scale_val = attrs.get(scale_key, 0)
-        min_dmg   = max(1, base_dmg + scale_val // 2)
-        max_dmg   = base_dmg + scale_val
-    else:
-        min_dmg = max(1, base_atk - 2)
-        max_dmg = base_atk + 2
-
-    return (min_dmg, max_dmg)
-
-def _calc_enemy_damage_range(enemy: dict, player_def: int) -> tuple:
-    """Return (min_dmg, max_dmg) for enemy attack after applying player DEF."""
-    raw_min = max(0, enemy["atk"] - player_def - 1)
-    raw_max = max(1, enemy["atk"] - player_def + 2)
-    return (raw_min, raw_max)
-
-def _start_combat(player: dict, enemy_id: str, enemy_data: dict, first_turn: str) -> dict:
-    """Attach combat_state to player. first_turn = 'player' or 'enemy'."""
-    player["combat_state"] = {
-        "active":      True,
-        "enemy_id":    enemy_id,
-        "enemy_name":  enemy_data["name"],
-        "enemy_hp":    enemy_data["hp"],
-        "enemy_max_hp": enemy_data["max_hp"],
-        "enemy_atk":   enemy_data["atk"],
-        "enemy_def":   enemy_data["def"],
-        "enemy_loot":  enemy_data.get("loot", []),
-        "enemy_xp":    enemy_data.get("xp_reward", 0),
-        "turn":        first_turn,
-        "round":       1,
-        "fled":        False,
-    }
-    return player
-
-def _end_combat(player: dict, outcome: str, map_data: dict, location_key: str) -> dict:
-    """Clean up combat state after victory, death, or flee."""
-    cs = player.get("combat_state", {})
-
-    if outcome == "victory":
-        # Grant XP
-        player["xp"] += cs.get("enemy_xp", 0)
-        # Grant loot
-        for item in cs.get("enemy_loot", []):
-            player["inventory"].append(item)
-        # Update milestones
-        player["milestones"]["total_kills"] += 1
-        enemy_id = cs.get("enemy_id", "")
-        if enemy_id not in player["milestones"]["bosses_defeated"]:
-            pass  # boss detection can be added later
-
-        # Mark NPC as dead in map
-        loc = map_data.get(location_key, {})
-        if enemy_id in loc.get("npcs", {}):
-            loc["npcs"][enemy_id]["status"] = "dead"
-            loc["npcs"][enemy_id]["hp"]     = 0
-            save_json("map.json", map_data)
-
-        # Level up check
-        if player["xp"] >= player["xp_to_next_level"]:
-            player["level"]          += 1
-            player["xp"]             -= player["xp_to_next_level"]
-            player["xp_to_next_level"] = int(player["xp_to_next_level"] * 1.5)
-            # Stat boosts on level up
-            player["attributes"]["STR"] += 1
-            player["attributes"]["CON"] += 1
-            player["derived_stats"]["max_hp"] = 20 + player["attributes"]["CON"] * 5
-            player["max_hp"] = player["derived_stats"]["max_hp"]
-
-    player["combat_state"] = {"active": False}
-    return player
-
-def _handle_death(player: dict, saves: dict, player_id: str) -> dict:
-    """Archive dead player to lineage, create descendant."""
-    # Archive ancestor
-    ancestor = {
-        "name":     player["name"],
-        "race":     player["race"],
-        "class":    player["class"],
-        "level":    player["level"],
-        "killed_by": player.get("combat_state", {}).get("enemy_name", "unknown"),
-        "history":  player["history"][-10:],
-        "milestones": player["milestones"],
-    }
-
-    # Build descendant — inherits world memory, starts fresh
-    descendant_name = f"{player['name']}'s Heir"
-    descendant_id   = player_id + "_heir"
-
-    world_state = load_json("world_state.json")
-    race_data   = world_state["races"][player["race"]]
-    class_data  = world_state["classes"][player["class"]]
-
-    base = class_data["starting_attributes"]
-    mods = race_data["stat_modifiers"]
-    STR  = base["STR"] + mods.get("STR", 0)
-    AGI  = base["AGI"] + mods.get("AGI", 0)
-    CON  = base["CON"] + mods.get("CON", 0)
-    ARC  = base["ARC"] + mods.get("ARC", 0)
-
-    max_hp      = 20 + CON * 5
-    max_stamina = 10
-    max_mana    = ARC * 2
-
-    skills = {
-        skill_id: {"level": 1, "xp": 0, "modifications": []}
-        for skill_id in class_data["starting_skills"]
-    }
-
-    descendant = {
-        "name":           descendant_name,
-        "race":           player["race"],
-        "subrace":        None,
-        "class":          player["class"],
-        "subclass":       None,
-        "status":         "alive",
-        "history":        [f"I am the heir of {player['name']}, who fell in battle."],
-        "location":       "ashen_courtyard",
-        "hp":             max_hp,
-        "max_hp":         max_hp,
-        "stamina":        max_stamina,
-        "max_stamina":    max_stamina,
-        "mana":           max_mana,
-        "max_mana":       max_mana,
-        "xp":             0,
-        "xp_to_next_level": 100,
-        "level":          1,
-        "attributes":     {"STR": STR, "AGI": AGI, "CON": CON, "ARC": ARC},
-        "derived_stats":  {
-            "max_hp":       max_hp,
-            "atk":          STR + 2,
-            "def":          CON // 2,
-            "dodge_chance": AGI * 2,
-        },
-        "skills":    skills,
-        "inventory": list(class_data["starting_gear"]),
-        "equipped":  {
-            "weapon":    class_data["starting_gear"][0] if class_data["starting_gear"] else None,
-            "armor":     class_data["starting_gear"][1] if len(class_data["starting_gear"]) > 1 else None,
-            "accessory": None,
-        },
-        "milestones": {
-            "bosses_defeated":          [],
-            "total_kills":              0,
-            "total_damage_dealt":       0,
-            "total_damage_absorbed":    0,
-            "times_nearly_died":        0,
-            "skill_modifications_used": 0,
-            "subclass_unlocked":        False,
-            "subrace_unlocked":         False,
-        },
-        "lineage":    [ancestor] + player.get("lineage", []),
-        "reputation": player.get("reputation", {"saltmarsh": 0, "ashen_ruins": 0, "void_wastes": 0}),
-        "combat_state": {"active": False},
-    }
-
-    # Save descendant, remove dead player
-    saves[descendant_id] = descendant
-    del saves[player_id]
-    save_json("saves.json", saves)
-
-    return descendant, descendant_id, ancestor
+@app.get("/map.json")
+async def serve_map():
+    """Serve the full map graph for the frontend Travel HUD."""
+    all_locations = get_all_locations()
+    return all_locations
 
 # ── /register ──────────────────────────────────────────────────────────────────
 
 @app.post("/register")
 async def register(request: RegisterRequest):
-    world_state = load_json("world_state.json")
-    saves       = load_json("saves.json")
+    world_state = get_world()
 
     if request.race not in world_state["races"]:
         raise HTTPException(status_code=400, detail=f"Unknown race: {request.race}")
     if request.player_class not in world_state["classes"]:
         raise HTTPException(status_code=400, detail=f"Unknown class: {request.player_class}")
+    if not request.password or len(request.password) < 4:
+        raise HTTPException(status_code=400, detail="Password must be at least 4 characters.")
 
     player_id = request.name.strip().lower().replace(" ", "_")
 
-    if player_id in saves:
-        return {"player_id": player_id, "state": _player_to_state(saves[player_id])}
+    # Check if player already exists
+    existing = get_player(player_id)
+    if existing:
+        raise HTTPException(status_code=400, detail="That name is already taken. Please login instead.")
 
     race_data  = world_state["races"][request.race]
     class_data = world_state["classes"][request.player_class]
@@ -276,25 +249,26 @@ async def register(request: RegisterRequest):
     }
 
     player = {
-        "name":           request.name.strip(),
-        "race":           request.race,
-        "subrace":        None,
-        "class":          request.player_class,
-        "subclass":       None,
-        "status":         "alive",
-        "history":        [],
-        "location":       "ashen_courtyard",
-        "hp":             max_hp,
-        "max_hp":         max_hp,
-        "stamina":        max_stamina,
-        "max_stamina":    max_stamina,
-        "mana":           max_mana,
-        "max_mana":       max_mana,
-        "xp":             0,
+        "name":             request.name.strip(),
+        "password_hash":    hash_password(request.password),
+        "race":             request.race,
+        "subrace":          None,
+        "class":            request.player_class,
+        "subclass":         None,
+        "status":           "alive",
+        "history":          [],
+        "location":         "ashen_courtyard",
+        "hp":               max_hp,
+        "max_hp":           max_hp,
+        "stamina":          max_stamina,
+        "max_stamina":      max_stamina,
+        "mana":             max_mana,
+        "max_mana":         max_mana,
+        "xp":               0,
         "xp_to_next_level": 100,
-        "level":          1,
-        "attributes":     {"STR": STR, "AGI": AGI, "CON": CON, "ARC": ARC},
-        "derived_stats":  {
+        "level":            1,
+        "attributes":       {"STR": STR, "AGI": AGI, "CON": CON, "ARC": ARC},
+        "derived_stats":    {
             "max_hp":       max_hp,
             "atk":          STR + 2,
             "def":          CON // 2,
@@ -322,8 +296,22 @@ async def register(request: RegisterRequest):
         "combat_state": {"active": False},
     }
 
-    saves[player_id] = player
-    save_json("saves.json", saves)
+    save_player(player_id, player)
+
+    return {"player_id": player_id, "state": _player_to_state(player)}
+
+# ── /login ─────────────────────────────────────────────────────────────────────
+
+@app.post("/login")
+async def login(request: LoginRequest):
+    player_id = request.name.strip().lower().replace(" ", "_")
+    player    = get_player(player_id)
+
+    if not player:
+        raise HTTPException(status_code=404, detail="No character found with that name.")
+
+    if player.get("password_hash") != hash_password(request.password):
+        raise HTTPException(status_code=401, detail="Incorrect password.")
 
     return {"player_id": player_id, "state": _player_to_state(player)}
 
@@ -331,41 +319,203 @@ async def register(request: RegisterRequest):
 
 @app.post("/action")
 async def handle_action(request: ActionRequest):
-    world_state = load_json("world_state.json")
-    map_data    = load_json("map.json")
-    saves       = load_json("saves.json")
+    world_state   = get_world()
+    all_locations = get_all_locations()
 
-    player = saves.get(request.player_id)
+    # Tick the spawn system on every action
+    all_locations = tick_spawns(all_locations)
+
+    player = get_player(request.player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
 
     location_key     = player["location"]
-    current_location = map_data.get(location_key, {})
+    current_location = all_locations.get(location_key, {})
     skill_defs       = world_state.get("skill_definitions", {})
 
-    # ── Route to combat or exploration ────────────────────────────────────────
     cs = player.get("combat_state", {})
 
     if cs.get("active"):
         result = await _process_combat_turn(
             player, request.action, current_location,
-            location_key, world_state, map_data, saves,
+            location_key, world_state, all_locations,
             request.player_id, skill_defs
         )
     else:
         result = await _process_exploration(
             player, request.action, current_location,
-            location_key, world_state, map_data, saves,
+            location_key, world_state, all_locations,
             request.player_id, skill_defs
         )
 
     return result
 
+# ── Combat Helpers ─────────────────────────────────────────────────────────────
+
+def _calc_player_damage_range(player: dict, skill_id: Optional[str], skill_defs: dict) -> tuple:
+    attrs    = player["attributes"]
+    base_atk = player["derived_stats"]["atk"]
+
+    if skill_id and skill_id in skill_defs:
+        skill     = skill_defs[skill_id]
+        base_dmg  = skill["base_damage"]
+        scale_key = skill.get("scales_with", "STR")
+        scale_val = attrs.get(scale_key, 0)
+        min_dmg   = max(1, base_dmg + scale_val // 2)
+        max_dmg   = base_dmg + scale_val
+    else:
+        min_dmg = max(1, base_atk - 2)
+        max_dmg = base_atk + 2
+
+    return (min_dmg, max_dmg)
+
+def _calc_enemy_damage_range(enemy: dict, player_def: int) -> tuple:
+    raw_min = max(0, enemy["atk"] - player_def - 1)
+    raw_max = max(1, enemy["atk"] - player_def + 2)
+    return (raw_min, raw_max)
+
+def _start_combat(player: dict, enemy_id: str, enemy_data: dict, first_turn: str) -> dict:
+    player["combat_state"] = {
+        "active":       True,
+        "enemy_id":     enemy_id,
+        "enemy_name":   enemy_data["name"],
+        "enemy_hp":     enemy_data["hp"],
+        "enemy_max_hp": enemy_data["max_hp"],
+        "enemy_atk":    enemy_data["atk"],
+        "enemy_def":    enemy_data["def"],
+        "enemy_loot":   enemy_data.get("loot", []),
+        "enemy_xp":     enemy_data.get("xp_reward", 0),
+        "turn":         first_turn,
+        "round":        1,
+        "fled":         False,
+    }
+    return player
+
+def _end_combat(player: dict, outcome: str, all_locations: dict, location_key: str) -> dict:
+    cs = player.get("combat_state", {})
+
+    if outcome == "victory":
+        player["xp"] += cs.get("enemy_xp", 0)
+        for item in cs.get("enemy_loot", []):
+            player["inventory"].append(item)
+        player["milestones"]["total_kills"] += 1
+
+        enemy_id = cs.get("enemy_id", "")
+
+        # Mark NPC as dead in location, save died_at for respawn timer
+        loc = all_locations.get(location_key, {})
+        if enemy_id in loc.get("npcs", {}):
+            loc["npcs"][enemy_id]["status"]   = "dead"
+            loc["npcs"][enemy_id]["hp"]        = 0
+            loc["npcs"][enemy_id]["died_at"]   = time.time()
+            save_location(location_key, loc)
+
+        # Track boss kills in milestones (for partner's map unlock system)
+        if enemy_id not in player["milestones"]["bosses_defeated"]:
+            player["milestones"]["bosses_defeated"].append(enemy_id)
+
+        # Level up check
+        if player["xp"] >= player["xp_to_next_level"]:
+            player["level"]            += 1
+            player["xp"]               -= player["xp_to_next_level"]
+            player["xp_to_next_level"]  = int(player["xp_to_next_level"] * 1.5)
+            player["attributes"]["STR"] += 1
+            player["attributes"]["CON"] += 1
+            player["derived_stats"]["max_hp"] = 20 + player["attributes"]["CON"] * 5
+            player["max_hp"] = player["derived_stats"]["max_hp"]
+
+    player["combat_state"] = {"active": False}
+    return player
+
+def _handle_death(player: dict, player_id: str) -> tuple:
+    ancestor = {
+        "name":      player["name"],
+        "race":      player["race"],
+        "class":     player["class"],
+        "level":     player["level"],
+        "killed_by": player.get("combat_state", {}).get("enemy_name", "unknown"),
+        "history":   player["history"][-10:],
+        "milestones": player["milestones"],
+    }
+
+    world_state = get_world()
+    race_data   = world_state["races"][player["race"]]
+    class_data  = world_state["classes"][player["class"]]
+
+    base = class_data["starting_attributes"]
+    mods = race_data["stat_modifiers"]
+    STR  = base["STR"] + mods.get("STR", 0)
+    AGI  = base["AGI"] + mods.get("AGI", 0)
+    CON  = base["CON"] + mods.get("CON", 0)
+    ARC  = base["ARC"] + mods.get("ARC", 0)
+
+    max_hp      = 20 + CON * 5
+    max_stamina = 10
+    max_mana    = ARC * 2
+
+    skills = {
+        skill_id: {"level": 1, "xp": 0, "modifications": []}
+        for skill_id in class_data["starting_skills"]
+    }
+
+    descendant_id = player_id + "_heir"
+    descendant = {
+        "name":             player["name"] + "'s Heir",
+        "password_hash":    player.get("password_hash", ""),
+        "race":             player["race"],
+        "subrace":          None,
+        "class":            player["class"],
+        "subclass":         None,
+        "status":           "alive",
+        "history":          [f"I am the heir of {player['name']}, who fell in battle."],
+        "location":         "ashen_courtyard",
+        "hp":               max_hp,
+        "max_hp":           max_hp,
+        "stamina":          max_stamina,
+        "max_stamina":      max_stamina,
+        "mana":             max_mana,
+        "max_mana":         max_mana,
+        "xp":               0,
+        "xp_to_next_level": 100,
+        "level":            1,
+        "attributes":       {"STR": STR, "AGI": AGI, "CON": CON, "ARC": ARC},
+        "derived_stats":    {
+            "max_hp":       max_hp,
+            "atk":          STR + 2,
+            "def":          CON // 2,
+            "dodge_chance": AGI * 2,
+        },
+        "skills":    skills,
+        "inventory": list(class_data["starting_gear"]),
+        "equipped":  {
+            "weapon":    class_data["starting_gear"][0] if class_data["starting_gear"] else None,
+            "armor":     class_data["starting_gear"][1] if len(class_data["starting_gear"]) > 1 else None,
+            "accessory": None,
+        },
+        "milestones": {
+            "bosses_defeated":          [],
+            "total_kills":              0,
+            "total_damage_dealt":       0,
+            "total_damage_absorbed":    0,
+            "times_nearly_died":        0,
+            "skill_modifications_used": 0,
+            "subclass_unlocked":        False,
+            "subrace_unlocked":         False,
+        },
+        "lineage":      [ancestor] + player.get("lineage", []),
+        "reputation":   player.get("reputation", {"saltmarsh": 0, "ashen_ruins": 0, "void_wastes": 0}),
+        "combat_state": {"active": False},
+    }
+
+    save_player(descendant_id, descendant)
+
+    return descendant, descendant_id, ancestor
+
 # ── Exploration Handler ────────────────────────────────────────────────────────
 
 async def _process_exploration(
     player, action, current_location, location_key,
-    world_state, map_data, saves, player_id, skill_defs
+    world_state, all_locations, player_id, skill_defs
 ):
     action_lower = action.lower()
 
@@ -373,12 +523,12 @@ async def _process_exploration(
     for exit_key in current_location.get("exits", []):
         if exit_key.replace("_", " ") in action_lower or exit_key in action_lower:
             player["location"] = exit_key
-            current_location   = map_data[exit_key]
+            current_location   = all_locations.get(exit_key, {})
             location_key       = exit_key
             break
 
-    # Check if player is trying to attack an NPC → start combat
-    npcs = current_location.get("npcs", {})
+    # Check for player-initiated attack
+    npcs             = current_location.get("npcs", {})
     combat_initiated = None
     first_turn       = "player"
 
@@ -390,21 +540,16 @@ async def _process_exploration(
             npc_name_lower = npc_data["name"].lower()
             if any(word in action_lower for word in npc_name_lower.split()):
                 combat_initiated = (npc_id, npc_data)
-                # Player ambushes — they go first
-                if "ambush" in action_lower or "sneak" in action_lower:
-                    first_turn = "player"
-                else:
-                    first_turn = "player"
                 break
 
-    # Check if any hostile NPC auto-initiates combat (disposition <= -50)
+    # Check for hostile NPC auto-aggro
     if not combat_initiated:
         for npc_id, npc_data in npcs.items():
             if npc_data.get("status") == "dead":
                 continue
             if npc_data.get("disposition", 0) <= -50:
                 combat_initiated = (npc_id, npc_data)
-                first_turn       = "enemy"  # hostile NPCs ambush the player
+                first_turn       = "enemy"
                 break
 
     if combat_initiated:
@@ -428,8 +573,8 @@ ENEMY DESCRIPTION: {npc_data.get('description', '')}
 PLAYER ACTION: {action}
 FIRST TURN: {first_turn}
 
-Narrate the start of combat vividly (2-3 sentences). 
-Then output EXACTLY these tags on new lines:
+Narrate the start of combat vividly (2-3 sentences).
+Then output EXACTLY on a new line:
 VISUAL: [scene description for image generation]"""
 
         narrative = "[Combat begins]"
@@ -444,8 +589,7 @@ VISUAL: [scene description for image generation]"""
 
         player["history"].append(f"[COMBAT STARTED] vs {npc_data['name']}")
         player["history"] = player["history"][-20:]
-        saves[player_id]  = player
-        save_json("saves.json", saves)
+        save_player(player_id, player)
 
         return {
             "text":         display_text,
@@ -492,8 +636,7 @@ VISUAL: [one sentence describing the scene for image generation]"""
         if not line.strip().startswith("VISUAL:")
     ).strip()
 
-    saves[player_id] = player
-    save_json("saves.json", saves)
+    save_player(player_id, player)
 
     return {
         "text":         display_text,
@@ -507,7 +650,7 @@ VISUAL: [one sentence describing the scene for image generation]"""
 
 async def _process_combat_turn(
     player, action, current_location, location_key,
-    world_state, map_data, saves, player_id, skill_defs
+    world_state, all_locations, player_id, skill_defs
 ):
     cs    = player["combat_state"]
     attrs = player["attributes"]
@@ -520,21 +663,24 @@ async def _process_combat_turn(
             skill_used = skill_id
             break
 
-    # Detect flee attempt
-    flee_attempt = any(w in action.lower() for w in ["flee", "run", "escape", "retreat", "flee"])
+    # Increment skill XP when used
+    if skill_used and skill_used in player["skills"]:
+        player["skills"][skill_used]["xp"] += 1
+        if player["skills"][skill_used]["xp"] >= 10 * player["skills"][skill_used]["level"]:
+            player["skills"][skill_used]["xp"]    = 0
+            player["skills"][skill_used]["level"] += 1
 
-    # Calculate damage ranges
+    flee_attempt = any(w in action.lower() for w in ["flee", "run", "escape", "retreat"])
+
     p_min, p_max = _calc_player_damage_range(player, skill_used, skill_defs)
     e_min, e_max = _calc_enemy_damage_range(
         {"atk": cs["enemy_atk"]}, player["derived_stats"]["def"]
     )
 
-    # Speed / turn order — AGI + d6
     player_speed = attrs["AGI"] + random.randint(1, 6)
-    enemy_speed  = random.randint(1, 8)  # enemies have flat speed pool
+    enemy_speed  = random.randint(1, 8)
     player_first = cs["turn"] == "player" or player_speed >= enemy_speed
 
-    # Build combat prompt
     skill_info = ""
     if skill_used and skill_used in skill_defs:
         sd = skill_defs[skill_used]
@@ -560,7 +706,7 @@ FLEE ATTEMPT: {flee_attempt}
 PLAYER GOES FIRST: {player_first}
 
 Narrate this combat round vividly (3-4 sentences). Be specific about what happens.
-Then output EXACTLY these tags on separate lines — no extra text on these lines:
+Then output EXACTLY these tags on separate lines:
 PLAYER_DAMAGE: [integer between {p_min} and {p_max}, or 0 if player missed/fled]
 ENEMY_DAMAGE: [integer between {e_min} and {e_max}, or 0 if enemy missed or player fled successfully]
 SKILL_USED: [skill_id or none]
@@ -574,74 +720,64 @@ VISUAL: [one sentence describing the combat scene]"""
         raw_text = response.text
         narrative = raw_text
 
-    # Parse Gemini tags
     def parse_tag(tag, text, default):
         for line in text.splitlines():
             if line.strip().startswith(f"{tag}:"):
-                val = line.split(":", 1)[1].strip()
-                return val
+                return line.split(":", 1)[1].strip()
         return default
 
     try:
-        player_dmg   = int(parse_tag("PLAYER_DAMAGE", raw_text, str(random.randint(p_min, p_max))))
+        player_dmg = int(parse_tag("PLAYER_DAMAGE", raw_text, str(random.randint(p_min, p_max))))
     except ValueError:
-        player_dmg   = random.randint(p_min, p_max)
+        player_dmg = random.randint(p_min, p_max)
 
     try:
-        enemy_dmg    = int(parse_tag("ENEMY_DAMAGE",  raw_text, str(random.randint(e_min, e_max))))
+        enemy_dmg = int(parse_tag("ENEMY_DAMAGE", raw_text, str(random.randint(e_min, e_max))))
     except ValueError:
-        enemy_dmg    = random.randint(e_min, e_max)
+        enemy_dmg = random.randint(e_min, e_max)
 
-    flee_outcome     = parse_tag("FLEE_OUTCOME", raw_text, "none").lower()
+    flee_outcome = parse_tag("FLEE_OUTCOME", raw_text, "none").lower()
 
-    # Strip tags from display text
     tag_prefixes = ["PLAYER_DAMAGE:", "ENEMY_DAMAGE:", "SKILL_USED:", "FLEE_OUTCOME:", "VISUAL:"]
     display_text = "\n".join(
         line for line in narrative.splitlines()
         if not any(line.strip().startswith(t) for t in tag_prefixes)
     ).strip()
 
-    # ── Apply combat results ───────────────────────────────────────────────────
     combat_event = "ongoing"
     extra_data   = {}
 
     if flee_outcome == "success":
-        # Successful flee — move to a random exit
         exits = current_location.get("exits", [])
         if exits:
             player["location"] = random.choice(exits)
-        player  = _end_combat(player, "fled", map_data, location_key)
+        player       = _end_combat(player, "fled", all_locations, location_key)
         combat_event = "fled"
 
     elif flee_outcome == "captured":
-        player["hp"]    = max(1, player["hp"] - enemy_dmg)
+        player["hp"]     = max(1, player["hp"] - enemy_dmg)
         player["status"] = "captured"
-        player  = _end_combat(player, "captured", map_data, location_key)
+        player       = _end_combat(player, "captured", all_locations, location_key)
         combat_event = "captured"
 
     elif flee_outcome == "fail":
-        # Failed flee — take enemy damage and combat continues
         player["hp"] = max(0, player["hp"] - enemy_dmg)
         player["milestones"]["total_damage_absorbed"] += enemy_dmg
         cs["round"] += 1
 
     else:
-        # Normal combat exchange
         if player_first:
-            # Player attacks first
             cs["enemy_hp"] = max(0, cs["enemy_hp"] - player_dmg)
             player["milestones"]["total_damage_dealt"] += player_dmg
 
             if cs["enemy_hp"] <= 0:
                 combat_event = "victory"
-                player = _end_combat(player, "victory", map_data, location_key)
+                player = _end_combat(player, "victory", all_locations, location_key)
             else:
-                # Enemy counter-attacks
                 player["hp"] = max(0, player["hp"] - enemy_dmg)
                 player["milestones"]["total_damage_absorbed"] += enemy_dmg
                 cs["round"] += 1
         else:
-            # Enemy attacks first
             player["hp"] = max(0, player["hp"] - enemy_dmg)
             player["milestones"]["total_damage_absorbed"] += enemy_dmg
 
@@ -653,35 +789,35 @@ VISUAL: [one sentence describing the combat scene]"""
 
                 if cs["enemy_hp"] <= 0:
                     combat_event = "victory"
-                    player = _end_combat(player, "victory", map_data, location_key)
+                    player = _end_combat(player, "victory", all_locations, location_key)
                 else:
                     cs["round"] += 1
 
-        # Nearly died milestone
         if player["hp"] <= player["max_hp"] * 0.25 and player["hp"] > 0:
             player["milestones"]["times_nearly_died"] += 1
 
-    # ── Death handling ─────────────────────────────────────────────────────────
+    # Death handling
     if combat_event == "death" or player["hp"] <= 0:
         player["status"] = "dead"
         player["hp"]     = 0
         combat_event     = "death"
 
-        descendant, descendant_id, ancestor = _handle_death(player, saves, player_id)
+        save_player(player_id, player)  # save dead player state before swapping
+
+        descendant, descendant_id, ancestor = _handle_death(player, player_id)
         extra_data = {
             "ancestor":      ancestor,
             "descendant_id": descendant_id,
         }
         player = descendant
 
-    # ── Save & return ──────────────────────────────────────────────────────────
     player["history"].append(f"[COMBAT R{cs.get('round',1)}] {action}")
     player["history"] = player["history"][-20:]
 
-    current_location_name = map_data.get(player["location"], current_location).get("name", player["location"])
+    current_location_name = all_locations.get(player["location"], current_location).get("name", player["location"])
 
-    saves[player_id] = player
-    save_json("saves.json", saves)
+    if combat_event != "death":
+        save_player(player_id, player)
 
     return {
         "text":         display_text,

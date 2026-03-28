@@ -67,7 +67,7 @@
             height: 1px;
         }
 
-        .name-input {
+        .void-input {
             background: rgba(15, 10, 25, 0.8);
             border: 1px solid rgba(139, 92, 246, 0.4);
             color: #e2d9f3;
@@ -76,13 +76,13 @@
             letter-spacing: 0.1em;
         }
 
-        .name-input:focus {
+        .void-input:focus {
             outline: none;
             border-color: rgba(168, 85, 247, 0.8);
             box-shadow: 0 0 20px rgba(168, 85, 247, 0.3), inset 0 0 20px rgba(168, 85, 247, 0.05);
         }
 
-        .name-input::placeholder {
+        .void-input::placeholder {
             color: rgba(139, 92, 246, 0.4);
             font-style: italic;
         }
@@ -161,7 +161,21 @@
             background: linear-gradient(90deg, #7c3aed, #a855f7);
         }
 
-        /* Tab system */
+        /* Mode tabs (Register / Login) */
+        .mode-tab {
+            font-family: 'Cinzel', serif;
+            letter-spacing: 0.15em;
+            transition: all 0.2s ease;
+            border-bottom: 2px solid transparent;
+            padding-bottom: 8px;
+            cursor: pointer;
+        }
+        .mode-tab.active {
+            border-bottom-color: #a855f7;
+            color: #e2d9f3;
+        }
+
+        /* Race/class tabs */
         .tab-btn {
             font-family: 'Cinzel', serif;
             letter-spacing: 0.1em;
@@ -174,6 +188,9 @@
         }
         .tab-panel { display: none; }
         .tab-panel.active { display: block; }
+
+        .mode-panel { display: none; }
+        .mode-panel.active { display: block; }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center overflow-y-auto py-10">
@@ -194,145 +211,186 @@
 
         <p class="fade-in-up delay-2 text-gray-400 italic text-lg leading-relaxed mb-6">
             Three hundred years after the Shattering, the ruins of Valdris still whisper the names of those who dared seek the Crown's shards.
-            <br><br>
-            <span class="text-purple-300">What name shall the void remember?</span>
         </p>
 
-        <div class="fade-in-up delay-3 w-full mb-6">
-            <input
-                type="text"
-                id="name-input"
-                class="name-input w-full px-6 py-4 rounded text-center text-lg"
-                placeholder="Enter your name..."
-                maxlength="24"
-            />
+        <!-- Mode switcher: Register / Login -->
+        <div class="fade-in-up delay-2 w-full flex gap-8 justify-center mb-6 border-b border-purple-900/40 pb-0">
+            <button class="mode-tab active text-gray-300 text-xs uppercase" onclick="switchMode('register')">New Character</button>
+            <button class="mode-tab text-gray-600 text-xs uppercase" onclick="switchMode('login')">Return</button>
         </div>
 
-        <div class="fade-in-up delay-3 w-full mb-6">
-            <div class="flex gap-6 mb-4 border-b border-purple-900/40 pb-1">
-                <button class="tab-btn active text-gray-300 text-xs uppercase tracking-widest pb-2" onclick="switchTab('race')">Choose Race</button>
-                <button class="tab-btn text-gray-600 text-xs uppercase tracking-widest pb-2" onclick="switchTab('class')">Choose Class</button>
+        <!-- ── REGISTER PANEL ── -->
+        <div id="panel-register" class="mode-panel active w-full">
+
+            <p class="text-purple-300 italic mb-6">What name shall the void remember?</p>
+
+            <div class="w-full mb-4">
+                <input type="text" id="reg-name"
+                    class="void-input w-full px-6 py-4 rounded text-center text-lg"
+                    placeholder="Your name..."
+                    maxlength="24"/>
             </div>
 
-            <div id="tab-race" class="tab-panel active">
-                <div class="grid grid-cols-2 gap-3">
+            <div class="w-full mb-4">
+                <input type="password" id="reg-password"
+                    class="void-input w-full px-6 py-4 rounded text-center text-lg"
+                    placeholder="Choose a password..."
+                    maxlength="64"/>
+            </div>
 
-                    <button onclick="selectRace('human')" id="race-human" class="select-btn rounded border border-gray-700 p-4 text-left">
-                        <div class="text-2xl mb-2">🧑</div>
-                        <div class="title-font text-gray-200 text-sm mb-1">Human</div>
-                        <div class="text-gray-500 text-xs mb-2">Adaptable survivors. Learn faster than any other race.</div>
-                        <div class="text-purple-400 text-xs italic">Passive: +10% bonus XP</div>
-                    </button>
+            <!-- Race / Class tabs -->
+            <div class="w-full mb-6">
+                <div class="flex gap-6 mb-4 border-b border-purple-900/40 pb-1">
+                    <button class="tab-btn active text-gray-300 text-xs uppercase tracking-widest pb-2" onclick="switchTab('race')">Choose Race</button>
+                    <button class="tab-btn text-gray-600 text-xs uppercase tracking-widest pb-2" onclick="switchTab('class')">Choose Class</button>
+                </div>
 
-                    <button onclick="selectRace('ashen_elf')" id="race-ashen_elf" class="select-btn rounded border border-gray-700 p-4 text-left">
-                        <div class="text-2xl mb-2">🧝</div>
-                        <div class="title-font text-gray-200 text-sm mb-1">Ashen Elf</div>
-                        <div class="text-gray-500 text-xs mb-2">Ancient beings merged with ash. Graceful but cold.</div>
-                        <div class="text-purple-400 text-xs italic">Passive: Silent movement, -10% detection</div>
-                        <div class="mt-2 space-y-1">
-                            <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">AGI</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:80%"></div></div><span class="text-green-500 text-xs">+2</span></div>
-                            <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">ARC</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:40%"></div></div><span class="text-green-500 text-xs">+1</span></div>
-                            <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">CON</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:20%"></div></div><span class="text-red-500 text-xs">-1</span></div>
-                        </div>
-                    </button>
+                <div id="tab-race" class="tab-panel active">
+                    <div class="grid grid-cols-2 gap-3">
 
-                    <button onclick="selectRace('ironborn_dwarf')" id="race-ironborn_dwarf" class="select-btn rounded border border-gray-700 p-4 text-left">
-                        <div class="text-2xl mb-2">⛏️</div>
-                        <div class="title-font text-gray-200 text-sm mb-1">Ironborn Dwarf</div>
-                        <div class="text-gray-500 text-xs mb-2">Stocky survivors who rebuilt their forges. Tough as stone.</div>
-                        <div class="text-purple-400 text-xs italic">Passive: Reduce physical damage by 1</div>
-                        <div class="mt-2 space-y-1">
-                            <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">STR</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:80%"></div></div><span class="text-green-500 text-xs">+2</span></div>
-                            <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">CON</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:80%"></div></div><span class="text-green-500 text-xs">+2</span></div>
-                            <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">AGI</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:10%"></div></div><span class="text-red-500 text-xs">-2</span></div>
-                        </div>
-                    </button>
+                        <button onclick="selectRace('human')" id="race-human" class="select-btn rounded border border-gray-700 p-4 text-left">
+                            <div class="text-2xl mb-2">🧑</div>
+                            <div class="title-font text-gray-200 text-sm mb-1">Human</div>
+                            <div class="text-gray-500 text-xs mb-2">Adaptable survivors. Learn faster than any other race.</div>
+                            <div class="text-purple-400 text-xs italic">Passive: +10% bonus XP</div>
+                        </button>
 
-                    <button onclick="selectRace('void_goblin')" id="race-void_goblin" class="select-btn rounded border border-gray-700 p-4 text-left">
-                        <div class="text-2xl mb-2">👺</div>
-                        <div class="title-font text-gray-200 text-sm mb-1">Void Goblin</div>
-                        <div class="text-gray-500 text-xs mb-2">Small, cunning, mutated by Void energy. Underestimated by everyone.</div>
-                        <div class="text-purple-400 text-xs italic">Passive: Always find extra loot</div>
-                        <div class="mt-2 space-y-1">
-                            <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">AGI</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:100%"></div></div><span class="text-green-500 text-xs">+3</span></div>
-                            <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">ARC</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:40%"></div></div><span class="text-green-500 text-xs">+1</span></div>
-                            <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">STR</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:10%"></div></div><span class="text-red-500 text-xs">-2</span></div>
-                        </div>
-                    </button>
+                        <button onclick="selectRace('ashen_elf')" id="race-ashen_elf" class="select-btn rounded border border-gray-700 p-4 text-left">
+                            <div class="text-2xl mb-2">🧝</div>
+                            <div class="title-font text-gray-200 text-sm mb-1">Ashen Elf</div>
+                            <div class="text-gray-500 text-xs mb-2">Ancient beings merged with ash. Graceful but cold.</div>
+                            <div class="text-purple-400 text-xs italic">Passive: Silent movement, -10% detection</div>
+                            <div class="mt-2 space-y-1">
+                                <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">AGI</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:80%"></div></div><span class="text-green-500 text-xs">+2</span></div>
+                                <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">ARC</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:40%"></div></div><span class="text-green-500 text-xs">+1</span></div>
+                                <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">CON</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:20%"></div></div><span class="text-red-500 text-xs">-1</span></div>
+                            </div>
+                        </button>
 
+                        <button onclick="selectRace('ironborn_dwarf')" id="race-ironborn_dwarf" class="select-btn rounded border border-gray-700 p-4 text-left">
+                            <div class="text-2xl mb-2">⛏️</div>
+                            <div class="title-font text-gray-200 text-sm mb-1">Ironborn Dwarf</div>
+                            <div class="text-gray-500 text-xs mb-2">Stocky survivors who rebuilt their forges. Tough as stone.</div>
+                            <div class="text-purple-400 text-xs italic">Passive: Reduce physical damage by 1</div>
+                            <div class="mt-2 space-y-1">
+                                <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">STR</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:80%"></div></div><span class="text-green-500 text-xs">+2</span></div>
+                                <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">CON</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:80%"></div></div><span class="text-green-500 text-xs">+2</span></div>
+                                <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">AGI</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:10%"></div></div><span class="text-red-500 text-xs">-2</span></div>
+                            </div>
+                        </button>
+
+                        <button onclick="selectRace('void_goblin')" id="race-void_goblin" class="select-btn rounded border border-gray-700 p-4 text-left">
+                            <div class="text-2xl mb-2">👺</div>
+                            <div class="title-font text-gray-200 text-sm mb-1">Void Goblin</div>
+                            <div class="text-gray-500 text-xs mb-2">Small, cunning, mutated by Void energy. Underestimated by everyone.</div>
+                            <div class="text-purple-400 text-xs italic">Passive: Always find extra loot</div>
+                            <div class="mt-2 space-y-1">
+                                <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">AGI</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:100%"></div></div><span class="text-green-500 text-xs">+3</span></div>
+                                <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">ARC</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:40%"></div></div><span class="text-green-500 text-xs">+1</span></div>
+                                <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">STR</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:10%"></div></div><span class="text-red-500 text-xs">-2</span></div>
+                            </div>
+                        </button>
+
+                    </div>
+                </div>
+
+                <div id="tab-class" class="tab-panel">
+                    <div class="grid grid-cols-2 gap-3">
+
+                        <button onclick="selectClass('ashen_knight')" id="class-ashen_knight" class="select-btn rounded border border-gray-700 p-4 text-left">
+                            <div class="text-2xl mb-2">⚔️</div>
+                            <div class="title-font text-gray-200 text-sm mb-1">Ashen Knight</div>
+                            <div class="text-gray-500 text-xs mb-3">Heavily armored survivor of the old royal guard. Brute force and endurance.</div>
+                            <div class="space-y-1">
+                                <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">STR</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:80%"></div></div></div>
+                                <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">AGI</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:30%"></div></div></div>
+                                <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">CON</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:70%"></div></div></div>
+                                <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">ARC</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:20%"></div></div></div>
+                            </div>
+                            <div class="mt-2 text-purple-400 text-xs italic">Skills: Shield Bash, Iron Stance</div>
+                        </button>
+
+                        <button onclick="selectClass('void_drifter')" id="class-void_drifter" class="select-btn rounded border border-gray-700 p-4 text-left">
+                            <div class="text-2xl mb-2">🗡️</div>
+                            <div class="title-font text-gray-200 text-sm mb-1">Void Drifter</div>
+                            <div class="text-gray-500 text-xs mb-3">A rogue who survived the cataclysm in shadows. Blindingly fast and lethal.</div>
+                            <div class="space-y-1">
+                                <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">STR</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:50%"></div></div></div>
+                                <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">AGI</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:90%"></div></div></div>
+                                <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">CON</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:40%"></div></div></div>
+                                <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">ARC</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:20%"></div></div></div>
+                            </div>
+                            <div class="mt-2 text-purple-400 text-xs italic">Skills: Poison Blade, Shadow Step</div>
+                        </button>
+
+                        <button onclick="selectClass('rune_scribe')" id="class-rune_scribe" class="select-btn rounded border border-gray-700 p-4 text-left">
+                            <div class="text-2xl mb-2">📜</div>
+                            <div class="title-font text-gray-200 text-sm mb-1">Rune-Scribe</div>
+                            <div class="text-gray-500 text-xs mb-3">A scholar wielding the shattered magic that destroyed the world. Glass cannon.</div>
+                            <div class="space-y-1">
+                                <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">STR</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:20%"></div></div></div>
+                                <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">AGI</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:40%"></div></div></div>
+                                <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">CON</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:40%"></div></div></div>
+                                <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">ARC</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:100%"></div></div></div>
+                            </div>
+                            <div class="mt-2 text-purple-400 text-xs italic">Skills: Void Bolt, Rune Ward, Arcane Sight</div>
+                        </button>
+
+                        <button onclick="selectClass('void_ranger')" id="class-void_ranger" class="select-btn rounded border border-gray-700 p-4 text-left">
+                            <div class="text-2xl mb-2">🏹</div>
+                            <div class="title-font text-gray-200 text-sm mb-1">Void Ranger</div>
+                            <div class="text-gray-500 text-xs mb-3">A spectral archer channeling Void energy through their bow. Deadly at range.</div>
+                            <div class="space-y-1">
+                                <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">STR</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:30%"></div></div></div>
+                                <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">AGI</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:100%"></div></div></div>
+                                <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">CON</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:30%"></div></div></div>
+                                <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">ARC</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:40%"></div></div></div>
+                            </div>
+                            <div class="mt-2 text-purple-400 text-xs italic">Skills: Void Shot, Hunter's Eye</div>
+                        </button>
+
+                    </div>
                 </div>
             </div>
 
-            <div id="tab-class" class="tab-panel">
-                <div class="grid grid-cols-2 gap-3">
-
-                    <button onclick="selectClass('ashen_knight')" id="class-ashen_knight" class="select-btn rounded border border-gray-700 p-4 text-left">
-                        <div class="text-2xl mb-2">⚔️</div>
-                        <div class="title-font text-gray-200 text-sm mb-1">Ashen Knight</div>
-                        <div class="text-gray-500 text-xs mb-3">Heavily armored survivor of the old royal guard. Brute force and endurance.</div>
-                        <div class="space-y-1">
-                            <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">STR</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:80%"></div></div></div>
-                            <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">AGI</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:30%"></div></div></div>
-                            <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">CON</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:70%"></div></div></div>
-                            <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">ARC</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:20%"></div></div></div>
-                        </div>
-                        <div class="mt-2 text-purple-400 text-xs italic">Skills: Shield Bash, Iron Stance</div>
-                    </button>
-
-                    <button onclick="selectClass('void_drifter')" id="class-void_drifter" class="select-btn rounded border border-gray-700 p-4 text-left">
-                        <div class="text-2xl mb-2">🗡️</div>
-                        <div class="title-font text-gray-200 text-sm mb-1">Void Drifter</div>
-                        <div class="text-gray-500 text-xs mb-3">A rogue who survived the cataclysm in shadows. Blindingly fast and lethal.</div>
-                        <div class="space-y-1">
-                            <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">STR</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:50%"></div></div></div>
-                            <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">AGI</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:90%"></div></div></div>
-                            <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">CON</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:40%"></div></div></div>
-                            <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">ARC</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:20%"></div></div></div>
-                        </div>
-                        <div class="mt-2 text-purple-400 text-xs italic">Skills: Poison Blade, Shadow Step</div>
-                    </button>
-
-                    <button onclick="selectClass('rune_scribe')" id="class-rune_scribe" class="select-btn rounded border border-gray-700 p-4 text-left">
-                        <div class="text-2xl mb-2">📜</div>
-                        <div class="title-font text-gray-200 text-sm mb-1">Rune-Scribe</div>
-                        <div class="text-gray-500 text-xs mb-3">A scholar wielding the shattered magic that destroyed the world. Glass cannon.</div>
-                        <div class="space-y-1">
-                            <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">STR</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:20%"></div></div></div>
-                            <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">AGI</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:40%"></div></div></div>
-                            <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">CON</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:40%"></div></div></div>
-                            <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">ARC</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:100%"></div></div></div>
-                        </div>
-                        <div class="mt-2 text-purple-400 text-xs italic">Skills: Void Bolt, Rune Ward, Arcane Sight</div>
-                    </button>
-
-                    <button onclick="selectClass('void_ranger')" id="class-void_ranger" class="select-btn rounded border border-gray-700 p-4 text-left">
-                        <div class="text-2xl mb-2">🏹</div>
-                        <div class="title-font text-gray-200 text-sm mb-1">Void Ranger</div>
-                        <div class="text-gray-500 text-xs mb-3">A spectral archer channeling Void energy through their bow. Deadly at range.</div>
-                        <div class="space-y-1">
-                            <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">STR</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:30%"></div></div></div>
-                            <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">AGI</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:100%"></div></div></div>
-                            <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">CON</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:30%"></div></div></div>
-                            <div class="flex items-center gap-2"><span class="text-gray-600 text-xs w-6">ARC</span><div class="stat-bar flex-1"><div class="stat-fill" style="width:40%"></div></div></div>
-                        </div>
-                        <div class="mt-2 text-purple-400 text-xs italic">Skills: Void Shot, Hunter's Eye</div>
-                    </button>
-
-                </div>
+            <div id="selection-summary" class="w-full mb-4 px-4 py-3 rounded border border-purple-900/40 bg-purple-950/20 text-sm text-gray-400 title-font tracking-wide">
+                <span id="summary-race" class="text-purple-300">Human</span>
+                <span class="text-gray-600 mx-2">·</span>
+                <span id="summary-class" class="text-purple-300">Ashen Knight</span>
             </div>
+
+            <button onclick="enterGame()" class="enter-btn w-full py-4 text-white rounded text-sm uppercase mb-3">
+                Enter the Void
+            </button>
+
         </div>
 
-        <div id="selection-summary" class="fade-in-up delay-3 w-full mb-4 px-4 py-3 rounded border border-purple-900/40 bg-purple-950/20 text-sm text-gray-400 title-font tracking-wide">
-            <span id="summary-race" class="text-purple-300">Human</span>
-            <span class="text-gray-600 mx-2">·</span>
-            <span id="summary-class" class="text-purple-300">Ashen Knight</span>
+        <!-- ── LOGIN PANEL ── -->
+        <div id="panel-login" class="mode-panel w-full">
+
+            <p class="text-purple-300 italic mb-6">The void remembers your name.</p>
+
+            <div class="w-full mb-4">
+                <input type="text" id="login-name"
+                    class="void-input w-full px-6 py-4 rounded text-center text-lg"
+                    placeholder="Your name..."
+                    maxlength="24"/>
+            </div>
+
+            <div class="w-full mb-6">
+                <input type="password" id="login-password"
+                    class="void-input w-full px-6 py-4 rounded text-center text-lg"
+                    placeholder="Your password..."
+                    maxlength="64"/>
+            </div>
+
+            <button onclick="loginGame()" class="enter-btn w-full py-4 text-white rounded text-sm uppercase mb-3">
+                Return to the Void
+            </button>
+
         </div>
 
-        <button onclick="enterGame()" class="enter-btn fade-in-up delay-4 w-full py-4 text-white rounded text-sm uppercase">
-            Enter the Void
-        </button>
-
-        <div class="rune-line w-full mt-8 fade-in-up delay-4"></div>
+        <div class="rune-line w-full mt-4 fade-in-up delay-4"></div>
         <p class="fade-in-up delay-4 text-gray-700 text-xs mt-4 title-font tracking-widest">
             YOUR DEATH WILL NOT BE FORGOTTEN
         </p>
@@ -373,10 +431,10 @@
         let selectedClass = 'ashen_knight';
 
         const RACE_LABELS = {
-            human:         'Human',
-            ashen_elf:     'Ashen Elf',
-            ironborn_dwarf:'Ironborn Dwarf',
-            void_goblin:   'Void Goblin',
+            human:          'Human',
+            ashen_elf:      'Ashen Elf',
+            ironborn_dwarf: 'Ironborn Dwarf',
+            void_goblin:    'Void Goblin',
         };
         const CLASS_LABELS = {
             ashen_knight: 'Ashen Knight',
@@ -385,11 +443,25 @@
             void_ranger:  'Void Ranger',
         };
 
-        // Default selections
         selectRace('human');
         selectClass('ashen_knight');
 
-        // ── Tab switching ─────────────────────────────────────────────────
+        // ── Mode switching (Register / Login) ─────────────────────────────
+        function switchMode(mode) {
+            document.querySelectorAll('.mode-panel').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.mode-tab').forEach(b => {
+                b.classList.remove('active');
+                b.classList.add('text-gray-600');
+                b.classList.remove('text-gray-300');
+            });
+            document.getElementById(`panel-${mode}`).classList.add('active');
+            const tabs = document.querySelectorAll('.mode-tab');
+            const idx  = mode === 'register' ? 0 : 1;
+            tabs[idx].classList.add('active', 'text-gray-300');
+            tabs[idx].classList.remove('text-gray-600');
+        }
+
+        // ── Race/Class tab switching ───────────────────────────────────────
         function switchTab(tab) {
             document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(b => {
@@ -404,7 +476,7 @@
             btns[idx].classList.remove('text-gray-600');
         }
 
-        // ── Selection helpers ─────────────────────────────────────────────
+        // ── Selection helpers ──────────────────────────────────────────────
         function selectRace(race) {
             selectedRace = race;
             document.querySelectorAll('[id^="race-"]').forEach(b => b.classList.remove('selected'));
@@ -419,70 +491,111 @@
             document.getElementById('summary-class').textContent = CLASS_LABELS[cls] || cls;
         }
 
-        // ── Enter key ─────────────────────────────────────────────────────
-        document.getElementById('name-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') enterGame();
-        });
+        // ── Shared: save session and redirect ─────────────────────────────
+        function startSession(data, name) {
+            localStorage.setItem(`echoes_save_${name}`, JSON.stringify(data.state));
+            sessionStorage.setItem('playerName',  name);
+            sessionStorage.setItem('playerClass', data.state.class);
+            sessionStorage.setItem('playerRace',  data.state.race);
+            sessionStorage.setItem('playerId',    data.player_id);
+            document.getElementById('login-card').classList.add('fade-out');
+            setTimeout(() => { window.location.href = '/game'; }, 800);
+        }
 
-        // ── Enter game ────────────────────────────────────────────────────
+        // ── Register ───────────────────────────────────────────────────────
+        document.getElementById('reg-name').addEventListener('keypress', e => { if (e.key === 'Enter') enterGame(); });
+        document.getElementById('reg-password').addEventListener('keypress', e => { if (e.key === 'Enter') enterGame(); });
+
         async function enterGame() {
-            const nameInput = document.getElementById('name-input');
-            const name = nameInput.value.trim();
-            
-            // EXPLICIT ALERT IF NO NAME IS TYPED
+            const nameInput = document.getElementById('reg-name');
+            const passInput = document.getElementById('reg-password');
+            const name      = nameInput.value.trim();
+            const password  = passInput.value;
+
             if (!name) {
-                alert("The void demands a name! Please enter a House Name to begin.");
+                alert("The void demands a name!");
                 nameInput.style.borderColor = '#ef4444';
                 nameInput.focus();
                 return;
             }
+            if (!password || password.length < 4) {
+                alert("Password must be at least 4 characters.");
+                passInput.style.borderColor = '#ef4444';
+                passInput.focus();
+                return;
+            }
 
-            const btn = document.querySelector('.enter-btn');
+            const btn = document.querySelector('#panel-register .enter-btn');
             btn.textContent = 'Entering the Void...';
             btn.disabled = true;
 
             try {
                 const response = await fetch('/register', {
-                    method: 'POST',
+                    method:  'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name: name,
-                        race: selectedRace,
-                        player_class: selectedClass
+                    body:    JSON.stringify({
+                        name:         name,
+                        race:         selectedRace,
+                        player_class: selectedClass,
+                        password:     password,
                     })
                 });
 
-                // CATCH SERVER CRASHES (500 Internal Server Error)
                 let data;
-                try {
-                    data = await response.json();
-                } catch (jsonErr) {
-                    throw new Error("The Python server crashed or returned a non-JSON error. Check your terminal where uvicorn is running!");
-                }
+                try { data = await response.json(); }
+                catch { throw new Error("Server crashed or returned non-JSON. Check your terminal!"); }
 
-                if (!response.ok) {
-                    throw new Error(data.detail ? JSON.stringify(data.detail) : 'Registration failed');
-                }
+                if (!response.ok) throw new Error(data.detail || 'Registration failed');
 
-                // 1. Save the full state from Python permanently to the browser
-                localStorage.setItem(`echoes_save_${name}`, JSON.stringify(data.state));
-
-                // 2. Store temporary session data
-                sessionStorage.setItem('playerName',  name);
-                sessionStorage.setItem('playerClass', selectedClass);
-                sessionStorage.setItem('playerRace',  selectedRace);
-                sessionStorage.setItem('playerId',    data.player_id);
-
-                document.getElementById('login-card').classList.add('fade-out');
-                setTimeout(() => { window.location.href = '/game'; }, 800);
+                startSession(data, name);
 
             } catch (err) {
                 btn.textContent = 'Enter the Void';
                 btn.disabled = false;
                 nameInput.style.borderColor = '#ef4444';
-                
-                // EXPLICIT ALERT IF THE SERVER FAILS
-                alert('ERROR: ' + err.message + '\n\nIs your Uvicorn server running? Check your terminal!');
+                alert('ERROR: ' + err.message);
+            }
+        }
+
+        // ── Login ──────────────────────────────────────────────────────────
+        document.getElementById('login-name').addEventListener('keypress', e => { if (e.key === 'Enter') loginGame(); });
+        document.getElementById('login-password').addEventListener('keypress', e => { if (e.key === 'Enter') loginGame(); });
+
+        async function loginGame() {
+            const nameInput = document.getElementById('login-name');
+            const passInput = document.getElementById('login-password');
+            const name      = nameInput.value.trim();
+            const password  = passInput.value;
+
+            if (!name || !password) {
+                alert("Please enter your name and password.");
+                return;
+            }
+
+            const btn = document.querySelector('#panel-login .enter-btn');
+            btn.textContent = 'Returning...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/login', {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({ name, password })
+                });
+
+                let data;
+                try { data = await response.json(); }
+                catch { throw new Error("Server crashed or returned non-JSON. Check your terminal!"); }
+
+                if (!response.ok) throw new Error(data.detail || 'Login failed');
+
+                startSession(data, name);
+
+            } catch (err) {
+                btn.textContent = 'Return to the Void';
+                btn.disabled = false;
+                nameInput.style.borderColor = '#ef4444';
+                alert('ERROR: ' + err.message);
             }
         }
     </script>

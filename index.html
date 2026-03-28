@@ -241,7 +241,42 @@
             }
         }
 
-        // --- INITIAL LOAD ---
+        // ── Death Screen ───────────────────────────────────────────────────────
+        function showDeathScreen(data) {
+            const screen = document.getElementById('death-screen');
+            screen.classList.add('active');
+
+            if (data.ancestor) {
+                document.getElementById('death-killed-by').innerText =
+                    `Slain by ${data.ancestor.killed_by} at level ${data.ancestor.level}.`;
+
+                const lineage = gameState.lineage || [];
+                const allAncestors = [data.ancestor, ...lineage];
+                document.getElementById('lineage-display').innerHTML = allAncestors.map(a => `
+                    <div class="border-l border-red-900/40 pl-3 mb-2">
+                        <span class="text-gray-300">${a.name}</span>
+                        <span class="text-gray-600 text-xs ml-2">${(a.class||'').replace(/_/g,' ')} · Lv${a.level}</span>
+                        <span class="text-red-700 text-xs ml-2">Killed by ${a.killed_by}</span>
+                    </div>
+                `).join('');
+            }
+
+            descendantId = data.descendant_id;
+        }
+
+        function continueAsHeir() {
+            document.getElementById('death-screen').classList.remove('active');
+            if (descendantId && gameState) {
+                gameState.player_id = descendantId;
+                sessionStorage.setItem('playerId', descendantId);
+                sessionStorage.setItem('playerName', gameState.house_name);
+                localStorage.setItem(`echoes_save_${gameState.house_name}`, JSON.stringify(gameState));
+            }
+            log.innerHTML = '<p class="text-purple-400 italic title-font text-sm tracking-widest text-center">— A NEW HEIR RISES. THE VOID REMEMBERS. —</p>';
+            updateUI();
+        }
+
+        // ── Initial Load ───────────────────────────────────────────────────────
         window.onload = () => {
             const playerId   = sessionStorage.getItem('playerId');
             const playerName = sessionStorage.getItem('playerName');

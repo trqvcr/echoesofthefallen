@@ -10,6 +10,7 @@ __pycache__/
 *.pyc
 *.pyo
 
+migrate.py
 
 saves.json
 # Mac OS junk files (if applicable)
