@@ -16,7 +16,7 @@ def generate_scene_image(client, visual_prompt: str) -> str:
 
     try:
         result = client.models.generate_images(
-            model="imagen-3.0-generate-001",
+            model="imagen-4.0-fast-generate-001",
             prompt=styled_prompt,
             config=GenerateImagesConfig(
                 number_of_images=1,
