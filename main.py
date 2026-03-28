@@ -2,10 +2,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import os
 import json
-import random
 from google import genai
 from dotenv import load_dotenv
 
@@ -27,29 +26,17 @@ app.add_middleware(
 api_key = os.getenv("GEMINI_API_KEY")
 client = genai.Client(api_key=api_key) if api_key and api_key != "placeholder" else None
 
-# 4. Pydantic Models (THIS IS WHAT WAS MISSING!)
+# 4. Pydantic Models
 class RegisterRequest(BaseModel):
     name: str
     race: str
     player_class: str
 
-class GameState(BaseModel):
-    house_name: str
-    current_room: str
-    hp: int
-    max_hp: int
-    strength: int
-    agility: int
-    constitution: int
-    arcane: int
-    inventory: List[str]
-    dead_ancestors: List[str]
-    current_enemy: Optional[dict] = None
-
 class ActionRequest(BaseModel):
     player_id: str
     action: str
-    state: GameState
+    # Changed to Dict to seamlessly accept the complex new state without validation errors
+    state: Dict[str, Any] 
 
 # 5. Helpers
 def load_json(path):
@@ -59,6 +46,70 @@ def load_json(path):
 def save_json(path, data):
     with open(path, "w") as f:
         json.dump(data, f, indent=2)
+
+def calculate_derived_stats(attributes: dict, weapon_atk: int = 0, armor_def: int = 0) -> dict:
+    """Recalculate derived stats from base attributes + gear."""
+    return {
+        "max_hp":       20 + (attributes["CON"] * 5),
+        "atk":          attributes["STR"] + weapon_atk,
+        "def":          armor_def + (attributes["CON"] // 2),
+        "dodge_chance": attributes["AGI"] * 2
+    }
+
+def build_new_player(name: str, race: str, player_class: str, rules: dict) -> dict:
+    """Create a fresh player dict from race + class definitions."""
+    race_data  = rules["races"][race]
+    class_data = rules["classes"][player_class]
+
+    # Base attributes from class, modified by race
+    race_mods  = race_data["stat_modifiers"]
+    base_attrs = class_data["starting_attributes"].copy()
+    attributes = {
+        "STR": base_attrs["STR"] + race_mods.get("STR", 0),
+        "AGI": base_attrs["AGI"] + race_mods.get("AGI", 0),
+        "CON": base_attrs["CON"] + race_mods.get("CON", 0),
+        "ARC": base_attrs["ARC"] + race_mods.get("ARC", 0),
+    }
+
+    # Starter gear ATK/DEF values per class
+    gear_stats = {
+        "ashen_knight": {"weapon_atk": 4, "armor_def": 3},
+        "void_drifter": {"weapon_atk": 3, "armor_def": 1},
+        "rune_scribe":  {"weapon_atk": 5, "armor_def": 0},
+        "void_ranger":  {"weapon_atk": 4, "armor_def": 2},
+    }
+    g = gear_stats.get(player_class, {"weapon_atk": 0, "armor_def": 0})
+    derived = calculate_derived_stats(attributes, g["weapon_atk"], g["armor_def"])
+    gear = class_data["starting_gear"]
+
+    # Mapped to match the frontend's expected UI structure while keeping advanced stats
+    return {
+        "house_name":   name,
+        "race":         race,
+        "class":        player_class,
+        "current_room": "ashen_courtyard", 
+        "hp":           derived["max_hp"],
+        "max_hp":       derived["max_hp"],
+        "strength":     attributes["STR"], 
+        "agility":      attributes["AGI"],
+        "constitution": attributes["CON"],
+        "arcane":       attributes["ARC"],
+        "stamina":      10,
+        "mana":         5,
+        "xp":           0,
+        "level":        1,
+        "inventory":    gear.copy(),
+        "equipped": {
+            "weapon":    gear[0] if len(gear) > 0 else None,
+            "armor":     gear[1] if len(gear) > 1 else None,
+            "accessory": gear[2] if len(gear) > 2 else None,
+        },
+        "derived_stats": derived,
+        "skills":       class_data["starting_skills"],
+        "history":      [],
+        "dead_ancestors": [],
+        "current_enemy": None
+    }
 
 # 6. Serve HTML pages
 @app.get("/")
@@ -77,30 +128,19 @@ async def health_check():
 # 8. Registration Endpoint
 @app.post("/register")
 async def register_player(request: RegisterRequest):
-    # Map the starting stats based on your new rules.json logic
-    stats = {
-        "ashen_knight": {"str": 8, "agi": 3, "con": 7, "arc": 2, "hp": 55},
-        "void_drifter": {"str": 5, "agi": 9, "con": 4, "arc": 2, "hp": 40},
-        "rune_scribe":  {"str": 2, "agi": 4, "con": 4, "arc": 10, "hp": 40},
-        "void_ranger":  {"str": 3, "agi": 10, "con": 3, "arc": 4, "hp": 35}
-    }
-    
-    selected = stats.get(request.player_class, stats["ashen_knight"])
-    
-    # Build the starting state
-    initial_state = {
-        "house_name": request.name,
-        "current_room": "ashen_courtyard",
-        "hp": selected["hp"],
-        "max_hp": selected["hp"],
-        "strength": selected["str"],
-        "agility": selected["agi"],
-        "constitution": selected["con"],
-        "arcane": selected["arc"],
-        "inventory": ["Rusted Sword"],
-        "dead_ancestors": [],
-        "current_enemy": None
-    }
+    try:
+        # Changed to world_state.json
+        rules = load_json("world_state.json")
+    except FileNotFoundError:
+        raise HTTPException(status_code=500, detail="world_state.json is missing! Please make sure it is in the folder.")
+
+    if request.race not in rules.get("races", {}):
+        raise HTTPException(status_code=400, detail=f"Unknown race: {request.race}")
+    if request.player_class not in rules.get("classes", {}):
+        raise HTTPException(status_code=400, detail=f"Unknown class: {request.player_class}")
+
+    # Build state using your teammate's advanced logic
+    initial_state = build_new_player(request.name, request.race, request.player_class, rules)
     
     return {
         "message": "Character forged in the void.",
@@ -116,58 +156,67 @@ async def handle_action(request: ActionRequest):
     game_state = request.state
     action = request.action.lower()
     
-    # 1. Load the Lore & Map
     try:
-        with open("map.json", "r") as f:
-            world_map = json.load(f)
-        with open("rules.json", "r") as f:
-            rules = json.load(f)
+        world_map = load_json("map.json")
+        # Changed to world_state.json
+        rules = load_json("world_state.json")
     except FileNotFoundError:
-        return {"text": "System Error: The archives (JSON files) are missing.", "state": game_state.dict(), "status": "alive"}
+        return {"text": "System Error: The archives (JSON files) are missing.", "state": game_state, "status": "alive"}
 
-    # 2. Get Current Location Data
-    room_id = game_state.current_room if game_state.current_room in world_map else "ashen_courtyard"
-    room = world_map[room_id]
+    # Get Location Data
+    room_id = game_state.get("current_room", "ashen_courtyard")
+    room = world_map.get(room_id, world_map.get("ashen_courtyard", {}))
     
-    # 3. Simple Movement Logic
-    if action.startswith("go ") or action.startswith("move "):
-        target = action.replace("go ", "").replace("move ", "").strip().replace(" ", "_")
-        if target in room.get("exits", []):
-            game_state.current_room = target
-            room = world_map[target]
-            action = "looks around the new area."
+    # Movement Logic
+    for exit_location in room.get("exits", []):
+        if exit_location.replace("_", " ") in action or exit_location in action:
+            game_state["current_room"] = exit_location
+            room = world_map[exit_location]
+            action = f"moves to {exit_location.replace('_', ' ')}."
+            break
 
-    # 4. The Gemini DM Prompt
+    # Extract Lore Data
+    race_data  = rules.get("races", {}).get(game_state.get("race", "human"), {})
+    class_data = rules.get("classes", {}).get(game_state.get("class", "ashen_knight"), {})
+    
+    # Update Player History for Gemini Context
+    history = game_state.setdefault("history", [])
+    history.append(f"[{room_id}] {request.action}")
+    if len(history) > 5:
+        history.pop(0)
+
+    # Your Teammate's Advanced Gemini DM Prompt
     prompt = f"""
-    You are the Dungeon Master for a grimdark text RPG called 'Echoes of the Fallen'.
-    The Shattering occurred 300 years ago, breaking the Void Crown.
-    
-    PLAYER INFO:
-    House: {game_state.house_name}
-    Stats: STR {game_state.strength}, AGI {game_state.agility}, CON {game_state.constitution}, ARC {game_state.arcane}
-    HP: {game_state.hp}/{game_state.max_hp}
-    Inventory: {', '.join(game_state.inventory)}
-    
-    CURRENT LOCATION: {room.get('name', 'Unknown')}
-    Description: {room.get('description', 'A dark void.')}
-    Available Exits: {', '.join(room.get('exits', []))}
-    NPCs present: {', '.join([npc['name'] for npc in room.get('npcs', {}).values()])}
-    Items on ground: {', '.join(room.get('items', []))}
-    
-    PLAYER ACTION: "{action}"
-    
-    INSTRUCTIONS:
-    Write a 2-3 sentence atmospheric response describing the outcome of the player's action. 
-    Be grim, descriptive, and do not break character. 
-    If they attack an NPC or take an item, describe the physical struggle or the cold touch of the object.
-    Do NOT offer a list of choices. Just tell them what happens.
-    """
+You are a dark fantasy dungeon master for 'Echoes of the Fallen'.
 
-    # 5. Call Gemini 1.5 Flash
+WORLD HISTORY: {rules.get("world_history", [])}
+
+CURRENT LOCATION: {room.get('description', 'A dark void.')}
+LOCATION STATE: {room.get("state", {})}
+LOCATION HISTORY: {room.get("history", [])}
+NPCS PRESENT: {list(room.get("npcs", {}).keys())}
+
+PLAYER NAME: {game_state.get("house_name")}
+PLAYER RACE: {game_state.get("race")} — {race_data.get("description", "")}
+PLAYER CLASS: {game_state.get("class")} — {class_data.get("description", "")}
+PLAYER HP: {game_state.get("hp")}/{game_state.get("max_hp")}
+PLAYER LEVEL: {game_state.get("level", 1)}
+PLAYER SKILLS: {game_state.get("skills", [])}
+PLAYER INVENTORY: {game_state.get("inventory", [])}
+PLAYER HISTORY: {history}
+
+PLAYER ACTION: {action}
+
+Respond with vivid narrative (2-3 sentences) that reflects the player's race and class.
+Account for location state and NPC memory when relevant. Do not offer a list of choices.
+Then on a new line write:
+VISUAL: [one sentence describing the scene for image generation]
+"""
+
     if client:
         try:
             response = client.models.generate_content(
-                model='gemini-1.5-flash',
+                model='gemini-2.5-flash', # <-- THIS IS THE FIX
                 contents=prompt
             )
             response_text = response.text
@@ -176,10 +225,9 @@ async def handle_action(request: ActionRequest):
     else:
         response_text = "The AI is asleep. Set your GEMINI_API_KEY."
 
-    # 6. Return Data to Frontend
     return {
         "text": response_text,
-        "state": game_state.dict(),
+        "state": game_state,
         "location": room.get('name', 'Unknown'),
         "status": "alive"
     }
