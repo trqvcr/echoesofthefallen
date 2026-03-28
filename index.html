@@ -211,6 +211,45 @@
         </div>
     </div>
 
+    <!-- ── SKILL OFFER MODAL ── -->
+    <div id="skill-offer-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+        <div class="sidebar-box rounded-lg p-6 max-w-md w-full mx-4">
+            <h2 class="title-font text-sm text-purple-400 tracking-[0.2em] uppercase mb-1">Level Up</h2>
+            <p class="text-gray-500 text-xs mb-5">Choose one skill to learn. The others are lost.</p>
+            <div id="skill-offer-cards" class="space-y-3"></div>
+        </div>
+    </div>
+
+    <!-- ── FORGE MODAL ── -->
+    <div id="forge-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+        <div class="sidebar-box rounded-lg p-6 max-w-lg w-full mx-4">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <h2 class="title-font text-sm text-amber-500 tracking-[0.2em] uppercase">Skill Forge</h2>
+                    <p class="text-gray-600 text-xs mt-1">Sacrifice skills to forge something new. Gemini decides if it's balanced.</p>
+                </div>
+                <button onclick="closeForge()" class="title-font text-[9px] text-gray-600 hover:text-gray-300 uppercase tracking-widest">[x]</button>
+            </div>
+            <div class="mb-4">
+                <p class="title-font text-[9px] text-gray-500 uppercase tracking-widest mb-2">Select skills to sacrifice (1 or 2):</p>
+                <div id="forge-skill-checkboxes" class="space-y-2"></div>
+            </div>
+            <div class="mb-4">
+                <p class="title-font text-[9px] text-gray-500 uppercase tracking-widest mb-2">Describe what you want:</p>
+                <textarea id="forge-description" rows="3" placeholder="e.g. Combine them into a bolt that poisons on hit. I want something that trades damage for more control..."
+                    class="w-full bg-black/40 border border-purple-900/30 rounded px-3 py-2 text-xs text-gray-300 placeholder-gray-700 resize-none focus:outline-none focus:border-purple-600"></textarea>
+            </div>
+            <div class="flex justify-between items-center">
+                <span id="forge-charges-display" class="title-font text-[9px] text-amber-600 uppercase tracking-widest"></span>
+                <button onclick="submitForge()" id="forge-submit-btn"
+                    class="title-font text-[10px] text-amber-500 hover:text-amber-300 uppercase tracking-widest border border-amber-900/40 hover:border-amber-600/40 px-4 py-1.5 rounded transition-colors">
+                    Forge
+                </button>
+            </div>
+            <p id="forge-result" class="text-xs text-gray-400 mt-3 hidden"></p>
+        </div>
+    </div>
+
     <!-- ── WORLD MAP MODAL ── -->
     <div id="world-map-modal">
         <div class="w-full max-w-4xl flex justify-between items-end mb-4 px-4">
@@ -319,7 +358,10 @@
                     </div>
                 </div>
 
-                <h3 class="title-font text-[10px] text-purple-500 tracking-[0.3em] uppercase mt-10 mb-3 border-b border-purple-900/30 pb-2">Skills</h3>
+                <div class="flex items-center justify-between mt-10 mb-3 border-b border-purple-900/30 pb-2">
+                    <h3 class="title-font text-[10px] text-purple-500 tracking-[0.3em] uppercase">Skills</h3>
+                    <button id="forge-btn" onclick="openForge()" class="title-font text-[9px] text-gray-700 uppercase tracking-widest cursor-not-allowed">[FORGE] (0)</button>
+                </div>
                 <ul id="skills-list" class="text-xs space-y-2 text-gray-500 mb-6">
                     <li>• None</li>
                 </ul>
@@ -512,25 +554,58 @@
                 }).join('')
                 : '<li>• Nothing but hope</li>';
 
-            const skills = gameState.skills || {};
+            const skills    = gameState.skills || {};
             const skillKeys = Object.keys(skills);
+            const cs        = gameState.combat_state || {};
+            const cooldowns = cs.skill_cooldowns || {};
+            const _defs     = window._skillDefs || {};
             document.getElementById('skills-list').innerHTML = skillKeys.length
                 ? skillKeys.map(id => {
-                    const s    = skills[id];
-                    const name = id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-                    const lvl  = s.level || 1;
-                    const xpS  = s.xp || 0;
-                    const xpN  = 10 * lvl;
-                    const pct  = Math.min((xpS / xpN) * 100, 100);
+                    const s      = skills[id];
+                    const def    = _defs[id] || {};
+                    const name   = (def.name || s.name || id).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                    const lvl    = s.level || 1;
+                    const xpS    = s.xp || 0;
+                    const xpN    = 10 * lvl;
+                    const pct    = Math.min((xpS / xpN) * 100, 100);
+                    const cd     = cooldowns[id] || 0;
+                    const forged = s.forged ? ' <span class="text-amber-600 text-[9px]">[forged]</span>' : '';
+                    const mana   = (def.mana_cost    || s.mana_cost)    ? `<span class="text-blue-500">${def.mana_cost || s.mana_cost}mp</span>` : '';
+                    const stam   = (def.stamina_cost || s.stamina_cost) ? `<span class="text-green-600">${def.stamina_cost || s.stamina_cost}sp</span>` : '';
+                    const eff    = def.effect || s.effect;
+                    const effect = eff && eff !== 'none' ? `<span class="text-purple-500">${eff}</span>` : '';
+                    const costs  = [mana, stam, effect].filter(Boolean).join(' ');
+                    const cdBadge = cd > 0
+                        ? `<span class="text-red-500 text-[9px] title-font">[cd:${cd}]</span>`
+                        : '';
                     return `<li class="space-y-0.5">
-                        <div class="flex justify-between">
-                            <span class="text-gray-400">• ${name}</span>
-                            <span class="text-purple-600 text-[10px]">Lv${lvl}</span>
+                        <div class="flex justify-between items-center">
+                            <span class="${cd > 0 ? 'text-gray-600' : 'text-gray-400'}">• ${name}${forged}</span>
+                            <div class="flex items-center gap-1">
+                                ${cdBadge}
+                                <span class="text-purple-600 text-[10px]">Lv${lvl}</span>
+                            </div>
                         </div>
+                        ${costs ? `<div class="text-[9px] pl-2">${costs}</div>` : ''}
                         <div class="stat-bar-bg h-0.5 w-full rounded-full"><div class="h-full bg-purple-700/60 rounded-full" style="width:${pct}%"></div></div>
                     </li>`;
                 }).join('')
                 : '<li>• None</li>';
+
+            // Forge charges
+            const fc = gameState.forge_charges || 0;
+            const forgeBtn = document.getElementById('forge-btn');
+            if (forgeBtn) {
+                forgeBtn.textContent = fc > 0 ? `[FORGE] (${fc})` : '[FORGE] (0)';
+                forgeBtn.className   = fc > 0
+                    ? 'title-font text-[9px] text-amber-500 hover:text-amber-300 uppercase tracking-widest transition-colors cursor-pointer'
+                    : 'title-font text-[9px] text-gray-700 uppercase tracking-widest cursor-not-allowed';
+            }
+
+            // Skill offer modal
+            if (gameState.pending_skill_offer && gameState.pending_skill_offer.length > 0) {
+                showSkillOffer(gameState.pending_skill_offer);
+            }
 
             if (gameState.location) {
                 document.getElementById('location-display').innerText =
@@ -682,6 +757,7 @@
 
         async function loadMapData() {
             try {
+                fetch('/skill_defs').then(r => r.json()).then(d => { window._skillDefs = d; }).catch(()=>{});
                 const [mapRes] = await Promise.all([
                     fetch('/map.json'),
                     new Promise(resolve => {
@@ -1375,22 +1451,38 @@
                 return;
             }
 
-            const saved = localStorage.getItem(`echoes_save_${playerName}`);
-            if (saved) {
-                gameState = JSON.parse(saved);
-                await loadMapData();
-                updateUI();
-                if (!gameState.avatar_description) {
-                    document.getElementById('avatar-screen').style.display = 'flex';
-                } else {
-                    // Unlock audio on the first user interaction (autoplay policy)
-                    const _firstClick = () => { unlockAudio(); document.removeEventListener('click', _firstClick); document.removeEventListener('keydown', _firstClick); };
-                    document.addEventListener('click', _firstClick);
-                    document.addEventListener('keydown', _firstClick);
-                    await sendOpeningScene();
+            // Always fetch fresh state from the server so we never load stale/corrupt localStorage
+            try {
+                const res = await fetch(`/state/${encodeURIComponent(playerId)}`);
+                if (!res.ok) throw new Error('state fetch failed');
+                const data = await res.json();
+                if (data.state && data.state.house_name) {
+                    gameState = data.state;
+                    saveState(gameState);
                 }
-            } else {
+            } catch (_) {
+                // Server unavailable — fall back to localStorage
+                try {
+                    const saved = localStorage.getItem(`echoes_save_${playerName}`);
+                    if (saved) gameState = JSON.parse(saved);
+                } catch (_2) {}
+            }
+
+            if (!gameState) {
                 window.location.href = '/';
+                return;
+            }
+
+            await loadMapData();
+            updateUI();
+            if (!gameState.avatar_description) {
+                document.getElementById('avatar-screen').style.display = 'flex';
+            } else {
+                // Unlock audio on the first user interaction (autoplay policy)
+                const _firstClick = () => { unlockAudio(); document.removeEventListener('click', _firstClick); document.removeEventListener('keydown', _firstClick); };
+                document.addEventListener('click', _firstClick);
+                document.addEventListener('keydown', _firstClick);
+                await sendOpeningScene();
             }
         };
 
@@ -1741,6 +1833,124 @@
                 input.disabled = false;
                 btn.disabled   = false;
                 input.focus();
+            }
+        }
+
+        // ── Skill Offer Modal ─────────────────────────────────────────────────────
+        function showSkillOffer(offer) {
+            const modal = document.getElementById('skill-offer-modal');
+            const cards = document.getElementById('skill-offer-cards');
+            if (!modal || !cards) return;
+            const world_skill_defs = window._skillDefs || {};
+            cards.innerHTML = offer.map(id => {
+                const def  = world_skill_defs[id] || {};
+                const name = (def.name || id).replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+                const desc = def.description || '';
+                const eff  = def.effect && def.effect !== 'none'
+                    ? `<span class="text-purple-400">${def.effect} ${def.effect_value > 0 ? def.effect_value : ''} (${def.effect_duration}t)</span> ` : '';
+                const cost = [
+                    def.mana_cost    ? `<span class="text-blue-400">${def.mana_cost} mana</span>` : '',
+                    def.stamina_cost ? `<span class="text-green-500">${def.stamina_cost} stamina</span>` : '',
+                ].filter(Boolean).join(' / ');
+                return `<button onclick="pickSkill('${id}')"
+                    class="w-full text-left sidebar-box rounded p-3 hover:border-purple-600/40 transition-colors">
+                    <div class="flex justify-between items-start">
+                        <span class="title-font text-xs text-purple-300 uppercase tracking-wider">${name}</span>
+                        <span class="title-font text-[9px] text-gray-600">cd:${def.cooldown_turns||0}</span>
+                    </div>
+                    <p class="text-[10px] text-gray-500 mt-1">${desc}</p>
+                    <div class="text-[9px] mt-1">${eff}${cost}</div>
+                </button>`;
+            }).join('');
+            modal.classList.remove('hidden');
+        }
+
+        async function pickSkill(skillId) {
+            const pid = sessionStorage.getItem('playerId');
+            try {
+                const res  = await fetch('/choose_skill', {
+                    method: 'POST', headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({player_id: pid, skill_id: skillId})
+                });
+                const data = await res.json();
+                if (data.state) { gameState = data.state; saveState(gameState); updateUI(); }
+                document.getElementById('skill-offer-modal').classList.add('hidden');
+                const log = document.getElementById('narrative-log');
+                if (log && data.text) {
+                    const m = document.createElement('p');
+                    m.className = 'text-amber-400 title-font text-xs tracking-widest msg-fade';
+                    m.innerText = data.text;
+                    log.appendChild(m); log.scrollTop = log.scrollHeight;
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        // ── Forge Modal ───────────────────────────────────────────────────────────
+        function openForge() {
+            if (!gameState || (gameState.forge_charges || 0) < 1) return;
+            const modal    = document.getElementById('forge-modal');
+            const boxes    = document.getElementById('forge-skill-checkboxes');
+            const chargesEl = document.getElementById('forge-charges-display');
+            const resultEl  = document.getElementById('forge-result');
+            if (!modal) return;
+            if (chargesEl) chargesEl.textContent = `Forge charges: ${gameState.forge_charges || 0}`;
+            if (resultEl)  { resultEl.classList.add('hidden'); resultEl.textContent = ''; }
+            document.getElementById('forge-description').value = '';
+
+            const skills = gameState.skills || {};
+            boxes.innerHTML = Object.keys(skills).map(id => {
+                const s    = skills[id];
+                const name = (s.name || id).replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+                return `<label class="flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
+                    <input type="checkbox" value="${id}" class="forge-skill-check accent-amber-600">
+                    <span>${name}</span>
+                    ${s.forged ? '<span class="text-amber-700 text-[9px]">[forged]</span>' : ''}
+                </label>`;
+            }).join('');
+            modal.classList.remove('hidden');
+        }
+
+        function closeForge() {
+            document.getElementById('forge-modal').classList.add('hidden');
+        }
+
+        async function submitForge() {
+            const pid   = sessionStorage.getItem('playerId');
+            const desc  = document.getElementById('forge-description').value.trim();
+            const checks = [...document.querySelectorAll('.forge-skill-check:checked')].map(c => c.value);
+            const result = document.getElementById('forge-result');
+            const btn    = document.getElementById('forge-submit-btn');
+
+            if (!desc)             { result.textContent = 'Describe what you want first.'; result.classList.remove('hidden'); return; }
+            if (checks.length < 1) { result.textContent = 'Select at least one skill to sacrifice.'; result.classList.remove('hidden'); return; }
+            if (checks.length > 2) { result.textContent = 'You can only sacrifice up to 2 skills.'; result.classList.remove('hidden'); return; }
+
+            btn.disabled   = true;
+            btn.textContent = 'Forging...';
+            result.classList.add('hidden');
+
+            try {
+                const res  = await fetch('/forge', {
+                    method: 'POST', headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({player_id: pid, skill_ids: checks, description: desc})
+                });
+                const data = await res.json();
+                if (!res.ok) { result.textContent = data.detail || 'Forge failed.'; result.classList.remove('hidden'); return; }
+                if (data.state) { gameState = data.state; saveState(gameState); updateUI(); }
+                closeForge();
+                const log = document.getElementById('narrative-log');
+                if (log && data.text) {
+                    const m = document.createElement('p');
+                    m.className = 'text-amber-400 title-font text-xs tracking-widest msg-fade';
+                    m.innerText = data.text;
+                    log.appendChild(m); log.scrollTop = log.scrollHeight;
+                }
+            } catch(e) {
+                result.textContent = 'Error: ' + e.message;
+                result.classList.remove('hidden');
+            } finally {
+                btn.disabled    = false;
+                btn.textContent = 'Forge';
             }
         }
 

@@ -30,3 +30,12 @@ class AvatarRequest(BaseModel):
 class TravelRequest(BaseModel):
     player_id: str
     destination: str
+
+class SkillChoiceRequest(BaseModel):
+    player_id: str
+    skill_id:  str
+
+class ForgeRequest(BaseModel):
+    player_id:   str
+    skill_ids:   list   # 1 or 2 skill ids to sacrifice
+    description: str    # player's description of the new skill
