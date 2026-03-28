@@ -18,8 +18,20 @@ def generate_scene_image(client, visual_prompt: str, avatar_description: str = "
     if not client or not visual_prompt or visual_prompt.strip().lower() in ("", "[none]"):
         return ""
 
-    character_clause = f" The player character in the scene: {avatar_description}." if avatar_description else ""
-    styled_prompt = f"{visual_prompt.strip()}.{character_clause} {STYLE}"
+    scene = visual_prompt.strip().rstrip(".")
+
+    # Scene is the primary subject; avatar is a secondary "featuring" clause so
+    # Imagen doesn't let the character description hijack the composition.
+    if avatar_description:
+        styled_prompt = (
+            f"{scene}, dark fantasy scene. "
+            f"Featuring a character: {avatar_description}. "
+            f"{STYLE}"
+        )
+    else:
+        styled_prompt = f"{scene}, dark fantasy scene. {STYLE}"
+
+    print(f"[image] prompt: {styled_prompt[:120]}...")
 
     try:
         result = client.models.generate_images(
@@ -35,7 +47,7 @@ def generate_scene_image(client, visual_prompt: str, avatar_description: str = "
             img_bytes = result.generated_images[0].image.image_bytes
             return f"data:image/jpeg;base64,{base64.b64encode(img_bytes).decode()}"
     except Exception as e:
-        print(f"Image generation failed: {e}")
+        print(f"[image] generation failed: {e}")
 
     return ""
 
@@ -45,6 +57,7 @@ def generate_avatar_portrait(client, description: str) -> str:
         return ""
 
     styled_prompt = f"{description.strip()}. {PORTRAIT_STYLE}"
+    print(f"[avatar] prompt: {styled_prompt[:120]}...")
 
     try:
         result = client.models.generate_images(
@@ -60,6 +73,6 @@ def generate_avatar_portrait(client, description: str) -> str:
             img_bytes = result.generated_images[0].image.image_bytes
             return f"data:image/jpeg;base64,{base64.b64encode(img_bytes).decode()}"
     except Exception as e:
-        print(f"Avatar generation failed: {e}")
+        print(f"[avatar] generation failed: {e}")
 
     return ""
