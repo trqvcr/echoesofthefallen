@@ -1,10 +1,11 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from typing import List, Optional
 import os
 import json
+import random
 from google import genai
 from dotenv import load_dotenv
 
@@ -13,7 +14,7 @@ load_dotenv()
 # 1. Initialize App
 app = FastAPI(title="Echoes of the Fallen")
 
-# 2. CORS
+# 2. CORS - Fixed Syntax
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -22,24 +23,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 3. Gemini Client
-client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+# 3. Gemini Client (Safely handle missing key)
+api_key = os.getenv("GEMINI_API_KEY")
+client = genai.Client(api_key=api_key) if api_key else None
 
-# 4. Pydantic Models
+# 4. Pydantic Models - Fixed to match your Frontend
+class GameState(BaseModel):
+    house_name: str
+    current_room: str
+    hp: int
+    max_hp: int
+    strength: int
+    agility: int
+    constitution: int
+    arcane: int
+    inventory: List[str]
+    dead_ancestors: List[str]
+    current_enemy: Optional[dict] = None
+
 class ActionRequest(BaseModel):
     player_id: str
     action: str
+    state: GameState # Crucial for your save system!
 
-# 5. Helpers
-def load_json(path):
-    with open(path, "r") as f:
-        return json.load(f)
-
-def save_json(path, data):
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
-
-# 6. Serve HTML pages
+# 5. Serve HTML pages
 @app.get("/")
 async def serve_login():
     return FileResponse("login.html")
@@ -48,69 +55,81 @@ async def serve_login():
 async def serve_game():
     return FileResponse("index.html")
 
-# 7. Health Check
-@app.get("/health")
-async def health_check():
-    return {"message": "Echoes of the Fallen server is running."}
-
-# 8. Core Game Loop
+# 6. Core Game Loop
 @app.post("/action")
 async def handle_action(request: ActionRequest):
-    world_state = load_json("world_state.json")
-    map_data = load_json("map.json")
+    game_state = request.state
+    action = request.action.lower()
+    
+    response_text = "The void echoes with your words, but nothing happens."
+    
+    # --- 1. TEST INVENTORY ---
+    if "take" in action or "grab" in action:
+        item = action.replace("take", "").replace("grab", "").strip()
+        if item:
+            game_state.inventory.append(item.title())
+            response_text = f"You picked up the {item.title()}."
+        else:
+            response_text = "You grasp at the shadows."
 
-    # Get player
-    player = world_state["players"].get(request.player_id)
-    if not player:
-        raise HTTPException(status_code=404, detail="Player not found")
+    # --- 2. TEST COMBAT ---
+    elif "attack" in action or "fight" in action:
+        damage = random.randint(5, 15)
+        game_state.hp -= damage
+        
+        if game_state.hp <= 0:
+            game_state.hp = 0
+            response_text = f"The shadows lash back for {damage} damage! You have fallen. Your lineage ends here..."
+            return {
+                "text": response_text,
+                "state": game_state.dict(),
+                "status": "dead"
+            }
+        else:
+            response_text = f"You strike out, but the void strikes back for {damage} damage! You have {game_state.hp} HP left."
 
-    # Get location
-    location_key = player["location"]
-    current_location = map_data.get(location_key)
-    if not current_location:
-        raise HTTPException(status_code=404, detail="Location not found")
+    # --- 3. TEST HEALING ---
+    elif "heal" in action or "rest" in action:
+        heal_amt = random.randint(10, 20)
+        game_state.hp = min(game_state.max_hp, game_state.hp + heal_amt)
+        response_text = f"You rest in the quiet dark, restoring {heal_amt} HP."
 
-    # Check for movement
-    action_lower = request.action.lower()
-    for exit_location in current_location.get("exits", []):
-        if exit_location.replace("_", " ") in action_lower or exit_location in action_lower:
-            player["location"] = exit_location
-            current_location = map_data[exit_location]
-            break
-
-    # Build Gemini prompt
-    prompt = f"""
-    You are a dark fantasy dungeon master for 'Echoes of the Fallen'.
-
-    WORLD HISTORY: {world_state["world_history"]}
-    CURRENT LOCATION: {current_location["description"]}
-    LOCATION HISTORY: {current_location.get("history", [])}
-    PLAYER NAME: {player["name"]}
-    PLAYER CLASS: {player["class"]}
-    PLAYER HP: {player["hp"]}/{player["max_hp"]}
-    PLAYER INVENTORY: {player["inventory"]}
-    PLAYER ACTION: {request.action}
-
-    Respond with vivid narrative (2-3 sentences). Then on a new line write:
-    VISUAL: [one sentence describing the scene for image generation]
-    """
-
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=prompt
-    )
-
-    narrative = response.text
-
-    # Save updated world state
-    world_state["players"][request.player_id] = player
-    save_json("world_state.json", world_state)
+    # --- 4. TEST MOVEMENT ---
+    elif "go" in action or "move" in action:
+        direction = action.replace("go", "").replace("move", "").strip()
+        new_location = direction.title() if direction else "Unknown"
+        game_state.current_room = new_location
+        response_text = f"You step cautiously into {new_location}."
 
     return {
-        "text": narrative,
-        "image_base64": "",
-        "status": player["status"],
-        "location": player["location"],
-        "hp": player["hp"],
-        "max_hp": player["max_hp"]
+        "text": response_text,
+        "state": game_state.dict(),
+        "location": game_state.current_room,
+        "status": "alive"
     }
+
+@app.post("/reset")
+async def reset_game(request: ActionRequest):
+    # Move current character name to 'dead_ancestors' before wiping
+    state = request.state
+    state.dead_ancestors.append(state.house_name)
+    
+    # Return a "Fresh" state but keep the dead ancestors list for Nano Banana
+    new_state = {
+        "house_name": state.house_name,
+        "current_room": "ashen_courtyard",
+        "hp": 55, "max_hp": 55,
+        "strength": 8, "agility": 3, "constitution": 7, "arcane": 2,
+        "inventory": ["Rusted Sword"],
+        "dead_ancestors": state.dead_ancestors,
+        "current_enemy": None
+    }
+    
+    return {
+        "text": "Your previous life fades into an echo. A new scion rises.",
+        "state": new_state
+    }
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

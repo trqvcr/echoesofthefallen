@@ -1,1 +1,14 @@
+# Security / Environment Variables
 .env
+
+# Virtual Environments
+venv/
+.venv/
+
+# Python Cache Files
+__pycache__/
+*.pyc
+*.pyo
+
+# Mac OS junk files (if applicable)
+.DS_Store
