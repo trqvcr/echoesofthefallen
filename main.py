@@ -34,6 +34,10 @@ class ActionRequest(BaseModel):
     action: str
     state: Optional[Dict[str, Any]] = None
 
+class LevelUpRequest(BaseModel):
+    player_id: str
+    stat_to_increase: str
+
 # ── JSON Helpers ───────────────────────────────────────────────────────────────
 
 def load_json(path):
@@ -725,3 +729,37 @@ def _player_to_state(player: dict) -> dict:
         "reputation":       player.get("reputation", {}),
         "combat_state":     player.get("combat_state", {"active": False}),
     }
+
+# ── /levelup (Trevor's Feature) ────────────────────────────────────────────────
+@app.post("/levelup")
+async def process_levelup(request: LevelUpRequest):
+    saves = load_json("saves.json")
+    player = saves.get(request.player_id)
+    
+    if not player:
+        raise HTTPException(status_code=404, detail="Player not found")
+
+    if player["xp"] < player["xp_to_next_level"]:
+        raise HTTPException(status_code=400, detail="Not enough XP to level up.")
+
+    stat = request.stat_to_increase.upper()
+    if stat in player["attributes"]:
+        # 1. Increase the chosen stat
+        player["attributes"][stat] += 1
+        
+        # 2. Consume XP and scale the next level requirement
+        player["level"] += 1
+        player["xp"] -= player["xp_to_next_level"]
+        player["xp_to_next_level"] = int(player["xp_to_next_level"] * 1.5)
+        
+        # 3. Recalculate max HP and give them a free heal!
+        player["max_hp"] = 20 + (player["attributes"]["CON"] * 5)
+        player["hp"] = player["max_hp"]
+
+        # Save to disk
+        saves[request.player_id] = player
+        save_json("saves.json", saves)
+
+        return {"message": "Ascension complete.", "state": _player_to_state(player)}
+    else:
+        raise HTTPException(status_code=400, detail="Invalid stat selected.")
