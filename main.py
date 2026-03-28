@@ -9,12 +9,12 @@ from google import genai
 from google.genai.types import GenerateImagesConfig, GenerateContentConfig, Schema, Type
 from dotenv import load_dotenv
 
-from models import RegisterRequest, LoginRequest, ActionRequest, RiseRequest, AvatarRequest, TravelRequest, SkillChoiceRequest, ForgeRequest
+from models import RegisterRequest, LoginRequest, ActionRequest, RiseRequest, AvatarRequest, TravelRequest, SkillChoiceRequest, ForgeRequest, TTSRequest
 from db import get_player, save_player, get_world, save_world, get_all_locations, save_location, hash_password
 from enemies import tick_spawns, tick_story_npcs
 from world_tick import tick_world, tick_corruption
 from combat import player_to_state, _start_combat, process_combat_turn, _make_ancestor_record, build_heir
-from images import generate_scene_image, generate_avatar_portrait, generate_npc_portrait
+from images import generate_scene_image, generate_avatar_portrait, generate_npc_portrait, generate_avatar_visual_prompt
 from story import (
     get_story_context, get_story_nudge, check_act_advancement,
     make_world_event, get_active_world_event, STORY_FLAGS,
@@ -22,7 +22,11 @@ from story import (
     VOID_ENEMY_IDS, STRANGER_STAGES,
 )
 from music import generate_ambient_music, get_music_context
-from video import intro_video_status, start_intro_generation, INTRO_VIDEO_PATH, INTRO_CLIPS, clip_status
+from video import (
+    intro_video_status, start_intro_generation,
+    INTRO_VIDEO_PATH, INTRO_CLIPS, INTRO_NARRATIONS, INTRO_IMAGES, CLIP_IMAGE_MAP,
+    clip_status, audio_status, image_status, generate_tts_audio,
+)
 import base64
 
 load_dotenv()
@@ -74,15 +78,41 @@ async def serve_intro_clip(idx: int):
         return FileResponse(path, media_type="video/mp4")
     raise HTTPException(status_code=404, detail=f"Clip {idx} not ready yet")
 
+@app.get("/intro-audio/{idx}")
+async def serve_intro_audio(idx: int):
+    if idx < 0 or idx >= len(INTRO_NARRATIONS):
+        raise HTTPException(status_code=404, detail="Invalid audio index")
+    path = INTRO_NARRATIONS[idx]["path"]
+    if os.path.exists(path):
+        return FileResponse(path, media_type="audio/wav")
+    raise HTTPException(status_code=404, detail=f"Audio {idx} not ready yet")
+
+@app.get("/intro-image/{idx}")
+async def serve_intro_image(idx: int):
+    if idx < 0 or idx >= len(INTRO_IMAGES):
+        raise HTTPException(status_code=404, detail="Invalid image index")
+    path = INTRO_IMAGES[idx]["path"]
+    if os.path.exists(path):
+        return FileResponse(path, media_type="image/jpeg")
+    raise HTTPException(status_code=404, detail=f"Image {idx} not ready yet")
+
 @app.get("/intro-status")
 async def get_intro_status():
-    clips = [{"idx": i, "status": clip_status(i)} for i in range(len(INTRO_CLIPS))]
-    return {"status": intro_video_status(), "clips": clips}
+    images = [{"idx": i, "status": image_status(i), "clip": INTRO_IMAGES[i].get("clip", 0)} for i in range(len(INTRO_IMAGES))]
+    audios = [{"idx": i, "status": audio_status(i)} for i in range(len(INTRO_NARRATIONS))]
+    return {"status": intro_video_status(), "images": images, "audios": audios, "clip_image_map": CLIP_IMAGE_MAP}
 
 @app.post("/generate-intro")
 async def generate_intro():
     status = start_intro_generation(client)
     return {"status": status}
+
+@app.post("/tts")
+async def tts_endpoint(req: TTSRequest):
+    audio_b64 = generate_tts_audio(client, req.text)
+    if not audio_b64:
+        raise HTTPException(status_code=503, detail="TTS generation failed or unavailable")
+    return {"audio_base64": audio_b64}
 
 @app.get("/map-bg.jpg")
 async def serve_map_bg():
@@ -287,6 +317,41 @@ async def rise_as_heir(request: RiseRequest):
 
 # ── /avatar ────────────────────────────────────────────────────────────────────
 
+def _extract_appearance(client, description: str, gender: str, race: str, player_class: str) -> dict:
+    """Use Gemini to extract structured fixed appearance traits from the avatar description."""
+    base = {"gender": gender}
+    if not client:
+        return base
+    try:
+        import json as _json, re as _re
+        from google.genai.types import GenerateContentConfig
+        prompt = (
+            f"Extract appearance details for a dark fantasy RPG character as JSON.\n"
+            f"Race: {race}. Class: {player_class}. Gender: {gender}.\n"
+            f"Description: {description}\n\n"
+            "Return ONLY valid JSON with these fields (infer reasonable defaults if not mentioned):\n"
+            '{"gender":"...","age_appearance":"young adult / middle-aged / elder / etc",'
+            '"height":"tall / above average / average / below average / short",'
+            '"build":"lean / athletic / muscular / slender / stocky / wiry / heavyset",'
+            '"skin_tone":"...","hair_color":"...","hair_style":"...","eye_color":"...",'
+            '"distinctive_features":"scars, tattoos, markings, aura, etc or none"}'
+        )
+        resp = client.models.generate_content(
+            model="gemini-2.0-flash-001",
+            contents=prompt,
+            config=GenerateContentConfig(temperature=0.1, max_output_tokens=250),
+        )
+        text = resp.text.strip()
+        m = _re.search(r'\{.*\}', text, _re.DOTALL)
+        if m:
+            parsed = _json.loads(m.group())
+            parsed["gender"] = gender  # always authoritative
+            return parsed
+    except Exception as e:
+        print(f"[appearance] extraction failed: {e}")
+    return base
+
+
 @app.post("/avatar")
 async def set_avatar(request: AvatarRequest):
     player = get_player(request.player_id)
@@ -297,10 +362,25 @@ async def set_avatar(request: AvatarRequest):
     if not description:
         raise HTTPException(status_code=400, detail="Description cannot be empty")
 
-    portrait = generate_avatar_portrait(client, description)
+    gender = (request.gender or "unspecified").strip().lower()
 
-    player["avatar_description"] = description
-    player["avatar_portrait"]    = portrait
+    # Expand the raw description into a detailed, Imagen-optimised visual prompt.
+    # This is stored once and reused for every scene image to keep the character consistent.
+    visual_prompt = generate_avatar_visual_prompt(
+        client, description,
+        race=player.get("race", ""),
+        player_class=player.get("class", ""),
+        gender=gender,
+    )
+
+    portrait    = generate_avatar_portrait(client, visual_prompt)
+    appearance  = _extract_appearance(client, description, gender, player.get("race", ""), player.get("class", ""))
+
+    player["gender"]              = gender
+    player["appearance"]          = appearance
+    player["avatar_description"]  = description
+    player["avatar_visual_prompt"] = visual_prompt
+    player["avatar_portrait"]     = portrait
     save_player(request.player_id, player)
 
     return {"portrait": portrait, "state": player_to_state(player, request.player_id)}
@@ -668,8 +748,8 @@ NPCS HERE:
 {npc_block}
 LOCATION HISTORY: {current_location.get('history', [])[-5:]}
 
-PLAYER: {player['name']} | Race: {player['race']} | Class: {player['class']}
-APPEARANCE: {player.get('avatar_description', 'unknown')}
+PLAYER: {player['name']} | Race: {player['race']} | Class: {player['class']} | Gender: {player.get('gender', 'unspecified')}
+APPEARANCE: {player.get('avatar_visual_prompt', player.get('avatar_description', 'unknown'))}
 HP: {player['hp']}/{player['max_hp']} | Level: {player['level']}
 STR:{attrs['STR']} AGI:{attrs['AGI']} CON:{attrs['CON']} ARC:{attrs['ARC']}
 SKILLS: {list(player['skills'].keys())}
@@ -703,7 +783,7 @@ DESCRIPTION: {current_location['description']}
 CURRENT STATE: {_format_state_for_prompt(current_location.get('state', {}))}
 NPCS HERE: {list(current_location.get('npcs', {}).keys())}
 
-PLAYER CHARACTER: {player['name']} | Race: {player['race']} | Class: {player['class']}
+PLAYER CHARACTER: {player['name']} | Race: {player['race']} | Class: {player['class']} | Gender: {player.get('gender', 'unspecified')}
 PLAYER APPEARANCE: {player.get('avatar_visual_prompt', player.get('avatar_description', 'a weathered adventurer in dark armor'))}
 
 NPCS IN THIS LOCATION:
@@ -714,7 +794,7 @@ NARRATIVE: {narrative}
 
 ---
 VISUAL SCENE PROMPT — write this as a direct prompt for an AI image generator:
-- Describe what the {player['race']} {player['class']} is physically DOING (specific action, pose, motion)
+- Describe what the {player.get('gender', '')} {player['race']} {player['class']} is physically DOING (specific action, pose, motion)
 - Include the environment: {current_location['name']} — key details, ruins, structures, ash, void energy
 - Lighting and mood: time of day, shadows, fog, void glow, dramatic angle
 - If an NPC is involved, include them and their position relative to the player

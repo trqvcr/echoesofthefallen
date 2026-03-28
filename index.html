@@ -154,6 +154,10 @@
             50%       { opacity: 1.0; }
         }
         #music-toggle.playing { animation: musicPulse 2s ease-in-out infinite; }
+
+        /* Voice control */
+        #voice-toggle { transition: color 0.2s; }
+        #voice-toggle.muted { color: #4b5563; }
     </style>
 </head>
 <body class="text-gray-200 min-h-screen flex items-center justify-center p-4">
@@ -300,7 +304,7 @@
             
             <div class="sidebar-box rounded-lg p-5">
                 <div class="flex items-center gap-3 mb-4">
-                    <div id="avatar-thumb-wrap" class="w-12 h-12 rounded-full overflow-hidden border border-purple-700 flex-shrink-0 flex items-center justify-center bg-gray-900">
+                    <div id="avatar-thumb-wrap" class="w-12 h-12 rounded-full overflow-hidden border border-purple-700 flex-shrink-0 flex items-center justify-center bg-gray-900 cursor-pointer" title="Change avatar" onclick="openAvatarScreen()">
                         <img id="avatar-thumb" src="" class="w-full h-full object-cover hidden">
                         <span id="class-icon" class="text-3xl">⚔️</span>
                     </div>
@@ -371,14 +375,6 @@
                     <li>• Nothing but hope</li>
                 </ul>
 
-                <div class="mt-6 pt-3 border-t border-purple-900/20">
-                    <h3 class="title-font text-[10px] text-purple-500 tracking-[0.3em] uppercase mb-2">Vicinity</h3>
-                    <div id="minimap-wrap" class="rounded">
-                        <div id="minimap-title">Area Map</div>
-                        <svg id="minimap-svg" width="100%" height="88" viewBox="0 0 220 88" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice"></svg>
-                    </div>
-                </div>
-
                 <div class="mt-auto pt-4 border-t border-purple-900/20">
                     <button onclick="abandonLegacy()" class="w-full title-font text-[9px] text-gray-600 hover:text-red-500 transition-colors uppercase tracking-[0.2em]">
                         Abandon Legacy
@@ -391,7 +387,7 @@
         <div class="flex-1 flex flex-col bg-gray-900 border border-purple-900/40 rounded-lg shadow-[0_0_40px_rgba(88,28,135,0.2)] overflow-hidden">
             
             <!-- Scene Image -->
-            <div class="relative w-full bg-gray-950 border-b border-purple-900/30 overflow-hidden flex-shrink-0" style="aspect-ratio:16/9">
+            <div class="relative w-full bg-gray-950 border-b border-purple-900/30 overflow-hidden flex-shrink-0" style="aspect-ratio:16/9; max-height:40%">
                 <img id="scene-image-a" src="" class="w-full h-full object-cover opacity-0 absolute inset-0 transition-opacity duration-1000">
                 <img id="scene-image-b" src="" class="w-full h-full object-cover opacity-0 absolute inset-0 transition-opacity duration-1000">
                 <!-- NPC portrait overlay: bottom-right corner, circular, shown during NPC encounters -->
@@ -414,6 +410,8 @@
                     <input id="music-volume" type="range" min="0" max="1" step="0.05" value="0.35"
                         oninput="setMusicVolume(this.value)"
                         class="w-16 h-1 accent-purple-600 cursor-pointer" title="Volume">
+                    <div class="w-px h-3 bg-purple-900/50"></div>
+                    <button id="voice-toggle" onclick="toggleVoice()" title="Toggle narrator voice" class="text-[9px] title-font text-purple-400 hover:text-white uppercase tracking-widest transition-colors">[🔊] VOICE</button>
                 </div>
             </div>
 
@@ -484,6 +482,17 @@
                 <button id="submit-btn" class="title-font text-[10px] tracking-widest uppercase px-6 py-3 bg-purple-900 hover:bg-purple-700 text-white rounded transition-all">
                     ACT
                 </button>
+            </div>
+        </div>
+
+        <!-- Right panel: minimap -->
+        <div class="w-44 flex flex-col gap-3 flex-shrink-0">
+            <div class="sidebar-box rounded-lg p-3">
+                <h3 class="title-font text-[10px] text-purple-500 tracking-[0.3em] uppercase mb-2 text-center">Vicinity</h3>
+                <div id="minimap-wrap" class="rounded">
+                    <div id="minimap-title">Area Map</div>
+                    <svg id="minimap-svg" width="100%" height="100" viewBox="0 0 220 88" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice"></svg>
+                </div>
             </div>
         </div>
     </div>
@@ -1400,11 +1409,24 @@
             }
         }
 
+        let isInitialAvatarSetup = false;
+
+        function openAvatarScreen(initial = false) {
+            isInitialAvatarSetup = initial;
+            const av      = document.getElementById('avatar-screen');
+            const confirm = document.getElementById('avatar-confirm-btn');
+            const preview = document.getElementById('avatar-portrait-wrap');
+            confirm.disabled = true;
+            confirm.className = 'title-font text-xs uppercase tracking-widest px-6 py-3 bg-gray-800 text-gray-500 rounded transition-all cursor-not-allowed';
+            preview.classList.add('hidden');
+            av.style.display = 'flex';
+        }
+
         function confirmAvatar() {
             document.getElementById('avatar-screen').style.display = 'none';
             unlockAudio();
             updateUI();
-            sendOpeningScene();
+            if (isInitialAvatarSetup) sendOpeningScene();
         }
 
         async function sendOpeningScene() {
@@ -1475,7 +1497,7 @@
             await loadMapData();
             updateUI();
             if (!gameState.avatar_description) {
-                document.getElementById('avatar-screen').style.display = 'flex';
+                openAvatarScreen(true);
             } else {
                 // Unlock audio on the first user interaction (autoplay policy)
                 const _firstClick = () => { unlockAudio(); document.removeEventListener('click', _firstClick); document.removeEventListener('keydown', _firstClick); };
@@ -1501,6 +1523,48 @@
             // within the ~5 MB localStorage quota.
             const { avatar_portrait, ...lean } = state;
             localStorage.setItem(`echoes_save_${state.house_name}`, JSON.stringify(lean));
+        }
+
+        // ── Narrator TTS ──────────────────────────────────────────────────────
+        let voiceMuted  = false;
+        let _ttsSource  = null;
+        let _ttsGain    = null;
+
+        function toggleVoice() {
+            unlockAudio();
+            voiceMuted = !voiceMuted;
+            const btn = document.getElementById('voice-toggle');
+            btn.classList.toggle('muted', voiceMuted);
+            if (voiceMuted && _ttsGain) _ttsGain.gain.value = 0;
+        }
+
+        async function playTTS(base64Wav) {
+            if (voiceMuted || !audioUnlocked) return;
+            try {
+                const ctx = _getAudioCtx();
+                if (ctx.state === 'suspended') await ctx.resume();
+
+                const binary = atob(base64Wav);
+                const bytes  = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                const audioBuffer = await ctx.decodeAudioData(bytes.buffer);
+
+                // Stop any in-progress TTS
+                if (_ttsSource) { try { _ttsSource.stop(); } catch (_) {} }
+                if (_ttsGain)   { _ttsGain.disconnect(); }
+
+                const gain   = ctx.createGain();
+                gain.gain.value = 0.85;
+                const source = ctx.createBufferSource();
+                source.buffer = audioBuffer;
+                source.connect(gain);
+                gain.connect(ctx.destination);
+                source.start();
+                _ttsSource = source;
+                _ttsGain   = gain;
+            } catch(e) {
+                console.warn('[tts] playback error:', e);
+            }
         }
 
         // ── Ambient Music (Web Audio API — gapless looping) ───────────────────
@@ -1748,6 +1812,17 @@
                 sMsg.className = "text-gray-300 leading-relaxed msg-fade";
                 sMsg.innerText = data.text;
                 log.appendChild(sMsg);
+
+                // Narrator TTS (fire-and-forget — plays when ready)
+                if (data.text && !voiceMuted) {
+                    fetch('/tts', {
+                        method:  'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body:    JSON.stringify({ text: data.text })
+                    }).then(r => r.ok ? r.json() : null)
+                      .then(d => { if (d && d.audio_base64) playTTS(d.audio_base64); })
+                      .catch(() => {});
+                }
 
                 // Travel progress indicator
                 const tp = data.state && data.state.travel_progress;

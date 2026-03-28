@@ -35,51 +35,49 @@
             pointer-events: none;
         }
 
-        /* ── Full-screen video layer ── */
-        #video-layer {
-            position: fixed; inset: 0; z-index: 0;
-        }
-        .clip-video {
+        /* ── Image layer ── */
+        #image-layer { position: fixed; inset: 0; z-index: 0; }
+        .clip-image {
             position: absolute; inset: 0;
             width: 100%; height: 100%;
             object-fit: cover;
+            image-rendering: pixelated;
             opacity: 0;
             transition: opacity 1.2s ease;
+            transform-origin: center center;
         }
-        .clip-video.active { opacity: 1; }
-
-        /* ── Ambient particles ── */
-        #particles {
-            position: fixed; inset: 0; z-index: 3;
-            pointer-events: none;
+        .clip-image.active {
+            opacity: 1;
+            animation: kenBurns 30s ease-in-out infinite alternate;
+        }
+        @keyframes kenBurns {
+            0%   { transform: scale(1.08) translate(1%, 1%); }
+            33%  { transform: scale(1.12) translate(-1.5%, 0.5%); }
+            66%  { transform: scale(1.06) translate(0.5%, -1%); }
+            100% { transform: scale(1.1)  translate(-1%, 1.5%); }
         }
 
-        /* ── Phase: title card ── */
+        /* ── Ambient particles canvas ── */
+        #particles { position: fixed; inset: 0; z-index: 3; pointer-events: none; }
+
+        /* ── Title card ── */
         #phase-title {
             position: fixed; inset: 0; z-index: 10;
             display: flex; flex-direction: column;
             align-items: center; justify-content: center;
-            opacity: 0;
-            transition: opacity 1.5s ease;
+            opacity: 0; transition: opacity 1.5s ease;
         }
         #phase-title.show { opacity: 1; }
-
         .title-eyebrow {
-            font-family: 'Cinzel', serif;
-            font-size: 0.55rem;
-            letter-spacing: 0.8em;
-            color: #4c1d95;
-            text-transform: uppercase;
-            margin-bottom: 1.5rem;
+            font-family: 'Cinzel', serif; font-size: 0.55rem;
+            letter-spacing: 0.8em; color: #4c1d95;
+            text-transform: uppercase; margin-bottom: 1.5rem;
         }
         .title-main {
             font-family: 'Cinzel', serif;
-            font-size: clamp(2rem, 6vw, 4.5rem);
-            font-weight: 900;
-            color: #fff;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            line-height: 1.1;
+            font-size: clamp(2rem, 6vw, 4.5rem); font-weight: 900;
+            color: #fff; letter-spacing: 0.1em;
+            text-transform: uppercase; line-height: 1.1;
         }
         .title-rule {
             width: 160px; height: 1px;
@@ -87,94 +85,44 @@
             margin: 1.5rem auto;
         }
         .title-sub {
-            font-family: 'Crimson Text', serif;
-            font-size: 1rem;
-            color: #6b7280;
-            font-style: italic;
-            letter-spacing: 0.05em;
+            font-family: 'Crimson Text', serif; font-size: 1rem;
+            color: #6b7280; font-style: italic; letter-spacing: 0.05em;
         }
 
-        /* ── Phase: cinematic ── */
+        /* ── Cinematic phase ── */
         #phase-cinematic {
             position: fixed; inset: 0; z-index: 10;
-            opacity: 0;
-            transition: opacity 1.2s ease;
+            opacity: 0; transition: opacity 1.2s ease;
             pointer-events: none;
         }
         #phase-cinematic.show { opacity: 1; pointer-events: all; }
 
-        /* Letterbox bars */
+        /* Letterbox */
         .letterbox {
             position: fixed; left: 0; right: 0; z-index: 4;
-            background: #000;
-            height: 12vh;
-            transition: height 0.8s ease;
+            background: #000; height: 12vh;
         }
-        #letterbox-top    { top: 0; }
+        #letterbox-top { top: 0; }
         #letterbox-bottom { bottom: 0; }
-
-        /* Caption area */
-        #caption-area {
-            position: fixed;
-            bottom: 14vh;
-            left: 50%; transform: translateX(-50%);
-            width: min(860px, 88vw);
-            z-index: 20;
-            text-align: center;
-            pointer-events: none;
-        }
-
-        .caption-label {
-            font-family: 'Cinzel', serif;
-            font-size: 0.5rem;
-            letter-spacing: 0.6em;
-            color: #6d28d9;
-            text-transform: uppercase;
-            margin-bottom: 0.5rem;
-            opacity: 0;
-            transition: opacity 0.6s ease;
-        }
-        .caption-label.show { opacity: 1; }
-
-        #caption-text {
-            font-family: 'Crimson Text', serif;
-            font-size: clamp(1rem, 2.2vw, 1.35rem);
-            color: #e5e7eb;
-            line-height: 1.75;
-            text-shadow: 0 2px 12px rgba(0,0,0,0.9), 0 0 40px rgba(0,0,0,0.7);
-            opacity: 0;
-            transition: opacity 0.7s ease;
-        }
-        #caption-text.show { opacity: 1; }
-        #caption-text em { color: #f9a8d4; font-style: italic; }
 
         /* Chapter banner */
         #chapter-banner {
-            position: fixed;
-            top: 50%; left: 50%;
+            position: fixed; top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            z-index: 25;
-            text-align: center;
-            opacity: 0;
-            transition: opacity 0.8s ease;
+            z-index: 25; text-align: center;
+            opacity: 0; transition: opacity 0.9s ease;
             pointer-events: none;
         }
         #chapter-banner.show { opacity: 1; }
         .chapter-banner-label {
-            font-family: 'Cinzel', serif;
-            font-size: 0.55rem;
-            letter-spacing: 0.7em;
-            color: #6d28d9;
-            text-transform: uppercase;
-            margin-bottom: 0.6rem;
+            font-family: 'Cinzel', serif; font-size: 0.55rem;
+            letter-spacing: 0.7em; color: #6d28d9;
+            text-transform: uppercase; margin-bottom: 0.6rem;
         }
         .chapter-banner-title {
             font-family: 'Cinzel', serif;
-            font-size: clamp(1.4rem, 3.5vw, 2.5rem);
-            font-weight: 700;
-            color: #c4b5fd;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
+            font-size: clamp(1.4rem, 3.5vw, 2.5rem); font-weight: 700;
+            color: #c4b5fd; letter-spacing: 0.12em; text-transform: uppercase;
         }
         .chapter-banner-rule {
             width: 120px; height: 1px;
@@ -182,96 +130,143 @@
             margin: 0.8rem auto 0;
         }
 
-        /* ── Phase: enter ── */
+        /* ── Enter phase ── */
         #phase-enter {
             position: fixed; inset: 0; z-index: 30;
             display: flex; flex-direction: column;
             align-items: center; justify-content: center;
             background: rgba(0,0,0,0.7);
-            opacity: 0;
-            transition: opacity 2s ease;
+            opacity: 0; transition: opacity 2s ease;
             pointer-events: none;
         }
         #phase-enter.show { opacity: 1; pointer-events: all; }
 
+        /* ── Avatar creation (shown within enter phase) ── */
+        #avatar-form {
+            display: none; flex-direction: column; align-items: center;
+            width: min(480px, 90vw); text-align: center;
+        }
+        #avatar-form.show { display: flex; }
+        #avatar-desc {
+            width: 100%; background: rgba(0,0,0,0.6);
+            border: 1px solid rgba(139,92,246,0.4); color: #e5e7eb;
+            font-family: 'Crimson Text', serif; font-size: 1rem;
+            padding: 0.85rem 1rem; border-radius: 2px; resize: none;
+            outline: none; margin-bottom: 0.9rem;
+        }
+        #avatar-desc:focus { border-color: rgba(139,92,246,0.8); }
+        #avatar-desc::placeholder { color: #4b5563; font-style: italic; }
+        #avatar-preview-wrap {
+            width: 120px; height: 120px; border-radius: 50%;
+            overflow: hidden; border: 2px solid rgba(109,40,217,0.6);
+            margin-bottom: 1rem; display: none;
+        }
+        #avatar-preview-wrap.show { display: block; }
+        #avatar-preview { width: 100%; height: 100%; object-fit: cover; }
+        .avatar-btn {
+            font-family: 'Cinzel', serif; font-size: 0.6rem;
+            letter-spacing: 0.3em; text-transform: uppercase;
+            padding: 0.85rem 2rem; border-radius: 2px; cursor: pointer;
+            transition: all 0.3s ease; border: none;
+        }
+        #avatar-visualize-btn {
+            background: rgba(88,28,135,0.4); color: #c4b5fd;
+            border: 1px solid rgba(139,92,246,0.4);
+        }
+        #avatar-visualize-btn:hover { background: rgba(88,28,135,0.8); }
+        #avatar-visualize-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        #avatar-confirm-btn {
+            background: rgba(88,28,135,0.7); color: #fff;
+            border: 1px solid rgba(139,92,246,0.6);
+            animation: glowPulse 3s ease-in-out infinite;
+        }
+        #avatar-confirm-btn:hover { background: rgba(88,28,135,1); }
+        #avatar-confirm-btn:disabled { opacity: 0.3; cursor: not-allowed; animation: none; }
+        #avatar-error { color: #f87171; font-size: 0.8rem; margin-top: 0.5rem; display: none; }
+        .gender-row { display: flex; gap: 0.5rem; justify-content: center; margin-bottom: 1rem; }
+        .gender-btn {
+            font-family: 'Cinzel', serif; font-size: 0.55rem;
+            letter-spacing: 0.25em; text-transform: uppercase;
+            padding: 0.5rem 1.2rem; border-radius: 2px; cursor: pointer;
+            background: rgba(0,0,0,0.5); color: #6b7280;
+            border: 1px solid rgba(139,92,246,0.2); transition: all 0.2s;
+        }
+        .gender-btn:hover { border-color: rgba(139,92,246,0.5); color: #c4b5fd; }
+        .gender-btn.selected {
+            background: rgba(88,28,135,0.5); color: #e9d5ff;
+            border-color: rgba(139,92,246,0.7);
+        }
         @keyframes glowPulse {
-            0%, 100% { text-shadow: 0 0 20px rgba(139,92,246,0.4); }
-            50%       { text-shadow: 0 0 50px rgba(139,92,246,0.9), 0 0 80px rgba(139,92,246,0.3); }
+            0%,100% { text-shadow: 0 0 20px rgba(139,92,246,0.4); }
+            50%      { text-shadow: 0 0 50px rgba(139,92,246,0.9), 0 0 80px rgba(139,92,246,0.3); }
         }
         #enter-btn {
-            font-family: 'Cinzel', serif;
-            font-size: 0.75rem;
-            letter-spacing: 0.4em;
-            text-transform: uppercase;
-            color: #c4b5fd;
-            padding: 1.25rem 3rem;
+            font-family: 'Cinzel', serif; font-size: 0.75rem;
+            letter-spacing: 0.4em; text-transform: uppercase;
+            color: #c4b5fd; padding: 1.25rem 3rem;
             border: 1px solid rgba(139,92,246,0.5);
-            background: rgba(88,28,135,0.2);
-            cursor: pointer;
-            border-radius: 2px;
+            background: rgba(88,28,135,0.2); cursor: pointer;
+            border-radius: 2px; margin-top: 1.5rem;
             animation: glowPulse 3s ease-in-out infinite;
             transition: all 0.3s ease;
-            margin-top: 1.5rem;
         }
         #enter-btn:hover { background: rgba(88,28,135,0.8); transform: scale(1.05); }
 
         /* ── Generating indicator ── */
         #gen-indicator {
-            position: fixed;
-            top: 1.5rem; left: 50%; transform: translateX(-50%);
-            z-index: 50;
-            font-family: 'Cinzel', serif;
-            font-size: 0.5rem;
-            letter-spacing: 0.35em;
-            text-transform: uppercase;
-            color: #4c1d95;
-            opacity: 0;
-            transition: opacity 0.5s;
+            position: fixed; top: 1.5rem; left: 50%; transform: translateX(-50%);
+            z-index: 50; font-family: 'Cinzel', serif; font-size: 0.5rem;
+            letter-spacing: 0.35em; text-transform: uppercase;
+            color: #4c1d95; opacity: 0; transition: opacity 0.5s;
         }
         #gen-indicator.show { opacity: 1; }
 
         /* ── Progress dots ── */
         #progress-dots {
-            position: fixed;
-            bottom: 4vh; left: 50%; transform: translateX(-50%);
-            z-index: 50;
-            display: flex; gap: 8px;
-            opacity: 0;
-            transition: opacity 0.5s;
+            position: fixed; bottom: 4vh; left: 50%; transform: translateX(-50%);
+            z-index: 50; display: flex; gap: 8px;
+            opacity: 0; transition: opacity 0.5s;
         }
         #progress-dots.show { opacity: 1; }
-        .dot {
-            width: 6px; height: 6px;
-            border-radius: 50%;
-            background: #4c1d95;
-            transition: background 0.4s, transform 0.4s;
-        }
+        .dot { width: 6px; height: 6px; border-radius: 50%; background: #4c1d95; transition: background 0.4s, transform 0.4s; }
         .dot.active { background: #8b5cf6; transform: scale(1.4); }
         .dot.done   { background: #6d28d9; }
 
         /* ── Skip button ── */
         #skip-btn {
-            position: fixed;
-            bottom: 2rem; right: 2rem;
-            z-index: 50;
-            font-family: 'Cinzel', serif;
-            font-size: 0.6rem;
-            letter-spacing: 0.3em;
-            text-transform: uppercase;
-            color: #374151;
-            cursor: pointer;
-            transition: color 0.2s;
-            background: none;
-            border: none;
+            position: fixed; bottom: 2rem; right: 2rem; z-index: 50;
+            font-family: 'Cinzel', serif; font-size: 0.6rem;
+            letter-spacing: 0.3em; text-transform: uppercase;
+            color: #374151; cursor: pointer; transition: color 0.2s;
+            background: none; border: none;
         }
         #skip-btn:hover { color: #9ca3af; }
 
-        /* ── Clip transition fade ── */
+        /* ── Subtitles ── */
+        #subtitle {
+            position: fixed;
+            bottom: 14vh;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 30;
+            max-width: 70vw;
+            text-align: center;
+            font-family: 'Crimson Text', serif;
+            font-size: clamp(0.95rem, 2.2vw, 1.25rem);
+            font-style: italic;
+            color: #e5e7eb;
+            text-shadow: 0 1px 8px rgba(0,0,0,0.95), 0 0 24px rgba(0,0,0,0.8);
+            line-height: 1.55;
+            pointer-events: none;
+            min-height: 3em;
+            transition: opacity 0.4s ease;
+        }
+        #subtitle.hidden { opacity: 0; }
+
+        /* ── Clip fade ── */
         #clip-fade {
             position: fixed; inset: 0; z-index: 15;
-            background: #000;
-            opacity: 0;
-            transition: opacity 0.8s ease;
+            background: #000; opacity: 0; transition: opacity 0.8s ease;
             pointer-events: none;
         }
         #clip-fade.in { opacity: 1; }
@@ -279,38 +274,41 @@
 </head>
 <body>
 
-    <!-- Overlays -->
     <div id="scanlines"></div>
     <div id="vignette"></div>
     <div id="clip-fade"></div>
 
-    <!-- Letterbox bars -->
     <div class="letterbox" id="letterbox-top"></div>
     <div class="letterbox" id="letterbox-bottom"></div>
 
-    <!-- Video layer (3 clips, swap between them) -->
-    <div id="video-layer">
-        <video id="vid-0" class="clip-video" playsinline muted preload="auto"></video>
-        <video id="vid-1" class="clip-video" playsinline muted preload="auto"></video>
-        <video id="vid-2" class="clip-video" playsinline muted preload="auto"></video>
+    <div id="image-layer">
+        <img id="img-0" class="clip-image" src="" alt="">
+        <img id="img-1" class="clip-image" src="" alt="">
+        <img id="img-2" class="clip-image" src="" alt="">
+        <img id="img-3" class="clip-image" src="" alt="">
+        <img id="img-4" class="clip-image" src="" alt="">
+        <img id="img-5" class="clip-image" src="" alt="">
+        <img id="img-6" class="clip-image" src="" alt="">
     </div>
+
+    <!-- TTS narration audio (one per clip) -->
+    <audio id="aud-0" class="clip-audio" preload="auto"></audio>
+    <audio id="aud-1" class="clip-audio" preload="auto"></audio>
+    <audio id="aud-2" class="clip-audio" preload="auto"></audio>
 
     <canvas id="particles"></canvas>
 
-    <!-- Generating indicator -->
     <div id="gen-indicator">Forging vision through the void…</div>
-
-    <!-- Skip -->
     <button id="skip-btn" onclick="skipToEnter()">Skip ›</button>
+    <div id="subtitle" class="hidden"></div>
 
-    <!-- Progress dots (shown during cinematic) -->
     <div id="progress-dots">
         <div class="dot" id="dot-0"></div>
         <div class="dot" id="dot-1"></div>
         <div class="dot" id="dot-2"></div>
     </div>
 
-    <!-- ── PHASE 1: Title card ── -->
+    <!-- PHASE 1: Title card -->
     <div id="phase-title">
         <div class="title-eyebrow">Three hundred years ago</div>
         <div class="title-main">Echoes of the Fallen</div>
@@ -318,76 +316,103 @@
         <div class="title-sub">The Shattering</div>
     </div>
 
-    <!-- ── PHASE 2: Cinematic ── -->
+    <!-- PHASE 2: Cinematic -->
     <div id="phase-cinematic">
-
-        <!-- Chapter banner (shown briefly at start of each clip) -->
         <div id="chapter-banner">
             <div class="chapter-banner-label" id="chapter-label"></div>
             <div class="chapter-banner-title" id="chapter-title"></div>
             <div class="chapter-banner-rule"></div>
         </div>
-
-        <!-- Caption area -->
-        <div id="caption-area">
-            <div class="caption-label" id="caption-label-el"></div>
-            <div id="caption-text"></div>
-        </div>
-
     </div>
 
-    <!-- ── PHASE 3: Enter ── -->
+    <!-- PHASE 3: Enter -->
     <div id="phase-enter">
-        <div style="font-family:'Cinzel',serif; font-size:0.6rem; letter-spacing:0.6em; color:#4c1d95; text-transform:uppercase;">
-            The island awaits
+        <!-- Step A: initial enter prompt -->
+        <div id="enter-prompt">
+            <div style="font-family:'Cinzel',serif;font-size:0.6rem;letter-spacing:0.6em;color:#4c1d95;text-transform:uppercase;">
+                The island awaits
+            </div>
+            <button id="enter-btn" onclick="onEnterClick()">Enter the World</button>
+            <div style="font-family:'Crimson Text',serif;font-size:0.85rem;color:#374151;font-style:italic;margin-top:1.5rem;">
+                Your house awaits its heir.
+            </div>
         </div>
-        <button id="enter-btn" onclick="enterGame()">Enter the World</button>
-        <div style="font-family:'Crimson Text',serif; font-size:0.85rem; color:#374151; font-style:italic; margin-top:1.5rem;">
-            Your house awaits its heir.
+
+        <!-- Step B: avatar creation (shown for new players) -->
+        <div id="avatar-form">
+            <div style="font-family:'Cinzel',serif;font-size:0.55rem;letter-spacing:0.7em;color:#6d28d9;text-transform:uppercase;margin-bottom:1.2rem;">
+                Forge Your Visage
+            </div>
+            <div id="avatar-preview-wrap">
+                <img id="avatar-preview" src="">
+            </div>
+            <div class="gender-row">
+                <button class="gender-btn selected" data-gender="male" onclick="selectGender(this)">Male</button>
+                <button class="gender-btn" data-gender="female" onclick="selectGender(this)">Female</button>
+                <button class="gender-btn" data-gender="non-binary" onclick="selectGender(this)">Non-Binary</button>
+            </div>
+            <textarea id="avatar-desc" rows="3" maxlength="200"
+                placeholder="Describe your appearance — tall elven warrior with silver hair, glowing violet eyes, obsidian plate armor etched with void runes…"></textarea>
+            <div style="display:flex;gap:0.75rem;justify-content:center;">
+                <button id="avatar-visualize-btn" class="avatar-btn" onclick="visualizeAvatar()">Visualize</button>
+                <button id="avatar-confirm-btn" class="avatar-btn" onclick="confirmAvatar()" disabled>Enter the World</button>
+            </div>
+            <div id="avatar-error"></div>
         </div>
     </div>
 
     <script>
     // ── Clip data ─────────────────────────────────────────────────────────────
-    // Each clip: chapter label/title, then timed captions (seconds into clip)
+    // CLIP_FALLBACK_S: how long to show a clip if audio is unavailable
+    // CLIP_MAX_S: hard safety cap so we never hang forever
+    const CLIP_FALLBACK_S = 20;
+    const CLIP_MAX_S      = 60;
+
     const CLIPS = [
         {
-            idx: 0,
-            url: '/intro-video/0',
+            idx: 0, url: '/intro-video/0',
             chapter: { label: 'Prologue', title: 'The King Who Reached Too Far' },
-            captions: [
-                { at: 1.0,  text: 'Three hundred years ago, King Aldros Vael ruled the island of Ashenmere\nfrom the Shattered Spire — a tower so tall it pierced the clouds.' },
-                { at: 5.0,  text: 'He was not a cruel king. He was a <em>frightened</em> one.\nTerrified of death, he ordered his scholars to find immortality through the void.' },
+            subtitles: [
+                { t: 0,  text: "Three hundred years ago, King Aldros Vael ruled the island of Ashenmere from the Shattered Spire —" },
+                { t: 5.5,text: "a tower so tall it pierced the clouds above the Void Wastes." },
+                { t: 10, text: "He was not a cruel king. He was a frightened one." },
+                { t: 15, text: "Terrified of death, he commanded his scholars to find immortality through the void." },
             ],
         },
         {
-            idx: 1,
-            url: '/intro-video/1',
+            idx: 1, url: '/intro-video/1',
             chapter: { label: 'The Ritual', title: 'The Night of the Shattering' },
-            captions: [
-                { at: 1.0,  text: 'On the night of the dark moon, Aldros performed the Rite of Unbinding.\nSeven shards. Seven sacrifices. One king who wanted to live forever.' },
-                { at: 4.5,  text: 'The void answered. But not with the gift he asked for.\n<em>Aldros Vael became the Void Entity</em> — vast, hungry, and eternal.' },
+            subtitles: [
+                { t: 0,  text: "On the night of the dark moon, Aldros performed the Rite of Unbinding." },
+                { t: 4.5,text: "Seven shards. Seven sacrifices. One king who wanted to live forever." },
+                { t: 10, text: "The void answered — but not with the gift he asked for." },
+                { t: 15, text: "Aldros Vael became the Void Entity. Vast. Hungry. And eternal." },
             ],
         },
         {
-            idx: 2,
-            url: '/intro-video/2',
+            idx: 2, url: '/intro-video/2',
             chapter: { label: 'The Present', title: 'An Heir Rises' },
-            captions: [
-                { at: 1.0,  text: 'The rift never fully closed. For three centuries it has bled void energy\ninto Ashenmere — corrupting the land, twisting its creatures.' },
-                { at: 4.5,  text: 'Now a cult called <em>The Awakened</em> seeks to free him.\nThey are close to finishing what he started.\n\nYour house has always stood against the darkness.' },
+            subtitles: [
+                { t: 0,  text: "The rift never fully closed. For three centuries it has bled void energy into Ashenmere —" },
+                { t: 6.5,text: "corrupting the land, twisting its creatures." },
+                { t: 10, text: "A cult called The Awakened seeks to free him. They are close to finishing what Aldros started." },
+                { t: 17, text: "Your house has always stood against the darkness." },
+                { t: 21, text: "Now, it falls to you." },
             ],
         },
     ];
 
     // ── State ─────────────────────────────────────────────────────────────────
-    let currentClip  = 0;
-    let clipTimers   = [];
-    let videoPolling = null;
-    let clipReadiness = [false, false, false];
-    let cinematicStarted = false;
+    let currentClip      = 0;
+    let clipTimers       = [];
+    let imageReadiness   = [false, false, false, false, false, false, false];
+    let audioReadiness   = [false, false, false];
+    let mediaPolling     = null;
+    let clipImageMap     = { 0: [0], 1: [2], 2: [5] }; // default; overwritten by server
+    let imageCycleTimer  = null;
+    let imageCyclePos    = 0;
 
-    // ── Particles ─────────────────────────────────────────────────────────────
+    // ── Ambient particles ─────────────────────────────────────────────────────
     function initParticles() {
         const canvas = document.getElementById('particles');
         const ctx    = canvas.getContext('2d');
@@ -397,92 +422,96 @@
         window.addEventListener('resize', resize);
 
         const particles = Array.from({ length: 55 }, () => ({
-            x:    Math.random() * canvas.width,
-            y:    Math.random() * canvas.height,
-            size: Math.random() * 2 + 0.4,
-            vx:   (Math.random() - 0.5) * 0.25,
-            vy:   -(Math.random() * 0.4 + 0.1),
-            life: Math.random(),
+            x:     Math.random() * canvas.width,
+            y:     Math.random() * canvas.height,
+            size:  Math.random() * 2 + 0.4,
+            vx:    (Math.random() - 0.5) * 0.25,
+            vy:    -(Math.random() * 0.4 + 0.1),
+            life:  Math.random(),
             maxOp: Math.random() * 0.35 + 0.05,
             color: Math.random() > 0.5 ? '139,92,246' : '220,38,38',
         }));
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            particles.forEach(p => {
-                p.life += 0.003;
-                if (p.life > 1) { p.life = 0; p.x = Math.random() * canvas.width; p.y = canvas.height + 10; }
-                const alpha = p.life < 0.2 ? p.life / 0.2 : p.life > 0.8 ? (1 - p.life) / 0.2 : 1;
+            particles.forEach(pt => {
+                pt.life += 0.003;
+                if (pt.life > 1) { pt.life = 0; pt.x = Math.random() * canvas.width; pt.y = canvas.height + 10; }
+                const a = pt.life < 0.2 ? pt.life / 0.2 : pt.life > 0.8 ? (1 - pt.life) / 0.2 : 1;
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(${p.color},${alpha * p.maxOp})`;
+                ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(${pt.color},${a * pt.maxOp})`;
                 ctx.fill();
-                p.x += p.vx; p.y += p.vy;
+                pt.x += pt.vx; pt.y += pt.vy;
             });
             requestAnimationFrame(draw);
         }
         draw();
     }
 
-    // ── Video polling ─────────────────────────────────────────────────────────
-    async function setupVideos() {
-        // Trigger generation
+    // ── Media setup ───────────────────────────────────────────────────────────
+    async function setupAudio() {
+        // Try loading audio immediately — files may already exist
+        for (let i = 0; i < 3; i++) {
+            const aud = document.getElementById(`aud-${i}`);
+            aud.src = `/intro-audio/${i}`;
+            aud.load();
+            aud.addEventListener('loadedmetadata', () => { audioReadiness[i] = true; }, { once: true });
+        }
+
+        // Kick off generation and poll for both video and audio
         try { await fetch('/generate-intro', { method: 'POST' }); } catch (_) {}
-
-        // Load any clips that are immediately ready
-        await checkAndLoadClips();
-
-        // Poll for the rest
-        videoPolling = setInterval(checkAndLoadClips, 5000);
+        await checkMedia();
+        mediaPolling = setInterval(checkMedia, 5000);
     }
 
-    async function checkAndLoadClips() {
+    async function checkMedia() {
         try {
             const r = await fetch('/intro-status');
             const d = await r.json();
             let anyGenerating = false;
 
-            for (const clipInfo of d.clips) {
-                const i = clipInfo.idx;
-                if (clipInfo.status === 'ready' && !clipReadiness[i]) {
-                    clipReadiness[i] = true;
-                    loadClip(i);
+            // Update clip→image mapping from server
+            if (d.clip_image_map) {
+                clipImageMap = {};
+                for (const [k, v] of Object.entries(d.clip_image_map)) {
+                    clipImageMap[parseInt(k)] = v;
                 }
-                if (clipInfo.status === 'generating') anyGenerating = true;
             }
 
-            const genEl = document.getElementById('gen-indicator');
-            if (anyGenerating) genEl.classList.add('show');
-            else               genEl.classList.remove('show');
+            for (const info of (d.images || [])) {
+                if (info.status === 'ready' && !imageReadiness[info.idx]) {
+                    imageReadiness[info.idx] = true;
+                    const img = document.getElementById(`img-${info.idx}`);
+                    if (img) img.src = `/intro-image/${info.idx}?t=${Date.now()}`;
+                }
+                if (info.status === 'generating') anyGenerating = true;
+            }
+            for (const info of (d.audios || [])) {
+                if (info.status === 'ready' && !audioReadiness[info.idx]) {
+                    audioReadiness[info.idx] = true;
+                    const aud = document.getElementById(`aud-${info.idx}`);
+                    if (aud) { aud.src = `/intro-audio/${info.idx}`; aud.load(); }
+                }
+                if (info.status === 'generating') anyGenerating = true;
+            }
 
-            if (d.clips.every(c => c.status === 'ready')) {
-                clearInterval(videoPolling);
-                videoPolling = null;
+            document.getElementById('gen-indicator').classList.toggle('show', anyGenerating);
+            if ((d.images || []).every(c => c.status === 'ready') &&
+                (d.audios || []).every(a => a.status === 'ready')) {
+                clearInterval(mediaPolling); mediaPolling = null;
             }
         } catch (_) {}
     }
 
-    function loadClip(idx) {
-        const vid = document.getElementById(`vid-${idx}`);
-        vid.src = CLIPS[idx].url;
-        vid.load();
-        // If cinematic is already running and we just got the clip we're waiting on
-        if (cinematicStarted && currentClip === idx && !vid.classList.contains('active')) {
-            startClip(idx);
-        }
-    }
-
     // ── Phase management ──────────────────────────────────────────────────────
     function showPhase(name) {
-        ['title', 'cinematic', 'enter'].forEach(p => {
-            document.getElementById(`phase-${p}`).classList.remove('show');
-        });
+        ['title','cinematic','enter'].forEach(p => document.getElementById(`phase-${p}`).classList.remove('show'));
         if (name) requestAnimationFrame(() => document.getElementById(`phase-${name}`).classList.add('show'));
     }
 
     // ── Cinematic sequence ────────────────────────────────────────────────────
     function startCinematic() {
-        cinematicStarted = true;
         showPhase('cinematic');
         document.getElementById('progress-dots').classList.add('show');
         updateDots(0);
@@ -492,74 +521,115 @@
     function playClip(idx) {
         currentClip = idx;
         updateDots(idx);
-        const vid = document.getElementById(`vid-${idx}`);
+        startClip(idx);
+    }
 
-        if (clipReadiness[idx]) {
-            startClip(idx);
-        } else {
-            // Clip not ready yet — show generating indicator and wait
-            document.getElementById('gen-indicator').classList.add('show');
-            const check = setInterval(() => {
-                if (clipReadiness[idx]) {
-                    clearInterval(check);
-                    document.getElementById('gen-indicator').classList.remove('show');
-                    startClip(idx);
-                }
-            }, 1000);
+    function showClipImages(clipIdx) {
+        const imgIndices = clipImageMap[clipIdx] || [clipIdx];
+        const imgIdx     = imgIndices[imageCyclePos % imgIndices.length];
+        document.querySelectorAll('.clip-image').forEach(i => i.classList.remove('active'));
+        if (imageReadiness[imgIdx]) {
+            document.getElementById(`img-${imgIdx}`)?.classList.add('active');
+        }
+    }
+
+    function startImageCycle(clipIdx) {
+        clearInterval(imageCycleTimer);
+        imageCyclePos = 0;
+        showClipImages(clipIdx);
+        const imgIndices = clipImageMap[clipIdx] || [];
+        if (imgIndices.length > 1) {
+            imageCycleTimer = setInterval(() => {
+                imageCyclePos++;
+                showClipImages(clipIdx);
+            }, 9000);
         }
     }
 
     function startClip(idx) {
         const clip = CLIPS[idx];
-        const vid  = document.getElementById(`vid-${idx}`);
 
-        // Fade in this clip
         fadeOut(() => {
-            // Deactivate other videos
-            document.querySelectorAll('.clip-video').forEach(v => v.classList.remove('active'));
-            vid.currentTime = 0;
-            vid.play().catch(() => {});
-            vid.classList.add('active');
+            stopAudio();
+            startImageCycle(idx);
             fadeIn();
 
             showChapterBanner(clip.chapter, () => {
-                scheduleClipCaptions(idx);
+                const aud = document.getElementById(`aud-${idx}`);
+                if (aud && audioReadiness[idx]) {
+                    aud.currentTime = 0;
+                    aud.play().catch(() => {});
+                    setupSubtitles(idx, aud);
+                    aud.onended = () => advanceClip(idx);
+                } else {
+                    const t = setTimeout(() => advanceClip(idx), CLIP_FALLBACK_S * 1000);
+                    clipTimers.push(t);
+                }
             });
 
-            // Advance after 9.5s (clip is 8s + crossfade buffer)
-            const advanceTimer = setTimeout(() => {
-                if (idx + 1 < CLIPS.length) {
-                    clearCaptionTimers();
-                    hideCaption(() => playClip(idx + 1));
-                } else {
-                    clearCaptionTimers();
-                    hideCaption(advanceToEnter);
-                }
-            }, 9500);
-            clipTimers.push(advanceTimer);
+            // Safety cap — never hang longer than CLIP_MAX_S
+            const maxT = setTimeout(() => advanceClip(idx), CLIP_MAX_S * 1000);
+            clipTimers.push(maxT);
         });
     }
 
-    function scheduleClipCaptions(idx) {
-        const clip = CLIPS[idx];
-        const vid  = document.getElementById(`vid-${idx}`);
-
-        clip.captions.forEach(cap => {
-            const delay = cap.at * 1000;
-            const t = setTimeout(() => {
-                // Calculate how long until next caption or end
-                const nextAt = clip.captions.find(c => c.at > cap.at);
-                const holdUntil = nextAt ? nextAt.at - 0.5 : 8.5;
-                const holdMs = Math.max(1500, (holdUntil - cap.at) * 1000);
-                showCaption(cap.text, holdMs);
-            }, delay);
-            clipTimers.push(t);
-        });
+    function advanceClip(idx) {
+        clearCaptionTimers();
+        if (idx + 1 < CLIPS.length) playClip(idx + 1);
+        else advanceToEnter();
     }
 
     function clearCaptionTimers() {
         clipTimers.forEach(clearTimeout);
         clipTimers = [];
+    }
+
+    // ── Subtitle helpers ──────────────────────────────────────────────────────
+    function setupSubtitles(idx, aud) {
+        const rawSubs = CLIPS[idx].subtitles;
+        if (!rawSubs || !rawSubs.length) return;
+        const el = document.getElementById('subtitle');
+        el.classList.remove('hidden');
+
+        // Scale timestamps proportionally once we know the actual audio duration.
+        // rawSubs timestamps are estimates; scale so the last entry maps to 90% of duration.
+        function buildSubs() {
+            const dur = aud.duration;
+            if (!dur || !isFinite(dur)) return rawSubs;
+            const estimatedEnd = rawSubs[rawSubs.length - 1].t + 3; // ~3s for last line
+            const scale = (dur * 0.95) / estimatedEnd;
+            return rawSubs.map(s => ({ t: s.t * scale, text: s.text }));
+        }
+
+        let subs = rawSubs;
+        if (aud.readyState >= 1) {
+            subs = buildSubs();
+        } else {
+            aud.addEventListener('loadedmetadata', () => { subs = buildSubs(); }, { once: true });
+        }
+
+        aud.ontimeupdate = () => {
+            const t = aud.currentTime;
+            let text = '';
+            for (let i = subs.length - 1; i >= 0; i--) {
+                if (t >= subs[i].t) { text = subs[i].text; break; }
+            }
+            el.textContent = text;
+        };
+    }
+
+    function stopAudio() {
+        clearInterval(imageCycleTimer);
+        imageCycleTimer = null;
+        document.querySelectorAll('.clip-audio').forEach(a => {
+            a.pause();
+            a.currentTime  = 0;
+            a.onended      = null;
+            a.ontimeupdate = null;
+        });
+        document.querySelectorAll('.clip-image').forEach(img => { img.classList.remove('active'); });
+        const el = document.getElementById('subtitle');
+        if (el) { el.textContent = ''; el.classList.add('hidden'); }
     }
 
     // ── Chapter banner ────────────────────────────────────────────────────────
@@ -570,40 +640,17 @@
         banner.classList.add('show');
         setTimeout(() => {
             banner.classList.remove('show');
-            setTimeout(onDone, 600);
-        }, 2200);
-    }
-
-    // ── Caption helpers ───────────────────────────────────────────────────────
-    function showCaption(html, holdMs) {
-        const el = document.getElementById('caption-text');
-        // Fade out current, swap, fade in
-        el.classList.remove('show');
-        setTimeout(() => {
-            el.innerHTML = html.replace(/\n/g, '<br>');
-            el.classList.add('show');
-            // Auto-hide after hold duration
-            const t = setTimeout(() => el.classList.remove('show'), holdMs);
-            clipTimers.push(t);
-        }, 400);
-    }
-
-    function hideCaption(cb) {
-        const el = document.getElementById('caption-text');
-        el.classList.remove('show');
-        setTimeout(cb, 500);
+            setTimeout(onDone, 700);
+        }, 2800);
     }
 
     // ── Fade helpers ──────────────────────────────────────────────────────────
     function fadeOut(cb) {
-        const f = document.getElementById('clip-fade');
-        f.classList.add('in');
+        document.getElementById('clip-fade').classList.add('in');
         setTimeout(cb, 850);
     }
-
     function fadeIn() {
-        const f = document.getElementById('clip-fade');
-        setTimeout(() => f.classList.remove('in'), 50);
+        setTimeout(() => document.getElementById('clip-fade').classList.remove('in'), 50);
     }
 
     // ── Progress dots ─────────────────────────────────────────────────────────
@@ -617,32 +664,88 @@
     // ── Enter phase ───────────────────────────────────────────────────────────
     function advanceToEnter() {
         clearCaptionTimers();
+        stopAudio();
         document.getElementById('progress-dots').classList.remove('show');
         document.getElementById('chapter-banner').classList.remove('show');
-        document.getElementById('caption-text').classList.remove('show');
         showPhase('enter');
     }
 
     function skipToEnter() {
         clearCaptionTimers();
-        if (videoPolling) { clearInterval(videoPolling); videoPolling = null; }
+        if (mediaPolling) { clearInterval(mediaPolling); mediaPolling = null; }
         advanceToEnter();
     }
 
-    function enterGame() {
-        window.location.href = '/game';
+    // ── Avatar creation ───────────────────────────────────────────────────────
+    async function onEnterClick() {
+        const playerId = sessionStorage.getItem('playerId');
+        // Check if player already has an avatar (returning player)
+        try {
+            const r = await fetch(`/state/${encodeURIComponent(playerId)}`);
+            if (r.ok) {
+                const d = await r.json();
+                if (d.state && d.state.avatar_description) {
+                    // Already has avatar — go straight to game
+                    window.location.href = '/game';
+                    return;
+                }
+            }
+        } catch (_) {}
+        // New player — show avatar form
+        document.getElementById('enter-prompt').style.display = 'none';
+        document.getElementById('avatar-form').classList.add('show');
     }
+
+    let selectedGender = 'male';
+    function selectGender(btn) {
+        document.querySelectorAll('.gender-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        selectedGender = btn.dataset.gender;
+    }
+
+    async function visualizeAvatar() {
+        const desc  = document.getElementById('avatar-desc').value.trim();
+        const errEl = document.getElementById('avatar-error');
+        const btn   = document.getElementById('avatar-visualize-btn');
+        const cfm   = document.getElementById('avatar-confirm-btn');
+        if (!desc) { errEl.textContent = 'Describe your appearance first.'; errEl.style.display = 'block'; return; }
+        errEl.style.display = 'none';
+        btn.disabled = true;
+        btn.textContent = 'Visualizing…';
+
+        try {
+            const res = await fetch('/avatar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ player_id: sessionStorage.getItem('playerId'), description: desc, gender: selectedGender }),
+            });
+            if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || 'Failed');
+            const data = await res.json();
+            if (data.portrait) {
+                const wrap = document.getElementById('avatar-preview-wrap');
+                document.getElementById('avatar-preview').src = data.portrait;
+                wrap.classList.add('show');
+            }
+            cfm.disabled = false;
+        } catch (e) {
+            errEl.textContent = e.message;
+            errEl.style.display = 'block';
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Visualize';
+        }
+    }
+
+    function confirmAvatar() { window.location.href = '/game'; }
 
     // ── Init ──────────────────────────────────────────────────────────────────
     window.onload = () => {
         initParticles();
-        setupVideos();
+        setupAudio();
 
-        // Phase 1: title card
         showPhase('title');
         document.getElementById('phase-title').classList.add('show');
 
-        // After 4s, fade title and start cinematic
         setTimeout(() => {
             const title = document.getElementById('phase-title');
             title.style.transition = 'opacity 1.5s ease';

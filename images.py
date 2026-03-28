@@ -1,6 +1,7 @@
 import base64
 from google.genai.types import (
     GenerateImagesConfig,
+    GenerateContentConfig,
     EditImageConfig,
     SubjectReferenceImage,
     SubjectReferenceConfig,
@@ -31,6 +32,53 @@ def _decode_portrait(b64_str: str) -> bytes | None:
         return base64.b64decode(data)
     except Exception:
         return None
+
+
+def generate_avatar_visual_prompt(client, description: str, race: str = "", player_class: str = "", gender: str = "") -> str:
+    """
+    Uses Gemini to expand a player's raw avatar description into a detailed,
+    Imagen-optimised visual prompt. The result is stored once and reused for
+    every image generated during the game to keep the character consistent.
+    """
+    if not client or not description.strip():
+        return description
+
+    context = ""
+    parts = [p for p in [f"Race: {race}" if race else "", f"Class: {player_class}" if player_class else "", f"Gender: {gender}" if gender and gender != "unspecified" else ""] if p]
+    if parts:
+        context = ". ".join(parts) + ". "
+
+    system_prompt = (
+        "You are a character art director for a dark fantasy game in the style of League of Legends cinematic art. "
+        "Given a brief player-written character description, expand it into a single, richly detailed visual description "
+        "optimised for an AI image generator. "
+        "Cover: exact physical features (skin tone, hair colour and style, eye colour, build, height), "
+        "clothing and armour (materials, colours, condition, notable details), "
+        "any weapons or accessories visibly worn, and one or two character-defining visual details (scars, markings, aura). "
+        "Write in plain descriptive prose. No bullet points. No dialogue. No lore. "
+        "Keep it under 80 words. Do NOT mention the word 'player'."
+    )
+
+    user_msg = f"{context}Player description: {description.strip()}"
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.0-flash-001",
+            contents=user_msg,
+            config=GenerateContentConfig(
+                system_instruction=system_prompt,
+                temperature=0.4,
+                max_output_tokens=150,
+            ),
+        )
+        result = response.text.strip()
+        if result:
+            print(f"[avatar-prompt] expanded: {result[:120]}...")
+            return result
+    except Exception as e:
+        print(f"[avatar-prompt] expansion failed: {e}")
+
+    return description
 
 
 def generate_npc_portrait(client, npc_name: str, npc_description: str) -> str:

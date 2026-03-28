@@ -26,6 +26,7 @@ class RiseRequest(BaseModel):
 class AvatarRequest(BaseModel):
     player_id: str
     description: str
+    gender: str = "unspecified"
 
 class TravelRequest(BaseModel):
     player_id: str
@@ -39,3 +40,6 @@ class ForgeRequest(BaseModel):
     player_id:   str
     skill_ids:   list   # 1 or 2 skill ids to sacrifice
     description: str    # player's description of the new skill
+
+class TTSRequest(BaseModel):
+    text: str
