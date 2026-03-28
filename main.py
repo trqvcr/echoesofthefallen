@@ -4,12 +4,14 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from google import genai
+from google.genai.types import GenerateImagesConfig
 from dotenv import load_dotenv
 
 from models import RegisterRequest, LoginRequest, ActionRequest
 from db import get_player, save_player, get_world, get_all_locations, save_location, hash_password
 from enemies import tick_spawns
 from combat import player_to_state, _start_combat, process_combat_turn, _handle_death
+import base64;
 
 load_dotenv()
 
@@ -188,6 +190,32 @@ async def handle_action(request: ActionRequest):
             request.player_id, skill_defs
         )
 
+def _generate_scene_image(visual_prompt: str) -> str:
+    """Takes a visual prompt, calls Imagen 3, and returns a base64 Data URI."""
+    if not client or not visual_prompt or visual_prompt == "[none]":
+        return ""
+        
+    try:
+        # Note: Depending on your exact GenAI SDK version, the model name might be 'imagen-3.0-generate-001'
+        result = client.models.generate_images(
+            model='imagen-3.0-generate-001',
+            prompt=visual_prompt,
+            config=GenerateImagesConfig(
+                number_of_images=1,
+                aspect_ratio="16:9", # Perfect for your UI banner
+                output_mime_type="image/jpeg"
+            )
+        )
+        
+        if result.generated_images:
+            img_bytes = result.generated_images[0].image.image_bytes
+            b64_str = base64.b64encode(img_bytes).decode('utf-8')
+            return f"data:image/jpeg;base64,{b64_str}"
+            
+    except Exception as e:
+        print(f"Image generation failed: {e}")
+        
+    return ""
 
 # ── Exploration Handler ────────────────────────────────────────────────────────
 
