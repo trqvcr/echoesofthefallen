@@ -446,15 +446,35 @@
                 buildMiniMap(gameState.location);
             }
 
-            // Exit buttons
+            // Exit buttons — show compass direction + name
             const exitBtns = document.getElementById('exit-buttons');
             if (exitBtns && mapData && gameState.location && mapData[gameState.location]) {
-                const exits = mapData[gameState.location].exits || [];
+                const curLoc = mapData[gameState.location];
+                const exits  = curLoc.exits || [];
+                const cx = curLoc.x, cy = curLoc.y;
+
+                function getCompass(ex, ey) {
+                    if (cx == null || cy == null || ex == null || ey == null) return '';
+                    const dx = ex - cx, dy = ey - cy;
+                    const adx = Math.abs(dx), ady = Math.abs(dy);
+                    if (adx === 0 && ady === 0) return '';
+                    const ratio = adx / (adx + ady);
+                    if (ratio < 0.25)      return dy < 0 ? 'N' : 'S';
+                    if (ratio > 0.75)      return dx > 0 ? 'E' : 'W';
+                    if (dx > 0 && dy < 0)  return 'NE';
+                    if (dx < 0 && dy < 0)  return 'NW';
+                    if (dx > 0 && dy > 0)  return 'SE';
+                    return 'SW';
+                }
+
                 exitBtns.innerHTML = exits.map(exitKey => {
                     if (!mapData[exitKey]) return '';
+                    const el  = mapData[exitKey];
+                    const dir = getCompass(el.x, el.y);
+                    const label = dir ? `${dir} · ${el.name}` : el.name;
                     return `<button onclick="fastTravel('${exitKey}')"
                         class="title-font text-[9px] uppercase tracking-wider px-3 py-1.5 border border-purple-900/40 hover:border-purple-600 hover:text-purple-300 text-purple-600 rounded transition-all">
-                        ${mapData[exitKey].name}
+                        ${label}
                     </button>`;
                 }).join('');
             }
@@ -1466,6 +1486,18 @@
                 sMsg.className = "text-gray-300 leading-relaxed msg-fade";
                 sMsg.innerText = data.text;
                 log.appendChild(sMsg);
+
+                // Travel progress indicator
+                const tp = data.state && data.state.travel_progress;
+                if (tp && tp.target && tp.steps < tp.steps_needed) {
+                    const pips = Array.from({length: tp.steps_needed}, (_, i) =>
+                        `<span style="color:${i < tp.steps ? '#a855f7' : '#374151'}">◆</span>`
+                    ).join(' ');
+                    const tMsg = document.createElement('p');
+                    tMsg.className = "title-font text-[9px] tracking-widest uppercase msg-fade";
+                    tMsg.innerHTML = `heading toward ${(tp.target||'').replace(/_/g,' ')} &nbsp; ${pips}`;
+                    log.appendChild(tMsg);
+                }
 
                 // Environmental damage flash
                 if (data.env_damage > 0 && data.combat_event !== 'death') {

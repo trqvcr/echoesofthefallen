@@ -10,11 +10,15 @@ from google.genai.types import GenerateImagesConfig, GenerateContentConfig, Sche
 from dotenv import load_dotenv
 
 from models import RegisterRequest, LoginRequest, ActionRequest, RiseRequest, AvatarRequest, TravelRequest
-from db import get_player, save_player, get_world, get_all_locations, save_location, hash_password
+from db import get_player, save_player, get_world, save_world, get_all_locations, save_location, hash_password
 from enemies import tick_spawns
 from world_tick import tick_world
 from combat import player_to_state, _start_combat, process_combat_turn, _make_ancestor_record, build_heir
 from images import generate_scene_image, generate_avatar_portrait, generate_npc_portrait
+from story import (
+    get_story_context, get_story_nudge, check_act_advancement,
+    make_world_event, get_active_world_event, STORY_FLAGS,
+)
 from music import generate_ambient_music, get_music_context
 import base64
 
@@ -76,6 +80,16 @@ async def serve_map():
             "has_friendly": has_friendly,
         }
     return result
+
+
+# ── /events ───────────────────────────────────────────────────────────────────
+
+@app.get("/events")
+async def get_events():
+    """Polled by clients every few seconds. Returns active world event if any."""
+    world = get_world()
+    event = get_active_world_event(world.get("story", {}))
+    return event or {}
 
 
 # ── /register ──────────────────────────────────────────────────────────────────
@@ -162,6 +176,7 @@ async def register(request: RegisterRequest):
         "reputation":        {"saltmarsh": 0, "ashen_ruins": 0, "void_wastes": 0},
         "combat_state":      {"active": False},
         "visited_locations": ["ashen_courtyard"],
+        "travel_progress":   {},
     }
 
     save_player(player_id, player)
@@ -328,18 +343,98 @@ async def _process_exploration(
             "player_id":    player_id,
         }
 
-    # Movement
-    for exit_key in current_location.get("exits", []):
-        if exit_key.replace("_", " ") in action_lower or exit_key in action_lower:
-            if exit_key in all_locations:
-                player["location"] = exit_key
-                current_location   = all_locations[exit_key]
-                location_key       = exit_key
-                location_changed   = True
-                visited = player.setdefault("visited_locations", ["ashen_courtyard"])
-                if exit_key not in visited:
-                    visited.append(exit_key)
+    # ── Movement ──────────────────────────────────────────────────────────────
+    # Direction vectors: x increases east, y increases south (screen space)
+    DIRECTION_VECTORS = {
+        "north": (0, -1), "south": (0, 1), "east": (1, 0), "west": (-1, 0),
+        "northeast": (1, -1), "northwest": (-1, -1),
+        "southeast": (1, 1),  "southwest": (-1, 1),
+        "ne": (1, -1), "nw": (-1, -1), "se": (1, 1), "sw": (-1, 1),
+    }
+
+    move_keywords = ["go ", "head ", "move ", "travel ", "walk ", "run ", "proceed "]
+    direction_detected = None
+    for phrase, vec in DIRECTION_VECTORS.items():
+        if any(f"{mv}{phrase}" in action_lower for mv in move_keywords) or action_lower.strip() == phrase:
+            direction_detected = (phrase, vec)
             break
+
+    destination_key = None
+
+    if direction_detected:
+        _, (dx, dy) = direction_detected
+        cx = current_location.get("x")
+        cy = current_location.get("y")
+        if cx is not None and cy is not None:
+            best_score = -1
+            for exit_key in current_location.get("exits", []):
+                exit_loc = all_locations.get(exit_key, {})
+                ex = exit_loc.get("x")
+                ey = exit_loc.get("y")
+                if ex is None or ey is None:
+                    continue
+                # Dot product of direction vector with delta to exit
+                delta_x = ex - cx
+                delta_y = ey - cy
+                length  = max(1, abs(delta_x) + abs(delta_y))
+                score   = (dx * delta_x + dy * delta_y) / length
+                if score > best_score:
+                    best_score = score
+                    destination_key = exit_key if score > 0 else None
+
+    # Fall back to name-based matching if no direction found (or direction had no good exit)
+    if not destination_key:
+        for exit_key in current_location.get("exits", []):
+            if exit_key.replace("_", " ") in action_lower or exit_key in action_lower:
+                destination_key = exit_key
+                break
+
+    # ── Multi-step travel: require several moves to cross into a new area ──────
+    travel_context = ""  # injected into AI prompt when in transit
+    if destination_key and destination_key in all_locations:
+        target_loc = all_locations[destination_key]
+        cx = current_location.get("x", 0)
+        cy = current_location.get("y", 0)
+        tx = target_loc.get("x", cx)
+        ty = target_loc.get("y", cy)
+        dist         = abs(tx - cx) + abs(ty - cy)
+        steps_needed = min(4, max(2, dist))
+
+        progress = player.setdefault("travel_progress", {})
+        if progress.get("target") == destination_key:
+            progress["steps"] = progress.get("steps", 0) + 1
+        else:
+            # New direction — reset
+            progress["target"]       = destination_key
+            progress["steps"]        = 1
+            progress["steps_needed"] = steps_needed
+
+        steps         = progress["steps"]
+        steps_needed  = progress["steps_needed"]
+
+        if steps >= steps_needed:
+            # Arrived
+            player["location"] = destination_key
+            current_location   = all_locations[destination_key]
+            location_key       = destination_key
+            location_changed   = True
+            visited = player.setdefault("visited_locations", ["ashen_courtyard"])
+            if destination_key not in visited:
+                visited.append(destination_key)
+            player["travel_progress"] = {}
+        else:
+            # Still in transit — stay in current location, inform the AI
+            remaining = steps_needed - steps
+            travel_context = (
+                f"TRAVEL: Player is heading toward {target_loc.get('name', destination_key)} "
+                f"({steps}/{steps_needed} steps, {remaining} more needed). "
+                f"Narrate their journey through {current_location.get('name', '')} — "
+                f"describe what they see as they move in that direction. Do NOT say they arrived."
+            )
+            destination_key = None  # don't move yet
+    elif not direction_detected:
+        # Non-movement action — reset travel progress
+        player["travel_progress"] = {}
 
     # Combat initiation
     npcs             = current_location.get("npcs", {})
@@ -436,9 +531,16 @@ VISUAL: [scene description for image generation]"""
     player["history"].append(action)
     player["history"] = player["history"][-20:]
 
+    # ── Story context + nudge ──────────────────────────────────────────────────
+    story               = world_state.setdefault("story", {"act": 1, "flags": {}, "stats": {}, "world_event": None})
+    story_ctx           = get_story_context(story)
+    turns_no_progress   = player.get("story_turns_without_progress", 0)
+    nudge               = get_story_nudge(story, turns_no_progress)
+
     attrs  = player["attributes"]
     prompt = f"""You are a dark fantasy dungeon master for 'Echoes of the Fallen'.
 
+{story_ctx}
 WORLD HISTORY: {world_state['world_history']}
 LOCATION: {current_location['name']}
 DESCRIPTION: {current_location['description']}
@@ -454,7 +556,8 @@ INVENTORY: {player['inventory']}
 RECENT ACTIONS: {player['history'][-5:]}
 
 PLAYER ACTION: {action}
-
+{travel_context}
+{nudge}
 Respond with vivid narrative (2-3 sentences). Do NOT include any game mechanic notations, inventory updates, state updates, or bracketed annotations in your response — pure prose only."""
 
     narrative = "[The void is silent — no AI connected]"
@@ -624,28 +727,25 @@ The history field: one sentence in third person with the player's name. Empty st
                 current_location["npcs"][npc_id]["portrait"] = npc_portrait
                 location_dirty = True
 
-    # ── Reference image: generate once per location, reuse for all visitors ──────
+    # ── Scene image: always action-specific; seed reference_image if missing ─────
     visual_prompt = mutation.get("visual", "")
     ref_image     = current_location.get("reference_image", "")
 
-    if location_changed:
-        if ref_image:
-            scene_img = ref_image
-        else:
-            loc_prompt = f"{current_location.get('name', '')}: {current_location.get('description', '')}"
-            scene_img  = generate_scene_image(client, loc_prompt, player.get("avatar_description", ""))
-            if scene_img:
-                current_location["reference_image"] = scene_img
-                location_dirty = True
-    else:
-        scene_img = generate_scene_image(
-            client, visual_prompt,
-            player.get("avatar_description", ""),
-            npc_description=npc_description,
-        )
-        if scene_img and not ref_image:
-            current_location["reference_image"] = scene_img
-            location_dirty = True
+    # For action-driven movement, prefer the narrative's visual prompt so the
+    # image reflects what's actually happening on arrival. Fall back to the
+    # location description if Gemini didn't produce a visual tag.
+    if location_changed and not visual_prompt:
+        visual_prompt = f"{current_location.get('name', '')}: {current_location.get('description', '')}"
+
+    scene_img = generate_scene_image(
+        client, visual_prompt,
+        player.get("avatar_description", ""),
+        npc_description=npc_description,
+    )
+    # Cache as reference_image only if one doesn't exist yet (used by fast travel)
+    if scene_img and not ref_image:
+        current_location["reference_image"] = scene_img
+        location_dirty = True
 
     if location_dirty:
         save_location(location_key, current_location)

@@ -1,0 +1,118 @@
+
+ACTION: I look around the courtyard
+CALLING GEMINI...
+RAW: {
+  "env_damage": 0,
+  "visual": "Your gaze sweeps across the desolate Ashen Courtyard, the perpetual snowfall of ash lending a morbid silence to the blackened stones. The already shattered fountain lies in even greater ruin from your recent rage, its fragments mingling with the scorched earth where something immense once stood, near the stripped corpse of the long-dead soldier and the slain void wolf. Three dark archways offer a path deeper into the forsaken ruins, and for a moment, your eyes linger on the crude etching of your own name upon a crumbling wall.",
+  "state_changes": [
+    {
+      "key": "fountain",
+      "value": "ruined",
+      "description": "mutation_test's recent rage caused the already shattered fountain to fall into even greater ruin.",
+      "stages": ["intact", "cracked", "shattered", "ruined"],
+      "stage_duration_seconds": 14400
+    },
+    {
+      "key": "player_name_etched_wall",
+      "value": "etched",
+      "description": "mutation_test had previously etched their name onto a crumbling wall.",
+      "stages": [],
+      "stage_duration_seconds": 0
+    },
+    {
+      "key": "void_wolf_carcass",
+      "value": "slain",
+      "description": "mutation_test slew the void wolf, leaving its carcass in the courtyard.",
+      "stages": ["alive", "slain", "decaying", "bones"],
+      "stage_duration_seconds": 14400
+    }
+  ],
+  "npc_id": "",
+  "npc_delta": 0,
+  "npc_memory": "",
+  "history": "mutation_test observed the Ashen Courtyard, noting the further ruined fountain, the slain void wolf, and their name etched on a wall."
+}
+---
+
+ACTION: I smash my fist into the crumbling stone fountain as hard as I can
+CALLING GEMINI...
+RAW: {
+  "env_damage": 0,
+  "visual": "A desolate, ash-filled courtyard under a sunless sky, where the last remnants of a stone fountain have been pulverized into an indistinguishable heap of blackened rubble.",
+  "state_changes": [
+    {
+      "key": "fountain",
+      "value": "rubble",
+      "description": "mutation_test utterly destroyed the ancient fountain, reducing it to a permanent heap of rubble.",
+      "stages": [],
+      "stage_duration_seconds": 0
+    }
+  ],
+  "npc_id": "",
+  "npc_delta": 0,
+  "npc_memory": "",
+  "history": "mutation_test completely destroyed the ancient fountain in the courtyard, turning it into a pile of rubble."
+}
+---
+
+ACTION: I carve my name into the wall with my sword
+CALLING GEMINI...
+RAW: {
+  "env_damage": 0,
+  "visual": "A grim mark, the player's name, is etched deeper into the crumbling stone wall of a desolate courtyard, while ash continues to softly fall.",
+  "state_changes": [
+    {
+      "key": "player_name_etched_wall",
+      "value": "deepened",
+      "description": "mutation_test deepened the etching of their name into the crumbling wall.",
+      "stages": [],
+      "stage_duration_seconds": 0
+    }
+  ],
+  "npc_id": "",
+  "npc_delta": 0,
+  "npc_memory": "",
+  "history": "mutation_test deepened their name's etching into the crumbling wall."
+}
+---
+
+ACTION: I kick over the dead soldier and take his broken sword
+CALLING GEMINI...
+RAW: {
+  "env_damage": 0,
+  "visual": "A dark, scorched courtyard where a character in heavy boots stands over a dead soldier, whose armor-clad body is now toppled, and retrieves a jagged, broken sword from the ground.",
+  "state_changes": [
+    {
+      "key": "dead_soldier_position",
+      "value": "disturbed",
+      "description": "mutation_test disturbed the dead soldier's position by kicking it over.",
+      "stages": [],
+      "stage_duration_seconds": 0
+    },
+    {
+      "key": "dead_soldier_looted",
+      "value": "true",
+      "description": "mutation_test looted the dead soldier, taking its broken sword.",
+      "stages": [],
+      "stage_duration_seconds": 0
+    }
+  ],
+  "npc_id": "",
+  "npc_delta": 0,
+  "npc_memory": "",
+  "history": "mutation_test kicked over a dead soldier and took its broken sword."
+}
+---
+
+ACTION: I look up at the sky
+CALLING GEMINI...
+RAW: {
+  "env_damage": 0,
+  "visual": "The player gazes upwards at the pale, sickly grey sky where ash constantly falls, under a diffuse, melancholic light.",
+  "state_changes": [],
+  "npc_id": "",
+  "npc_delta": 0,
+  "npc_memory": "",
+  "history": ""
+}
+---

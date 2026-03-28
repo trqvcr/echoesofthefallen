@@ -173,8 +173,9 @@ def build_heir(dead_player: dict, heir_name: str) -> dict:
         },
         "lineage":          [ancestor] + dead_player.get("lineage", []),
         "reputation":       dead_player.get("reputation", {"saltmarsh": 0, "ashen_ruins": 0, "void_wastes": 0}),
-        "combat_state":     {"active": False},
+        "combat_state":      {"active": False},
         "visited_locations": ["ashen_courtyard"],
+        "travel_progress":   {},
     }
 
 
@@ -223,6 +224,7 @@ def player_to_state(player: dict, player_id: str = None) -> dict:
         "avatar_description":  player.get("avatar_description", ""),
         "avatar_portrait":     player.get("avatar_portrait", ""),
         "visited_locations":   _ensure_location_visited(player),
+        "travel_progress":     player.get("travel_progress", {}),
     }
 
 
