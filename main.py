@@ -22,7 +22,7 @@ from story import (
     VOID_ENEMY_IDS, STRANGER_STAGES,
 )
 from music import generate_ambient_music, get_music_context
-from video import intro_video_status, start_intro_generation, INTRO_VIDEO_PATH
+from video import intro_video_status, start_intro_generation, INTRO_VIDEO_PATH, INTRO_CLIPS, clip_status
 import base64
 
 load_dotenv()
@@ -65,9 +65,19 @@ async def serve_intro_video():
         return FileResponse(INTRO_VIDEO_PATH, media_type="video/mp4")
     raise HTTPException(status_code=404, detail="Intro video not ready yet")
 
+@app.get("/intro-video/{idx}")
+async def serve_intro_clip(idx: int):
+    if idx < 0 or idx >= len(INTRO_CLIPS):
+        raise HTTPException(status_code=404, detail="Invalid clip index")
+    path = INTRO_CLIPS[idx]["path"]
+    if os.path.exists(path):
+        return FileResponse(path, media_type="video/mp4")
+    raise HTTPException(status_code=404, detail=f"Clip {idx} not ready yet")
+
 @app.get("/intro-status")
 async def get_intro_status():
-    return {"status": intro_video_status()}
+    clips = [{"idx": i, "status": clip_status(i)} for i in range(len(INTRO_CLIPS))]
+    return {"status": intro_video_status(), "clips": clips}
 
 @app.post("/generate-intro")
 async def generate_intro():

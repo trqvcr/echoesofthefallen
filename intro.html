@@ -4,160 +4,190 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Echoes of the Fallen — The Shattering</title>
-    <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Crimson+Text:ital,wght@0,400;1,400&display=swap');
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
+
         body {
             background: #000;
             color: #fff;
-            font-family: 'Crimson Text', serif;
             overflow: hidden;
             height: 100vh;
             width: 100vw;
-            cursor: default;
         }
-        .title-font { font-family: 'Cinzel', serif; }
 
-        /* ── Video background ── */
-        #bg-video {
-            position: fixed;
-            inset: 0;
+        /* ── Scanlines ── */
+        #scanlines {
+            position: fixed; inset: 0; z-index: 2;
+            background: repeating-linear-gradient(
+                to bottom,
+                transparent 0px, transparent 3px,
+                rgba(0,0,0,0.04) 3px, rgba(0,0,0,0.04) 4px
+            );
+            pointer-events: none;
+        }
+
+        /* ── Vignette ── */
+        #vignette {
+            position: fixed; inset: 0; z-index: 2;
+            background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.75) 100%);
+            pointer-events: none;
+        }
+
+        /* ── Full-screen video layer ── */
+        #video-layer {
+            position: fixed; inset: 0; z-index: 0;
+        }
+        .clip-video {
+            position: absolute; inset: 0;
             width: 100%; height: 100%;
             object-fit: cover;
             opacity: 0;
-            transition: opacity 2s ease;
-            z-index: 0;
+            transition: opacity 1.2s ease;
         }
-        #bg-video.visible { opacity: 0.55; }
+        .clip-video.active { opacity: 1; }
 
-        /* ── Vignette overlay ── */
-        #vignette {
-            position: fixed; inset: 0; z-index: 1;
-            background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.85) 100%);
-            pointer-events: none;
-        }
-
-        /* ── Ambient particle field ── */
+        /* ── Ambient particles ── */
         #particles {
-            position: fixed; inset: 0; z-index: 1;
+            position: fixed; inset: 0; z-index: 3;
             pointer-events: none;
         }
-        .particle {
-            position: absolute;
-            border-radius: 50%;
-            animation: drift var(--dur) ease-in-out infinite var(--delay);
-            opacity: 0;
-        }
-        @keyframes drift {
-            0%   { opacity: 0; transform: translateY(0) scale(0.8); }
-            20%  { opacity: var(--max-op); }
-            80%  { opacity: var(--max-op); }
-            100% { opacity: 0; transform: translateY(-60px) scale(1.1); }
-        }
 
-        /* ── Phase: TITLE CARD ── */
+        /* ── Phase: title card ── */
         #phase-title {
             position: fixed; inset: 0; z-index: 10;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
             opacity: 0;
             transition: opacity 1.5s ease;
         }
         #phase-title.show { opacity: 1; }
 
-        /* ── Phase: TEXT CRAWL ── */
-        #phase-crawl {
-            position: fixed; inset: 0; z-index: 10;
-            display: flex; align-items: flex-end; justify-content: center;
-            perspective: 300px;
-            opacity: 0;
-            transition: opacity 1s ease;
-        }
-        #phase-crawl.show { opacity: 1; }
-
-        #crawl-viewport {
-            width: 100%; max-width: 680px;
-            transform: rotateX(20deg);
-            transform-origin: bottom center;
-            overflow: hidden;
-            height: 100vh;
-            position: relative;
-        }
-
-        #crawl-text {
-            position: absolute;
-            bottom: -120%;
-            width: 100%;
-            padding: 0 2rem 20rem;
-            text-align: center;
-            animation: crawlScroll var(--crawl-duration, 55s) linear forwards;
-        }
-        #crawl-text.paused { animation-play-state: paused; }
-
-        @keyframes crawlScroll {
-            from { bottom: -120%; }
-            to   { bottom: 130%; }
-        }
-
-        .crawl-chapter {
+        .title-eyebrow {
             font-family: 'Cinzel', serif;
-            font-size: 0.6rem;
-            letter-spacing: 0.5em;
+            font-size: 0.55rem;
+            letter-spacing: 0.8em;
+            color: #4c1d95;
+            text-transform: uppercase;
+            margin-bottom: 1.5rem;
+        }
+        .title-main {
+            font-family: 'Cinzel', serif;
+            font-size: clamp(2rem, 6vw, 4.5rem);
+            font-weight: 900;
+            color: #fff;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            line-height: 1.1;
+        }
+        .title-rule {
+            width: 160px; height: 1px;
+            background: linear-gradient(90deg, transparent, #7c3aed, transparent);
+            margin: 1.5rem auto;
+        }
+        .title-sub {
+            font-family: 'Crimson Text', serif;
+            font-size: 1rem;
+            color: #6b7280;
+            font-style: italic;
+            letter-spacing: 0.05em;
+        }
+
+        /* ── Phase: cinematic ── */
+        #phase-cinematic {
+            position: fixed; inset: 0; z-index: 10;
+            opacity: 0;
+            transition: opacity 1.2s ease;
+            pointer-events: none;
+        }
+        #phase-cinematic.show { opacity: 1; pointer-events: all; }
+
+        /* Letterbox bars */
+        .letterbox {
+            position: fixed; left: 0; right: 0; z-index: 4;
+            background: #000;
+            height: 12vh;
+            transition: height 0.8s ease;
+        }
+        #letterbox-top    { top: 0; }
+        #letterbox-bottom { bottom: 0; }
+
+        /* Caption area */
+        #caption-area {
+            position: fixed;
+            bottom: 14vh;
+            left: 50%; transform: translateX(-50%);
+            width: min(860px, 88vw);
+            z-index: 20;
+            text-align: center;
+            pointer-events: none;
+        }
+
+        .caption-label {
+            font-family: 'Cinzel', serif;
+            font-size: 0.5rem;
+            letter-spacing: 0.6em;
             color: #6d28d9;
             text-transform: uppercase;
-            margin-bottom: 0.4rem;
-            margin-top: 2.5rem;
-        }
-        .crawl-title {
-            font-family: 'Cinzel', serif;
-            font-size: 1.25rem;
-            color: #c4b5fd;
-            letter-spacing: 0.15em;
-            text-transform: uppercase;
-            margin-bottom: 1.2rem;
-        }
-        .crawl-body {
-            font-family: 'Crimson Text', serif;
-            font-size: 1.1rem;
-            color: #d1d5db;
-            line-height: 1.8;
             margin-bottom: 0.5rem;
+            opacity: 0;
+            transition: opacity 0.6s ease;
         }
-        .crawl-emphasis {
-            color: #f9a8d4;
-            font-style: italic;
+        .caption-label.show { opacity: 1; }
+
+        #caption-text {
+            font-family: 'Crimson Text', serif;
+            font-size: clamp(1rem, 2.2vw, 1.35rem);
+            color: #e5e7eb;
+            line-height: 1.75;
+            text-shadow: 0 2px 12px rgba(0,0,0,0.9), 0 0 40px rgba(0,0,0,0.7);
+            opacity: 0;
+            transition: opacity 0.7s ease;
         }
-        .crawl-divider {
-            color: #4c1d95;
-            letter-spacing: 0.5em;
+        #caption-text.show { opacity: 1; }
+        #caption-text em { color: #f9a8d4; font-style: italic; }
+
+        /* Chapter banner */
+        #chapter-banner {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 25;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.8s ease;
+            pointer-events: none;
+        }
+        #chapter-banner.show { opacity: 1; }
+        .chapter-banner-label {
             font-family: 'Cinzel', serif;
-            font-size: 0.7rem;
-            margin: 1.5rem 0;
+            font-size: 0.55rem;
+            letter-spacing: 0.7em;
+            color: #6d28d9;
+            text-transform: uppercase;
+            margin-bottom: 0.6rem;
+        }
+        .chapter-banner-title {
+            font-family: 'Cinzel', serif;
+            font-size: clamp(1.4rem, 3.5vw, 2.5rem);
+            font-weight: 700;
+            color: #c4b5fd;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+        .chapter-banner-rule {
+            width: 120px; height: 1px;
+            background: linear-gradient(90deg, transparent, #7c3aed, transparent);
+            margin: 0.8rem auto 0;
         }
 
-        /* Fade mask at top of crawl */
-        #crawl-fade-top {
-            position: fixed;
-            top: 0; left: 0; right: 0;
-            height: 30vh;
-            background: linear-gradient(to bottom, #000 0%, transparent 100%);
-            z-index: 11;
-            pointer-events: none;
-        }
-        #crawl-fade-bottom {
-            position: fixed;
-            bottom: 0; left: 0; right: 0;
-            height: 25vh;
-            background: linear-gradient(to top, #000 0%, transparent 100%);
-            z-index: 11;
-            pointer-events: none;
-        }
-
-        /* ── Phase: ENTER ── */
+        /* ── Phase: enter ── */
         #phase-enter {
-            position: fixed; inset: 0; z-index: 10;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            position: fixed; inset: 0; z-index: 30;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.7);
             opacity: 0;
             transition: opacity 2s ease;
             pointer-events: none;
@@ -169,13 +199,55 @@
             50%       { text-shadow: 0 0 50px rgba(139,92,246,0.9), 0 0 80px rgba(139,92,246,0.3); }
         }
         #enter-btn {
+            font-family: 'Cinzel', serif;
+            font-size: 0.75rem;
+            letter-spacing: 0.4em;
+            text-transform: uppercase;
+            color: #c4b5fd;
+            padding: 1.25rem 3rem;
+            border: 1px solid rgba(139,92,246,0.5);
+            background: rgba(88,28,135,0.2);
+            cursor: pointer;
+            border-radius: 2px;
             animation: glowPulse 3s ease-in-out infinite;
             transition: all 0.3s ease;
+            margin-top: 1.5rem;
         }
-        #enter-btn:hover {
-            background: rgba(88,28,135,0.8);
-            transform: scale(1.05);
+        #enter-btn:hover { background: rgba(88,28,135,0.8); transform: scale(1.05); }
+
+        /* ── Generating indicator ── */
+        #gen-indicator {
+            position: fixed;
+            top: 1.5rem; left: 50%; transform: translateX(-50%);
+            z-index: 50;
+            font-family: 'Cinzel', serif;
+            font-size: 0.5rem;
+            letter-spacing: 0.35em;
+            text-transform: uppercase;
+            color: #4c1d95;
+            opacity: 0;
+            transition: opacity 0.5s;
         }
+        #gen-indicator.show { opacity: 1; }
+
+        /* ── Progress dots ── */
+        #progress-dots {
+            position: fixed;
+            bottom: 4vh; left: 50%; transform: translateX(-50%);
+            z-index: 50;
+            display: flex; gap: 8px;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+        #progress-dots.show { opacity: 1; }
+        .dot {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: #4c1d95;
+            transition: background 0.4s, transform 0.4s;
+        }
+        .dot.active { background: #8b5cf6; transform: scale(1.4); }
+        .dot.done   { background: #6d28d9; }
 
         /* ── Skip button ── */
         #skip-btn {
@@ -183,10 +255,10 @@
             bottom: 2rem; right: 2rem;
             z-index: 50;
             font-family: 'Cinzel', serif;
-            font-size: 0.65rem;
+            font-size: 0.6rem;
             letter-spacing: 0.3em;
             text-transform: uppercase;
-            color: #4b5563;
+            color: #374151;
             cursor: pointer;
             transition: color 0.2s;
             background: none;
@@ -194,332 +266,390 @@
         }
         #skip-btn:hover { color: #9ca3af; }
 
-        /* ── Video loading indicator ── */
-        #video-status {
-            position: fixed;
-            top: 1.5rem; left: 50%; transform: translateX(-50%);
-            z-index: 50;
-            font-family: 'Cinzel', serif;
-            font-size: 0.55rem;
-            letter-spacing: 0.3em;
-            text-transform: uppercase;
-            color: #4c1d95;
+        /* ── Clip transition fade ── */
+        #clip-fade {
+            position: fixed; inset: 0; z-index: 15;
+            background: #000;
             opacity: 0;
-            transition: opacity 0.5s;
-        }
-        #video-status.show { opacity: 1; }
-
-        /* ── Scanline overlay for cinematic feel ── */
-        #scanlines {
-            position: fixed; inset: 0; z-index: 2;
-            background: repeating-linear-gradient(
-                to bottom,
-                transparent 0px, transparent 3px,
-                rgba(0,0,0,0.03) 3px, rgba(0,0,0,0.03) 4px
-            );
+            transition: opacity 0.8s ease;
             pointer-events: none;
         }
+        #clip-fade.in { opacity: 1; }
     </style>
 </head>
 <body>
 
-    <!-- Veo background video -->
-    <video id="bg-video" autoplay muted loop playsinline></video>
-
     <!-- Overlays -->
-    <div id="vignette"></div>
     <div id="scanlines"></div>
+    <div id="vignette"></div>
+    <div id="clip-fade"></div>
+
+    <!-- Letterbox bars -->
+    <div class="letterbox" id="letterbox-top"></div>
+    <div class="letterbox" id="letterbox-bottom"></div>
+
+    <!-- Video layer (3 clips, swap between them) -->
+    <div id="video-layer">
+        <video id="vid-0" class="clip-video" playsinline muted preload="auto"></video>
+        <video id="vid-1" class="clip-video" playsinline muted preload="auto"></video>
+        <video id="vid-2" class="clip-video" playsinline muted preload="auto"></video>
+    </div>
+
     <canvas id="particles"></canvas>
 
-    <!-- Crawl fade masks -->
-    <div id="crawl-fade-top"></div>
-    <div id="crawl-fade-bottom"></div>
+    <!-- Generating indicator -->
+    <div id="gen-indicator">Forging vision through the void…</div>
 
-    <!-- Video generation status indicator -->
-    <div id="video-status">Forging vision through the void...</div>
-
-    <!-- Skip button -->
+    <!-- Skip -->
     <button id="skip-btn" onclick="skipToEnter()">Skip ›</button>
+
+    <!-- Progress dots (shown during cinematic) -->
+    <div id="progress-dots">
+        <div class="dot" id="dot-0"></div>
+        <div class="dot" id="dot-1"></div>
+        <div class="dot" id="dot-2"></div>
+    </div>
 
     <!-- ── PHASE 1: Title card ── -->
     <div id="phase-title">
-        <div style="font-size: 0.55rem; letter-spacing: 0.8em; color: #4c1d95; font-family: 'Cinzel', serif; text-transform: uppercase; margin-bottom: 1.5rem;">
-            Three hundred years ago
-        </div>
-        <div style="font-family: 'Cinzel', serif; font-size: clamp(2rem, 6vw, 4.5rem); font-weight: 900; color: #fff; letter-spacing: 0.1em; text-transform: uppercase; line-height: 1.1;">
-            Echoes of the Fallen
-        </div>
-        <div style="width: 160px; height: 1px; background: linear-gradient(90deg, transparent, #7c3aed, transparent); margin: 1.5rem auto;"></div>
-        <div style="font-family: 'Crimson Text', serif; font-size: 1rem; color: #6b7280; font-style: italic; letter-spacing: 0.05em;">
-            The Shattering
-        </div>
+        <div class="title-eyebrow">Three hundred years ago</div>
+        <div class="title-main">Echoes of the Fallen</div>
+        <div class="title-rule"></div>
+        <div class="title-sub">The Shattering</div>
     </div>
 
-    <!-- ── PHASE 2: Text crawl ── -->
-    <div id="phase-crawl">
-        <div id="crawl-viewport">
-            <div id="crawl-text">
+    <!-- ── PHASE 2: Cinematic ── -->
+    <div id="phase-cinematic">
 
-                <div class="crawl-divider">✦ ✦ ✦</div>
+        <!-- Chapter banner (shown briefly at start of each clip) -->
+        <div id="chapter-banner">
+            <div class="chapter-banner-label" id="chapter-label"></div>
+            <div class="chapter-banner-title" id="chapter-title"></div>
+            <div class="chapter-banner-rule"></div>
+        </div>
 
-                <div class="crawl-chapter">Prologue</div>
-                <div class="crawl-title">The King Who Reached Too Far</div>
+        <!-- Caption area -->
+        <div id="caption-area">
+            <div class="caption-label" id="caption-label-el"></div>
+            <div id="caption-text"></div>
+        </div>
 
-                <p class="crawl-body">
-                    Three hundred years before your birth, King Aldros Vael ruled the island of Ashenmere
-                    from the Shattered Spire — a tower so tall it pierced the clouds above the Void Wastes.
-                </p>
-                <p class="crawl-body">
-                    He was not a cruel king. He was a <span class="crawl-emphasis">frightened</span> one.
-                    Terrified of death, he commissioned his scholars to find a path to immortality through
-                    the void — the ancient darkness that underlies all things.
-                </p>
-                <p class="crawl-body">
-                    They found it. They told him it would cost everything. He paid it anyway.
-                </p>
-
-                <div class="crawl-divider">— —</div>
-
-                <div class="crawl-chapter">The Ritual</div>
-                <div class="crawl-title">The Night of the Shattering</div>
-
-                <p class="crawl-body">
-                    On the night of the dark moon, Aldros performed the Rite of Unbinding at the Void Altar
-                    in the heart of the Wastes. Seven shards of crystallised void energy. Seven sacrifices.
-                    One king who wanted to live forever.
-                </p>
-                <p class="crawl-body">
-                    The void answered. But not with the gift he asked for.
-                </p>
-                <p class="crawl-body">
-                    The rift tore open. The island cracked from coast to coast.
-                    His body dissolved — not into death, but into the void itself.
-                    <span class="crawl-emphasis">Aldros Vael became the Void Entity.</span>
-                    Something vast. Something hungry. Something that remembered being human,
-                    and hated that it did.
-                </p>
-
-                <div class="crawl-divider">— —</div>
-
-                <div class="crawl-chapter">The Present</div>
-                <div class="crawl-title">The Awakened</div>
-
-                <p class="crawl-body">
-                    The rift never fully closed. For three centuries it has bled void energy into Ashenmere —
-                    corrupting the land, twisting the creatures, driving the survivors into walled settlements
-                    at the coast while the interior became something else entirely.
-                </p>
-                <p class="crawl-body">
-                    And now a cult has formed in the darkness.
-                </p>
-                <p class="crawl-body">
-                    They call themselves <span class="crawl-emphasis">The Awakened</span>. They believe Aldros
-                    was not destroyed but imprisoned — that the rift is a cage, not a wound. They have spent
-                    decades hunting the seven Ritual Shards scattered across the island when the Shattering
-                    tore them apart.
-                </p>
-                <p class="crawl-body">
-                    They have found most of them. They intend to finish what Aldros started.
-                </p>
-
-                <div class="crawl-divider">— —</div>
-
-                <div class="crawl-chapter">Your Role</div>
-                <div class="crawl-title">An Heir Rises</div>
-
-                <p class="crawl-body">
-                    Your house has stood on this island for generations. Whatever your ancestors did —
-                    or failed to do — the void remembers. It always remembers.
-                </p>
-                <p class="crawl-body">
-                    You are not the first of your line to fight this darkness. You will not be the last.
-                    Death here is not an ending — it is a handoff. Your heir carries the legacy forward.
-                </p>
-                <p class="crawl-body">
-                    The corruption rises. The cult moves closer to completion. A woman in the Ashen Flagon
-                    knows things she will not yet say. And somewhere in the Void Wastes,
-                    the Entity waits — patient as the dark between stars.
-                </p>
-
-                <div class="crawl-divider">✦ ✦ ✦</div>
-
-                <p class="crawl-body" style="color: #c4b5fd; font-style: italic; font-size: 1.2rem; margin-top: 1rem;">
-                    The void remembers your house.<br>
-                    Now show it why that matters.
-                </p>
-
-                <div style="height: 8rem;"></div>
-
-            </div><!-- crawl-text -->
-        </div><!-- crawl-viewport -->
-    </div><!-- phase-crawl -->
+    </div>
 
     <!-- ── PHASE 3: Enter ── -->
     <div id="phase-enter">
-        <div style="font-family: 'Cinzel', serif; font-size: 0.6rem; letter-spacing: 0.6em; color: #4c1d95; text-transform: uppercase; margin-bottom: 2rem;">
+        <div style="font-family:'Cinzel',serif; font-size:0.6rem; letter-spacing:0.6em; color:#4c1d95; text-transform:uppercase;">
             The island awaits
         </div>
-        <button id="enter-btn" onclick="enterGame()"
-            style="font-family: 'Cinzel', serif; font-size: 0.75rem; letter-spacing: 0.4em; text-transform: uppercase;
-                   color: #c4b5fd; padding: 1.25rem 3rem; border: 1px solid rgba(139,92,246,0.5);
-                   background: rgba(88,28,135,0.2); cursor: pointer; border-radius: 2px;">
-            Enter the World
-        </button>
-        <div style="font-family: 'Crimson Text', serif; font-size: 0.85rem; color: #374151; font-style: italic; margin-top: 1.5rem;">
+        <button id="enter-btn" onclick="enterGame()">Enter the World</button>
+        <div style="font-family:'Crimson Text',serif; font-size:0.85rem; color:#374151; font-style:italic; margin-top:1.5rem;">
             Your house awaits its heir.
         </div>
     </div>
 
     <script>
-        // ── State ─────────────────────────────────────────────────────────────
-        const PHASES = ['title', 'crawl', 'enter'];
-        let currentPhase = 0;
-        let crawlTimer   = null;
-        let phaseTimers  = [];
-        let videoPolling = null;
-        const CRAWL_DURATION = 55; // seconds
+    // ── Clip data ─────────────────────────────────────────────────────────────
+    // Each clip: chapter label/title, then timed captions (seconds into clip)
+    const CLIPS = [
+        {
+            idx: 0,
+            url: '/intro-video/0',
+            chapter: { label: 'Prologue', title: 'The King Who Reached Too Far' },
+            captions: [
+                { at: 1.0,  text: 'Three hundred years ago, King Aldros Vael ruled the island of Ashenmere\nfrom the Shattered Spire — a tower so tall it pierced the clouds.' },
+                { at: 5.0,  text: 'He was not a cruel king. He was a <em>frightened</em> one.\nTerrified of death, he ordered his scholars to find immortality through the void.' },
+            ],
+        },
+        {
+            idx: 1,
+            url: '/intro-video/1',
+            chapter: { label: 'The Ritual', title: 'The Night of the Shattering' },
+            captions: [
+                { at: 1.0,  text: 'On the night of the dark moon, Aldros performed the Rite of Unbinding.\nSeven shards. Seven sacrifices. One king who wanted to live forever.' },
+                { at: 4.5,  text: 'The void answered. But not with the gift he asked for.\n<em>Aldros Vael became the Void Entity</em> — vast, hungry, and eternal.' },
+            ],
+        },
+        {
+            idx: 2,
+            url: '/intro-video/2',
+            chapter: { label: 'The Present', title: 'An Heir Rises' },
+            captions: [
+                { at: 1.0,  text: 'The rift never fully closed. For three centuries it has bled void energy\ninto Ashenmere — corrupting the land, twisting its creatures.' },
+                { at: 4.5,  text: 'Now a cult called <em>The Awakened</em> seeks to free him.\nThey are close to finishing what he started.\n\nYour house has always stood against the darkness.' },
+            ],
+        },
+    ];
 
-        // ── Particles ─────────────────────────────────────────────────────────
-        function initParticles() {
-            const canvas = document.getElementById('particles');
-            const ctx    = canvas.getContext('2d');
-            canvas.width  = window.innerWidth;
-            canvas.height = window.innerHeight;
+    // ── State ─────────────────────────────────────────────────────────────────
+    let currentClip  = 0;
+    let clipTimers   = [];
+    let videoPolling = null;
+    let clipReadiness = [false, false, false];
+    let cinematicStarted = false;
 
-            const particles = Array.from({ length: 60 }, () => ({
-                x:    Math.random() * canvas.width,
-                y:    Math.random() * canvas.height,
-                size: Math.random() * 2 + 0.5,
-                vx:   (Math.random() - 0.5) * 0.3,
-                vy:   -(Math.random() * 0.5 + 0.1),
-                life: Math.random(),
-                maxLife: Math.random() * 0.4 + 0.1,
-                color: Math.random() > 0.5 ? `rgba(139,92,246,` : `rgba(220,38,38,`,
-            }));
+    // ── Particles ─────────────────────────────────────────────────────────────
+    function initParticles() {
+        const canvas = document.getElementById('particles');
+        const ctx    = canvas.getContext('2d');
+        canvas.style.cssText = 'position:fixed;inset:0;z-index:3;pointer-events:none;';
+        function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        resize();
+        window.addEventListener('resize', resize);
 
-            function draw() {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                particles.forEach(p => {
-                    p.life += 0.004;
-                    if (p.life > 1) {
-                        p.life = 0;
-                        p.x = Math.random() * canvas.width;
-                        p.y = canvas.height + 10;
-                    }
-                    const alpha = p.life < 0.2  ? p.life / 0.2 :
-                                  p.life > 0.8  ? (1 - p.life) / 0.2 : 1;
-                    ctx.beginPath();
-                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-                    ctx.fillStyle = p.color + (alpha * p.maxLife) + ')';
-                    ctx.fill();
-                    p.x += p.vx;
-                    p.y += p.vy;
-                });
-                requestAnimationFrame(draw);
-            }
-            draw();
-        }
+        const particles = Array.from({ length: 55 }, () => ({
+            x:    Math.random() * canvas.width,
+            y:    Math.random() * canvas.height,
+            size: Math.random() * 2 + 0.4,
+            vx:   (Math.random() - 0.5) * 0.25,
+            vy:   -(Math.random() * 0.4 + 0.1),
+            life: Math.random(),
+            maxOp: Math.random() * 0.35 + 0.05,
+            color: Math.random() > 0.5 ? '139,92,246' : '220,38,38',
+        }));
 
-        // ── Video loading ─────────────────────────────────────────────────────
-        async function setupVideo() {
-            // Kick off generation in background (no-op if already done)
-            try { await fetch('/generate-intro', { method: 'POST' }); } catch (_) {}
-
-            // Poll until ready
-            videoPolling = setInterval(async () => {
-                try {
-                    const r = await fetch('/intro-status');
-                    const d = await r.json();
-                    if (d.status === 'ready') {
-                        clearInterval(videoPolling);
-                        loadVideo();
-                    } else if (d.status === 'generating') {
-                        document.getElementById('video-status').classList.add('show');
-                    } else if (d.status === 'error' || d.status === 'no_client') {
-                        clearInterval(videoPolling);
-                        document.getElementById('video-status').classList.remove('show');
-                    }
-                } catch (_) {}
-            }, 5000);
-
-            // Also try immediately
-            try {
-                const r = await fetch('/intro-status');
-                const d = await r.json();
-                if (d.status === 'ready') {
-                    clearInterval(videoPolling);
-                    loadVideo();
-                }
-            } catch (_) {}
-        }
-
-        function loadVideo() {
-            const vid = document.getElementById('bg-video');
-            vid.src = '/intro-video';
-            vid.oncanplay = () => {
-                vid.classList.add('visible');
-                document.getElementById('video-status').classList.remove('show');
-            };
-            vid.load();
-        }
-
-        // ── Phase management ──────────────────────────────────────────────────
-        function showPhase(name) {
-            // Hide all phases
-            PHASES.forEach(p => {
-                const el = document.getElementById(`phase-${p}`);
-                el.classList.remove('show');
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => {
+                p.life += 0.003;
+                if (p.life > 1) { p.life = 0; p.x = Math.random() * canvas.width; p.y = canvas.height + 10; }
+                const alpha = p.life < 0.2 ? p.life / 0.2 : p.life > 0.8 ? (1 - p.life) / 0.2 : 1;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(${p.color},${alpha * p.maxOp})`;
+                ctx.fill();
+                p.x += p.vx; p.y += p.vy;
             });
-            const el = document.getElementById(`phase-${name}`);
-            requestAnimationFrame(() => el.classList.add('show'));
+            requestAnimationFrame(draw);
         }
+        draw();
+    }
 
-        function startCrawl() {
-            showPhase('crawl');
-            const crawlEl = document.getElementById('crawl-text');
-            crawlEl.style.setProperty('--crawl-duration', CRAWL_DURATION + 's');
-            // When crawl animation ends, advance to enter phase
-            crawlEl.addEventListener('animationend', () => {
-                advanceToEnter();
-            }, { once: true });
+    // ── Video polling ─────────────────────────────────────────────────────────
+    async function setupVideos() {
+        // Trigger generation
+        try { await fetch('/generate-intro', { method: 'POST' }); } catch (_) {}
+
+        // Load any clips that are immediately ready
+        await checkAndLoadClips();
+
+        // Poll for the rest
+        videoPolling = setInterval(checkAndLoadClips, 5000);
+    }
+
+    async function checkAndLoadClips() {
+        try {
+            const r = await fetch('/intro-status');
+            const d = await r.json();
+            let anyGenerating = false;
+
+            for (const clipInfo of d.clips) {
+                const i = clipInfo.idx;
+                if (clipInfo.status === 'ready' && !clipReadiness[i]) {
+                    clipReadiness[i] = true;
+                    loadClip(i);
+                }
+                if (clipInfo.status === 'generating') anyGenerating = true;
+            }
+
+            const genEl = document.getElementById('gen-indicator');
+            if (anyGenerating) genEl.classList.add('show');
+            else               genEl.classList.remove('show');
+
+            if (d.clips.every(c => c.status === 'ready')) {
+                clearInterval(videoPolling);
+                videoPolling = null;
+            }
+        } catch (_) {}
+    }
+
+    function loadClip(idx) {
+        const vid = document.getElementById(`vid-${idx}`);
+        vid.src = CLIPS[idx].url;
+        vid.load();
+        // If cinematic is already running and we just got the clip we're waiting on
+        if (cinematicStarted && currentClip === idx && !vid.classList.contains('active')) {
+            startClip(idx);
         }
+    }
 
-        function advanceToEnter() {
-            clearAllTimers();
-            showPhase('enter');
+    // ── Phase management ──────────────────────────────────────────────────────
+    function showPhase(name) {
+        ['title', 'cinematic', 'enter'].forEach(p => {
+            document.getElementById(`phase-${p}`).classList.remove('show');
+        });
+        if (name) requestAnimationFrame(() => document.getElementById(`phase-${name}`).classList.add('show'));
+    }
+
+    // ── Cinematic sequence ────────────────────────────────────────────────────
+    function startCinematic() {
+        cinematicStarted = true;
+        showPhase('cinematic');
+        document.getElementById('progress-dots').classList.add('show');
+        updateDots(0);
+        playClip(0);
+    }
+
+    function playClip(idx) {
+        currentClip = idx;
+        updateDots(idx);
+        const vid = document.getElementById(`vid-${idx}`);
+
+        if (clipReadiness[idx]) {
+            startClip(idx);
+        } else {
+            // Clip not ready yet — show generating indicator and wait
+            document.getElementById('gen-indicator').classList.add('show');
+            const check = setInterval(() => {
+                if (clipReadiness[idx]) {
+                    clearInterval(check);
+                    document.getElementById('gen-indicator').classList.remove('show');
+                    startClip(idx);
+                }
+            }, 1000);
         }
+    }
 
-        function clearAllTimers() {
-            phaseTimers.forEach(clearTimeout);
-            phaseTimers = [];
+    function startClip(idx) {
+        const clip = CLIPS[idx];
+        const vid  = document.getElementById(`vid-${idx}`);
+
+        // Fade in this clip
+        fadeOut(() => {
+            // Deactivate other videos
+            document.querySelectorAll('.clip-video').forEach(v => v.classList.remove('active'));
+            vid.currentTime = 0;
+            vid.play().catch(() => {});
+            vid.classList.add('active');
+            fadeIn();
+
+            showChapterBanner(clip.chapter, () => {
+                scheduleClipCaptions(idx);
+            });
+
+            // Advance after 9.5s (clip is 8s + crossfade buffer)
+            const advanceTimer = setTimeout(() => {
+                if (idx + 1 < CLIPS.length) {
+                    clearCaptionTimers();
+                    hideCaption(() => playClip(idx + 1));
+                } else {
+                    clearCaptionTimers();
+                    hideCaption(advanceToEnter);
+                }
+            }, 9500);
+            clipTimers.push(advanceTimer);
+        });
+    }
+
+    function scheduleClipCaptions(idx) {
+        const clip = CLIPS[idx];
+        const vid  = document.getElementById(`vid-${idx}`);
+
+        clip.captions.forEach(cap => {
+            const delay = cap.at * 1000;
+            const t = setTimeout(() => {
+                // Calculate how long until next caption or end
+                const nextAt = clip.captions.find(c => c.at > cap.at);
+                const holdUntil = nextAt ? nextAt.at - 0.5 : 8.5;
+                const holdMs = Math.max(1500, (holdUntil - cap.at) * 1000);
+                showCaption(cap.text, holdMs);
+            }, delay);
+            clipTimers.push(t);
+        });
+    }
+
+    function clearCaptionTimers() {
+        clipTimers.forEach(clearTimeout);
+        clipTimers = [];
+    }
+
+    // ── Chapter banner ────────────────────────────────────────────────────────
+    function showChapterBanner(chapter, onDone) {
+        const banner = document.getElementById('chapter-banner');
+        document.getElementById('chapter-label').textContent = chapter.label;
+        document.getElementById('chapter-title').textContent = chapter.title;
+        banner.classList.add('show');
+        setTimeout(() => {
+            banner.classList.remove('show');
+            setTimeout(onDone, 600);
+        }, 2200);
+    }
+
+    // ── Caption helpers ───────────────────────────────────────────────────────
+    function showCaption(html, holdMs) {
+        const el = document.getElementById('caption-text');
+        // Fade out current, swap, fade in
+        el.classList.remove('show');
+        setTimeout(() => {
+            el.innerHTML = html.replace(/\n/g, '<br>');
+            el.classList.add('show');
+            // Auto-hide after hold duration
+            const t = setTimeout(() => el.classList.remove('show'), holdMs);
+            clipTimers.push(t);
+        }, 400);
+    }
+
+    function hideCaption(cb) {
+        const el = document.getElementById('caption-text');
+        el.classList.remove('show');
+        setTimeout(cb, 500);
+    }
+
+    // ── Fade helpers ──────────────────────────────────────────────────────────
+    function fadeOut(cb) {
+        const f = document.getElementById('clip-fade');
+        f.classList.add('in');
+        setTimeout(cb, 850);
+    }
+
+    function fadeIn() {
+        const f = document.getElementById('clip-fade');
+        setTimeout(() => f.classList.remove('in'), 50);
+    }
+
+    // ── Progress dots ─────────────────────────────────────────────────────────
+    function updateDots(activeIdx) {
+        for (let i = 0; i < 3; i++) {
+            const d = document.getElementById(`dot-${i}`);
+            d.className = 'dot' + (i < activeIdx ? ' done' : i === activeIdx ? ' active' : '');
         }
+    }
 
-        function skipToEnter() {
-            clearAllTimers();
-            if (videoPolling) clearInterval(videoPolling);
-            advanceToEnter();
-        }
+    // ── Enter phase ───────────────────────────────────────────────────────────
+    function advanceToEnter() {
+        clearCaptionTimers();
+        document.getElementById('progress-dots').classList.remove('show');
+        document.getElementById('chapter-banner').classList.remove('show');
+        document.getElementById('caption-text').classList.remove('show');
+        showPhase('enter');
+    }
 
-        function enterGame() {
-            window.location.href = '/game';
-        }
+    function skipToEnter() {
+        clearCaptionTimers();
+        if (videoPolling) { clearInterval(videoPolling); videoPolling = null; }
+        advanceToEnter();
+    }
 
-        // ── Init ──────────────────────────────────────────────────────────────
-        window.onload = () => {
-            initParticles();
-            setupVideo();
+    function enterGame() {
+        window.location.href = '/game';
+    }
 
-            // Phase 1: title card — show immediately
-            showPhase('title');
+    // ── Init ──────────────────────────────────────────────────────────────────
+    window.onload = () => {
+        initParticles();
+        setupVideos();
 
-            // After 4s: fade title and start crawl
-            phaseTimers.push(setTimeout(() => {
-                const title = document.getElementById('phase-title');
-                title.style.transition = 'opacity 1.5s ease';
-                title.style.opacity    = '0';
-                setTimeout(startCrawl, 1500);
-            }, 4000));
-        };
+        // Phase 1: title card
+        showPhase('title');
+        document.getElementById('phase-title').classList.add('show');
+
+        // After 4s, fade title and start cinematic
+        setTimeout(() => {
+            const title = document.getElementById('phase-title');
+            title.style.transition = 'opacity 1.5s ease';
+            title.style.opacity    = '0';
+            setTimeout(startCinematic, 1500);
+        }, 4000);
+    };
     </script>
 </body>
 </html>

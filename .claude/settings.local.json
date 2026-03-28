@@ -12,7 +12,10 @@
       "Bash(python:*)",
       "Bash(grep -n \"localStorage\\\\.setItem\\\\|saveState\" /Users/trevortan/Code/echoesofthefallen/*.html /Users/trevortan/Code/echoesofthefallen/*.js)",
       "Bash(grep -n \"localStorage\\\\.setItem\\\\|saveState\" /Users/trevortan/Code/echoesofthefallen/static/*.js)",
-      "Bash(grep -rn localStorage.setItem /Users/trevortan/Code/echoesofthefallen/ --include=*.html --include=*.js)"
+      "Bash(grep -rn localStorage.setItem /Users/trevortan/Code/echoesofthefallen/ --include=*.html --include=*.js)",
+      "Bash(ls:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
