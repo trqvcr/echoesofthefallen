@@ -617,7 +617,7 @@ VISUAL: [image generation prompt: describe what the {player['race']} {player['cl
     enemy_data = loc_npcs.get(enemy_id, {})
     npc_portrait = enemy_data.get("portrait", "")
     if not npc_portrait and client and enemy_data.get("description"):
-        npc_portrait = generate_npc_portrait(client, cs.get("enemy_name", enemy_id), enemy_data["description"])
+        npc_portrait = generate_npc_portrait(client, cs.get("enemy_name", enemy_id), enemy_data["description"], npc_id=enemy_id)
         if npc_portrait:
             current_location["npcs"][enemy_id]["portrait"] = npc_portrait
             save_location(location_key, current_location)

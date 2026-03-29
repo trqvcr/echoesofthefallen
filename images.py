@@ -3,6 +3,7 @@ from google.genai.types import (
     GenerateImagesConfig,
     GenerateContentConfig,
 )
+from db import upload_image
 STYLE = (
     "League of Legends cinematic splash art style, painterly digital illustration, "
     "dramatic fantasy lighting, rich saturated colors, highly detailed, "
@@ -75,7 +76,7 @@ def generate_avatar_visual_prompt(client, description: str, race: str = "", play
     return description
 
 
-def generate_npc_portrait(client, npc_name: str, npc_description: str) -> str:
+def generate_npc_portrait(client, npc_name: str, npc_description: str, npc_id: str = "") -> str:
     if not client or not npc_description.strip():
         return ""
 
@@ -94,6 +95,11 @@ def generate_npc_portrait(client, npc_name: str, npc_description: str) -> str:
         )
         if result.generated_images:
             img_bytes = result.generated_images[0].image.image_bytes
+            if npc_id:
+                try:
+                    return upload_image(f"npcs/{npc_id}.jpg", img_bytes)
+                except Exception as e:
+                    print(f"[npc-portrait] storage upload failed: {e}")
             return f"data:image/jpeg;base64,{base64.b64encode(img_bytes).decode()}"
     except Exception as e:
         print(f"[npc-portrait] generation failed: {e}")
@@ -134,7 +140,7 @@ def generate_scene_image(
     return ""
 
 
-def generate_avatar_portrait(client, description: str) -> str:
+def generate_avatar_portrait(client, description: str, player_id: str = "") -> str:
     if not client or not description.strip():
         return ""
 
@@ -153,6 +159,11 @@ def generate_avatar_portrait(client, description: str) -> str:
         )
         if result.generated_images:
             img_bytes = result.generated_images[0].image.image_bytes
+            if player_id:
+                try:
+                    return upload_image(f"avatars/{player_id}.jpg", img_bytes)
+                except Exception as e:
+                    print(f"[avatar] storage upload failed: {e}")
             return f"data:image/jpeg;base64,{base64.b64encode(img_bytes).decode()}"
     except Exception as e:
         print(f"[avatar] generation failed: {e}")

@@ -62,6 +62,17 @@ def save_location(key: str, data: dict):
     sb.table("locations").upsert({"key": key, "data": data, "updated_at": datetime.now(timezone.utc).isoformat()}).execute()
 
 
+# ── Storage ────────────────────────────────────────────────────────────────────
+
+def upload_image(path: str, image_bytes: bytes) -> str:
+    """Upload raw JPEG bytes to the 'images' bucket. Returns the public URL."""
+    sb.storage.from_("images").upload(
+        path, image_bytes,
+        file_options={"content-type": "image/jpeg", "upsert": "true"},
+    )
+    return sb.storage.from_("images").get_public_url(path)
+
+
 # ── Auth ───────────────────────────────────────────────────────────────────────
 
 def hash_password(password: str) -> str:

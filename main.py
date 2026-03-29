@@ -430,7 +430,7 @@ async def set_avatar(request: AvatarRequest):
         gender=gender,
     )
 
-    portrait    = generate_avatar_portrait(client, visual_prompt)
+    portrait    = generate_avatar_portrait(client, visual_prompt, player_id=request.player_id)
     appearance  = _extract_appearance(client, description, gender, player.get("race", ""), player.get("class", ""))
 
     player["gender"]              = gender
@@ -775,7 +775,7 @@ VISUAL: [scene description for image generation]"""
         npc_portrait = npc_data.get("portrait", "")
         location_dirty_combat = False
         if not npc_portrait and client and npc_data.get("description"):
-            npc_portrait = generate_npc_portrait(client, npc_data["name"], npc_data["description"])
+            npc_portrait = generate_npc_portrait(client, npc_data["name"], npc_data["description"], npc_id=npc_id)
             if npc_portrait:
                 current_location["npcs"][npc_id]["portrait"] = npc_portrait
                 location_dirty_combat = True
@@ -1085,7 +1085,7 @@ history: one third-person sentence. Empty string if trivial."""
         npc_description = npc_data_exp.get("description", "")
         npc_portrait    = npc_data_exp.get("portrait", "")
         if not npc_portrait and client and npc_description:
-            npc_portrait = generate_npc_portrait(client, npc_data_exp.get("name", npc_id), npc_description)
+            npc_portrait = generate_npc_portrait(client, npc_data_exp.get("name", npc_id), npc_description, npc_id=npc_id)
             if npc_portrait:
                 current_location["npcs"][npc_id]["portrait"] = npc_portrait
                 location_dirty = True
