@@ -526,9 +526,7 @@ async def handle_action(request: ActionRequest):
 
     prev_context = get_music_context(pre_location, pre_combat)
     new_context  = get_music_context(post_location, post_combat)
-    needs_music  = True  # always generate; client handles looping
-
-    print(f"[DEBUG] prev_ctx={prev_context} new_ctx={new_context} combat_event={combat_event} needs_music={needs_music}")
+    needs_music  = prev_context != new_context or combat_event in ("victory", "death", "fled")
 
     loop = asyncio.get_running_loop()
 
@@ -559,11 +557,6 @@ async def handle_action(request: ActionRequest):
     if tasks:
         gathered = await asyncio.gather(*tasks.values(), return_exceptions=True)
         task_results = dict(zip(tasks.keys(), gathered))
-
-        if tasks:
-            gathered = await asyncio.gather(*tasks.values(), return_exceptions=True)
-            task_results = dict(zip(tasks.keys(), gathered))
-            print(f"[DEBUG] task_results keys: {list(task_results.keys())}, music: {task_results.get('music')}")  # ← ADD THIS LINE
 
         if "image" in task_results:
             scene_img = task_results["image"] if not isinstance(task_results["image"], Exception) else None
@@ -858,7 +851,12 @@ VISUAL: [scene description for image generation]"""
     npc_block = "\n".join(npc_lines) if npc_lines else "none"
 
 
-    prompt = f"""You are a dark fantasy dungeon master for 'Echoes of the Fallen'.
+    narrative = "[The void is silent — no AI connected]"
+    mutation  = {"narrative": narrative, "env_damage": 0, "visual": "", "state_changes": [], "items_gained": [], "npc_id": "", "npc_delta": 0, "npc_memory": "", "history": ""}
+
+    if client:
+        # Single combined call: narrative + structured mutations + visual
+        mutation_prompt = f"""You are a dark fantasy dungeon master AND world state extractor for 'Echoes of the Fallen'.
 
 {story_ctx}
 LOCATION: {current_location['name']}
@@ -879,57 +877,31 @@ RECENT ACTIONS: {player['history'][-5:]}
 PLAYER ACTION: {action}
 {travel_context}
 {nudge}
-Guidelines:
-- Respond directly to the player's action above — do not redirect or ignore it.
+
+--- NARRATIVE GUIDELINES ---
+- Respond directly to the player's action — do not redirect or ignore it.
 - If the player is talking to an NPC, write dialogue in their voice based on their personality. NPCs remember past interactions.
 - If the player is examining something, reveal lore and sensory detail — smells, sounds, inscriptions, textures.
-- If the player finds a clue or discovery, make it feel earned and specific to this location.
-- After narrating the action, naturally hint at 2-3 things the player could do next — weave them into the prose as environmental details, NPC behaviour, or things that catch the eye. Never list them as options; just describe them as part of the world (e.g. "A loose stone near the altar looks recently disturbed. The hooded figure in the corner hasn't moved.").
-Respond with vivid narrative (3-4 sentences). Do NOT include any game mechanic notations, inventory updates, state updates, or bracketed annotations in your response — pure prose only."""
+- After narrating, naturally hint at 2-3 things the player could do next — weave them into prose as environmental details or NPC behaviour. Never list them as options.
+- Vivid narrative, 3-4 sentences. Pure prose only — no mechanic notations or bracketed annotations.
 
-    narrative = "[The void is silent — no AI connected]"
-    mutation  = {"env_damage": 0, "visual": "", "state_changes": [], "items_gained": [], "npc_id": "", "npc_delta": 0, "npc_memory": "", "history": ""}
-
-    if client:
-        # Call 1: narrative
-        response  = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
-        narrative = response.text or "[The void is silent — no AI connected]"
-
-        # Call 2: structured mutations + visual scene description
-        mutation_prompt = f"""You are extracting world state changes and generating a visual scene description from a dark fantasy RPG action.
-
-LOCATION: {current_location['name']}
-DESCRIPTION: {current_location['description']}
-CURRENT STATE: {_format_state_for_prompt(current_location.get('state', {}))}
-NPCS HERE: {list(current_location.get('npcs', {}).keys())}
-
-PLAYER CHARACTER: {player['name']} | Race: {player['race']} | Class: {player['class']} | Gender: {player.get('gender', 'unspecified')}
-PLAYER APPEARANCE: {player.get('avatar_visual_prompt', player.get('avatar_description', 'a weathered adventurer in dark armor'))}
-
-NPCS IN THIS LOCATION:
-{npc_block}
-
-PLAYER ACTION: {action}
-NARRATIVE: {narrative}
-
----
-VISUAL SCENE PROMPT — write this as a direct prompt for an AI image generator:
+--- VISUAL SCENE PROMPT GUIDELINES ---
 - Describe what the {player.get('gender', '')} {player['race']} {player['class']} is physically DOING (specific action, pose, motion)
-- Include the environment: {current_location['name']} — key details, ruins, structures, ash, void energy
-- Lighting and mood: time of day, shadows, fog, void glow, dramatic angle
+- Include environment: {current_location['name']} — ruins, structures, ash, void energy
+- Lighting and mood: shadows, fog, void glow, dramatic angle
 - If an NPC is involved, include them and their position relative to the player
-- Write 1-2 rich sentences. Be concrete and visual — this feeds directly into image generation.
+- 1-2 rich concrete sentences for an AI image generator.
 
----
-World state change guidelines:
+--- WORLD STATE GUIDELINES ---
 Record any physical changes. Skip trivial actions (looking around, standing still).
-state_change: key (snake_case), value ("broken", "open"), description (what changed), stages (decay list or []), stage_duration_seconds (broken stone=14400, permanent=0).
-items_gained: items physically picked up. For countable resources, decrement a state counter first (e.g. dead_soldier_fingers_remaining). If count is "0", do NOT add to items_gained.
-history: one third-person sentence about {player['name']}. Empty string if trivial."""
+state_change: key (snake_case), value ("broken", "open"), description, stages (decay list or []), stage_duration_seconds (permanent=0).
+items_gained: items physically picked up only. Empty if none.
+history: one third-person sentence. Empty string if trivial."""
 
         mutation_schema = Schema(
             type=Type.OBJECT,
             properties={
+                "narrative":  Schema(type=Type.STRING,  description="Vivid dark fantasy narrative responding to the player's action. 3-4 sentences, pure prose."),
                 "env_damage": Schema(type=Type.INTEGER, description="HP damage from environment (falling, traps, fire), 0 if none"),
                 "visual":     Schema(type=Type.STRING,  description="One vivid sentence of SCENE/ENVIRONMENT for image generation. Do NOT describe the player character — that is added separately."),
                 "state_changes": Schema(
@@ -971,7 +943,7 @@ history: one third-person sentence about {player['name']}. Empty string if trivi
                     "Empty string if none of these apply."
                 )),
             },
-            required=["env_damage", "visual", "state_changes", "items_gained", "npc_id", "npc_delta", "npc_memory", "history", "story_flag"]
+            required=["narrative", "env_damage", "visual", "state_changes", "items_gained", "npc_id", "npc_delta", "npc_memory", "history", "story_flag"]
         )
 
         try:
@@ -984,6 +956,7 @@ history: one third-person sentence about {player['name']}. Empty string if trivi
                 )
             )
             mutation = json.loads(mut_response.text)
+            narrative = mutation.get("narrative", narrative)
         except Exception as e:
             print(f"Mutation extraction failed: {e}")
 

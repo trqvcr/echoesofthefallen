@@ -711,7 +711,7 @@
                     gameState.location.replace(/_/g, ' ').toUpperCase();
                 const locBar = document.getElementById('map-cur-loc');
                 if (locBar) locBar.textContent = gameState.location.replace(/_/g, ' ');
-                if (isMapOpen) syncMapLocation(gameState.location);
+                if (isMapOpen) { buildMapSVG(); syncMapLocation(gameState.location); }
                 buildMiniMap(gameState.location);
             }
 

@@ -593,6 +593,7 @@ VISUAL: [image generation prompt: describe what the {player['race']} {player['cl
     if combat_event == "ongoing":
         cs["player_effects"] = _tick_effects(cs["player_effects"])
         cs["enemy_effects"]  = _tick_effects(cs["enemy_effects"])
+        cs["skill_cooldowns"] = {k: v - 1 for k, v in cs["skill_cooldowns"].items() if v - 1 > 0}
 
     # ── Death ──────────────────────────────────────────────────────────────────
     if combat_event == "death" or player["hp"] <= 0:
