@@ -158,6 +158,13 @@
         /* Voice control */
         #voice-toggle { transition: color 0.2s; }
         #voice-toggle.muted { color: #4b5563; }
+
+        /* PvP banner */
+        @keyframes pvpPulse {
+            0%, 100% { border-color: rgba(234, 88, 12, 0.3); }
+            50%       { border-color: rgba(234, 88, 12, 0.8); }
+        }
+        #pvp-banner { animation: pvpPulse 2s ease-in-out infinite; }
     </style>
 </head>
 <body class="text-gray-200 min-h-screen flex items-center justify-center p-4">
@@ -216,8 +223,8 @@
     </div>
 
     <!-- ── CUTSCENE MODAL ── -->
-    <div id="cutscene-modal" class="hidden fixed inset-0 z-[100] bg-black flex items-center justify-center">
-        <video id="cutscene-video" class="w-full h-full object-cover" autoplay playsinline></video>
+    <div id="cutscene-modal" class="hidden fixed inset-0 z-[100] bg-black">
+        <video id="cutscene-video" class="absolute inset-0 w-full h-full object-cover" autoplay playsinline></video>
         <div id="cutscene-vignette" class="pointer-events-none absolute inset-0"
             style="background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.8) 100%)"></div>
         <button onclick="dismissCutscene()"
@@ -262,6 +269,25 @@
                 </button>
             </div>
             <p id="forge-result" class="text-xs text-gray-400 mt-3 hidden"></p>
+        </div>
+    </div>
+
+    <!-- ── PvP INCOMING CHALLENGE MODAL ── -->
+    <div id="pvp-challenge-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+        <div class="sidebar-box rounded-lg p-6 max-w-sm w-full mx-4 text-center">
+            <div class="title-font text-3xl text-orange-500 mb-3">⚔</div>
+            <h2 class="title-font text-sm text-orange-400 tracking-[0.2em] uppercase mb-1">Challenge Received</h2>
+            <p id="pvp-challenger-name" class="text-gray-400 text-xs italic mb-5"></p>
+            <div class="flex gap-3 justify-center">
+                <button onclick="acceptPvpChallenge()"
+                    class="title-font text-xs uppercase tracking-widest px-5 py-2 bg-red-900 hover:bg-red-700 text-white rounded transition-all">
+                    Accept
+                </button>
+                <button onclick="declinePvpChallenge()"
+                    class="title-font text-xs uppercase tracking-widest px-5 py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded transition-all">
+                    Decline
+                </button>
+            </div>
         </div>
     </div>
 
@@ -480,6 +506,48 @@
                 </div>
             </div>
 
+            <!-- PvP Fight Banner -->
+            <div id="pvp-banner" class="hidden flex-shrink-0 bg-orange-950/20 border-b border-orange-900/40 px-6 py-3">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="title-font text-xs text-orange-400 tracking-widest uppercase">⚔ Duel</span>
+                    <span id="pvp-opponent-name" class="title-font text-xs text-gray-300 uppercase tracking-widest"></span>
+                    <span id="pvp-round-display" class="title-font text-xs text-gray-600 tracking-widest"></span>
+                </div>
+                <div class="flex gap-4 items-center mb-2">
+                    <div class="flex-1">
+                        <div class="w-full h-2 stat-bar-bg rounded-full overflow-hidden">
+                            <div id="pvp-my-hp-fill" class="h-full bg-green-700 rounded-full transition-all duration-500" style="width:100%"></div>
+                        </div>
+                        <div class="flex justify-between mt-0.5">
+                            <span class="text-[9px] text-gray-600">Your HP</span>
+                            <span id="pvp-my-hp-text" class="text-[9px] text-green-400"></span>
+                        </div>
+                    </div>
+                    <div class="flex-1">
+                        <div class="w-full h-2 stat-bar-bg rounded-full overflow-hidden">
+                            <div id="pvp-opp-hp-fill" class="h-full bg-red-800 rounded-full transition-all duration-500" style="width:100%"></div>
+                        </div>
+                        <div class="flex justify-between mt-0.5">
+                            <span class="text-[9px] text-gray-600">Opp HP</span>
+                            <span id="pvp-opp-hp-text" class="text-[9px] text-red-400"></span>
+                        </div>
+                    </div>
+                </div>
+                <div id="pvp-turn-row" class="flex gap-2 items-center">
+                    <input id="pvp-action-input" type="text" placeholder="Your move..."
+                        class="flex-1 bg-black/40 border border-orange-900/40 text-orange-200 placeholder-gray-700 text-xs font-mono px-3 py-1.5 rounded focus:outline-none focus:border-orange-600"
+                        onkeypress="if(event.key==='Enter') sendPvpTurn()">
+                    <button onclick="sendPvpTurn()"
+                        class="title-font text-[9px] uppercase tracking-widest px-4 py-1.5 bg-orange-900 hover:bg-orange-700 text-white rounded transition-all">
+                        Strike
+                    </button>
+                </div>
+                <p id="pvp-wait-msg" class="hidden text-[9px] text-gray-600 italic title-font tracking-widest uppercase text-center py-1">
+                    Waiting for opponent...
+                </p>
+                <div id="pvp-log" class="text-[9px] text-gray-600 mt-1.5 space-y-0.5"></div>
+            </div>
+
             <!-- Narrative Log -->
             <div id="narrative-log" class="flex-1 p-8 overflow-y-auto space-y-6 min-h-0">
                 <p class="text-purple-400 italic title-font text-sm tracking-widest text-center">— THE VOID STIRS. YOUR LEGACY BEGINS. —</p>
@@ -496,7 +564,7 @@
             </div>
         </div>
 
-        <!-- Right panel: minimap -->
+        <!-- Right panel: minimap + duel -->
         <div class="w-44 flex flex-col gap-3 flex-shrink-0">
             <div class="sidebar-box rounded-lg p-3">
                 <h3 class="title-font text-[10px] text-purple-500 tracking-[0.3em] uppercase mb-2 text-center">Vicinity</h3>
@@ -504,6 +572,17 @@
                     <div id="minimap-title">Area Map</div>
                     <svg id="minimap-svg" width="100%" height="100" viewBox="0 0 220 88" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice"></svg>
                 </div>
+            </div>
+            <div class="sidebar-box rounded-lg p-3">
+                <h3 class="title-font text-[10px] text-orange-600 tracking-[0.3em] uppercase mb-2 text-center">Duel</h3>
+                <input id="pvp-target-input" type="text" placeholder="Player name..."
+                    class="w-full bg-black/40 border border-orange-900/30 text-gray-300 text-xs px-2 py-1.5 rounded mb-2 focus:outline-none focus:border-orange-600 placeholder-gray-700 font-mono"
+                    onkeypress="if(event.key==='Enter') sendPvpChallenge()">
+                <button onclick="sendPvpChallenge()"
+                    class="w-full title-font text-[9px] uppercase tracking-widest py-1.5 border border-orange-900/40 hover:border-orange-600/60 text-orange-600 hover:text-orange-400 rounded transition-colors">
+                    Challenge
+                </button>
+                <p id="pvp-challenge-status" class="text-[9px] text-gray-600 mt-2 text-center hidden"></p>
             </div>
         </div>
     </div>
@@ -2191,6 +2270,184 @@
 
         btn.addEventListener('click', sendAction);
         input.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendAction(); });
+
+        // ── PvP ───────────────────────────────────────────────────────────────
+        let pvpFightId        = null;
+        let pendingPvpFightId = null;
+
+        async function sendPvpChallenge() {
+            const pid    = sessionStorage.getItem('playerId');
+            const raw    = (document.getElementById('pvp-target-input').value || '').trim();
+            const target = raw.toLowerCase().replace(/ /g, '_');
+            const status = document.getElementById('pvp-challenge-status');
+            if (!target || !pid) return;
+            status.textContent = 'Sending...';
+            status.classList.remove('hidden');
+            try {
+                const res  = await fetch('/pvp-challenge', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ challenger_id: pid, target_id: target })
+                });
+                const data = await res.json();
+                status.textContent = res.ok ? (data.text || 'Challenge sent!') : (data.detail || 'Failed.');
+                if (res.ok) pvpFightId = data.fight_id;
+            } catch(e) { status.textContent = 'Error: ' + e.message; }
+        }
+
+        async function acceptPvpChallenge() {
+            const pid = sessionStorage.getItem('playerId');
+            if (!pendingPvpFightId) return;
+            document.getElementById('pvp-challenge-modal').classList.add('hidden');
+            try {
+                const res  = await fetch('/pvp-accept', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ player_id: pid, fight_id: pendingPvpFightId })
+                });
+                const data = await res.json();
+                if (!res.ok) return;
+                pvpFightId        = pendingPvpFightId;
+                pendingPvpFightId = null;
+                document.getElementById('pvp-banner').classList.remove('hidden');
+                _pvpUpdateTurnUI(data.whose_turn);
+                _pvpAppendLog(data.text || 'The duel begins!', 'text-orange-400');
+            } catch(e) { console.error(e); }
+        }
+
+        function declinePvpChallenge() {
+            document.getElementById('pvp-challenge-modal').classList.add('hidden');
+            pendingPvpFightId = null;
+        }
+
+        async function sendPvpTurn() {
+            const pid    = sessionStorage.getItem('playerId');
+            const action = (document.getElementById('pvp-action-input').value || '').trim();
+            if (!action || !pvpFightId) return;
+            document.getElementById('pvp-action-input').value = '';
+            document.getElementById('pvp-turn-row').classList.add('hidden');
+            try {
+                const res  = await fetch('/pvp-action', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ player_id: pid, fight_id: pvpFightId, action })
+                });
+                const data = await res.json();
+                if (!res.ok) { console.error(data.detail); _pvpUpdateTurnUI(pid); return; }
+                _pvpHandleResult(data);
+            } catch(e) { console.error(e); }
+        }
+
+        function _pvpHandleResult(data) {
+            const pid = sessionStorage.getItem('playerId');
+
+            // Update HP from acting/opponent state
+            const my  = data.acting_state;
+            const opp = data.opponent_state;
+            if (my && opp) {
+                document.getElementById('pvp-my-hp-text').textContent  = `${my.hp} / ${my.max_hp}`;
+                document.getElementById('pvp-opp-hp-text').textContent = `${opp.hp} / ${opp.max_hp}`;
+                document.getElementById('pvp-my-hp-fill').style.width  = `${Math.max(0, my.hp / my.max_hp * 100)}%`;
+                document.getElementById('pvp-opp-hp-fill').style.width = `${Math.max(0, opp.hp / opp.max_hp * 100)}%`;
+                gameState = my; saveState(gameState); updateUI();
+            }
+
+            // Combat log in banner
+            const logEl = document.getElementById('pvp-log');
+            if (data.log) logEl.innerHTML = data.log.map(l => `<div>${l}</div>`).join('');
+
+            // Damage readout in narrative
+            const nlog = document.getElementById('narrative-log');
+            if (data.acting_dmg > 0 || data.opp_dmg > 0) {
+                const wrap = document.createElement('div');
+                wrap.className = 'flex gap-4 msg-fade';
+                if (data.acting_dmg > 0) {
+                    const s = document.createElement('span');
+                    s.className = 'title-font text-sm tracking-widest font-bold';
+                    s.style.color = '#facc15';
+                    s.innerText = `⚔ ${data.acting_dmg} DMG dealt`;
+                    wrap.appendChild(s);
+                }
+                if (data.opp_dmg > 0) {
+                    const s = document.createElement('span');
+                    s.className = 'title-font text-sm tracking-widest font-bold';
+                    s.style.color = '#f87171';
+                    s.innerText = `🩸 ${data.opp_dmg} DMG received`;
+                    wrap.appendChild(s);
+                }
+                if (wrap.children.length) { nlog.appendChild(wrap); nlog.scrollTop = nlog.scrollHeight; }
+            }
+
+            if (data.pvp_event === 'finished' || data.pvp_event === 'fled') {
+                const won = data.winner === pid;
+                _pvpAppendLog(data.text || (won ? 'You won the duel!' : 'You lost the duel.'), won ? 'text-yellow-400' : 'text-red-400');
+                setTimeout(_pvpClose, 3000);
+            } else {
+                _pvpUpdateTurnUI(data.whose_turn);
+            }
+        }
+
+        function _pvpUpdateTurnUI(whoseTurn) {
+            const pid = sessionStorage.getItem('playerId');
+            document.getElementById('pvp-turn-row').classList.toggle('hidden', whoseTurn !== pid);
+            document.getElementById('pvp-wait-msg').classList.toggle('hidden', whoseTurn === pid);
+        }
+
+        function _pvpAppendLog(text, colorClass) {
+            const nlog = document.getElementById('narrative-log');
+            const m = document.createElement('p');
+            m.className = `${colorClass} title-font text-xs tracking-widest msg-fade`;
+            m.innerText = text;
+            nlog.appendChild(m); nlog.scrollTop = nlog.scrollHeight;
+        }
+
+        function _pvpClose() {
+            document.getElementById('pvp-banner').classList.add('hidden');
+            document.getElementById('pvp-log').innerHTML = '';
+            pvpFightId = null;
+        }
+
+        // Poll for incoming challenges and fight state updates every 4s
+        setInterval(async () => {
+            const pid = sessionStorage.getItem('playerId');
+            if (!pid) return;
+            try {
+                const res  = await fetch(`/pvp-status/${pid}`);
+                if (!res.ok) return;
+                const data = await res.json();
+
+                // Show incoming challenge notification
+                if (data.incoming_challenge && !pvpFightId) {
+                    const c = data.incoming_challenge;
+                    if (c.fight_id !== pendingPvpFightId) {
+                        pendingPvpFightId = c.fight_id;
+                        document.getElementById('pvp-challenger-name').textContent =
+                            `${c.challenger_name || c.challenger_id} challenges you to a duel!`;
+                        document.getElementById('pvp-challenge-modal').classList.remove('hidden');
+                    }
+                }
+
+                // Sync active fight (e.g. after opponent's turn)
+                if (data.active_fight) {
+                    const f = data.active_fight;
+                    if (!pvpFightId) {
+                        pvpFightId = f.fight_id;
+                        document.getElementById('pvp-banner').classList.remove('hidden');
+                        document.getElementById('pvp-opponent-name').textContent = f.opp_name || '';
+                    }
+                    document.getElementById('pvp-round-display').textContent = `Round ${f.round}`;
+                    document.getElementById('pvp-my-hp-text').textContent  = `${f.my_hp} / ${f.my_max_hp}`;
+                    document.getElementById('pvp-opp-hp-text').textContent = `${f.opp_hp} / ${f.opp_max_hp}`;
+                    document.getElementById('pvp-my-hp-fill').style.width  = `${Math.max(0, f.my_hp / f.my_max_hp * 100)}%`;
+                    document.getElementById('pvp-opp-hp-fill').style.width = `${Math.max(0, f.opp_hp / f.opp_max_hp * 100)}%`;
+                    if (f.log) document.getElementById('pvp-log').innerHTML = f.log.map(l => `<div>${l}</div>`).join('');
+                    _pvpUpdateTurnUI(f.whose_turn);
+
+                    if (f.status === 'finished' && pvpFightId) {
+                        const won = f.winner === pid;
+                        _pvpAppendLog(won ? 'You won the duel!' : 'You lost the duel.', won ? 'text-yellow-400' : 'text-red-400');
+                        setTimeout(_pvpClose, 3000);
+                    }
+                }
+            } catch(_) {}
+        }, 4000);
     </script>
 </body>
 </html>

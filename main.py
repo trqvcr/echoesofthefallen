@@ -4,12 +4,14 @@ import time
 import json
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import Request
 from google import genai
 from google.genai.types import GenerateImagesConfig, GenerateContentConfig, Schema, Type
 from dotenv import load_dotenv
 
-from models import RegisterRequest, LoginRequest, ActionRequest, RiseRequest, AvatarRequest, TravelRequest, SkillChoiceRequest, ForgeRequest, TTSRequest
+from models import RegisterRequest, LoginRequest, ActionRequest, RiseRequest, AvatarRequest, TravelRequest, SkillChoiceRequest, ForgeRequest, TTSRequest, PvPChallengeRequest, PvPAcceptRequest, PvPActionRequest
+from pvp import create_fight, get_pvp_fights, get_pvp_challenges, find_active_fight, find_pending_challenge, expire_old_challenges, expire_old_fights, process_pvp_turn, _opponent_id
 from db import get_player, save_player, get_world, save_world, get_all_locations, save_location, hash_password
 from enemies import tick_spawns, tick_story_npcs
 from world_tick import tick_world, tick_corruption
@@ -117,13 +119,50 @@ async def tts_endpoint(req: TTSRequest):
     return {"audio_base64": audio_b64}
 
 @app.get("/cutscene/{key}")
-async def serve_cutscene(key: str):
+async def serve_cutscene(key: str, request: Request):
     clip = CUTSCENE_CLIPS.get(key)
     if not clip:
         raise HTTPException(status_code=404, detail="Unknown cutscene")
-    if not os.path.exists(clip["path"]):
+    path = clip["path"]
+    if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="Cutscene not ready yet")
-    return FileResponse(clip["path"], media_type="video/mp4")
+
+    file_size = os.path.getsize(path)
+    range_header = request.headers.get("range")
+
+    if range_header:
+        range_val = range_header.strip().replace("bytes=", "")
+        start_str, _, end_str = range_val.partition("-")
+        start = int(start_str) if start_str else 0
+        end   = int(end_str) if end_str else file_size - 1
+        end   = min(end, file_size - 1)
+        if start > end or start >= file_size:
+            raise HTTPException(status_code=416, detail="Range not satisfiable")
+        chunk_size = end - start + 1
+
+        def iter_file():
+            with open(path, "rb") as f:
+                f.seek(start)
+                remaining = chunk_size
+                while remaining > 0:
+                    data = f.read(min(65536, remaining))
+                    if not data:
+                        break
+                    remaining -= len(data)
+                    yield data
+
+        return StreamingResponse(
+            iter_file(),
+            status_code=206,
+            media_type="video/mp4",
+            headers={
+                "Content-Range":  f"bytes {start}-{end}/{file_size}",
+                "Accept-Ranges":  "bytes",
+                "Content-Length": str(chunk_size),
+            },
+        )
+
+    return FileResponse(path, media_type="video/mp4", headers={"Accept-Ranges": "bytes"})
 
 @app.get("/cutscene-status")
 async def get_cutscene_statuses():
@@ -612,7 +651,8 @@ async def _process_exploration(
         location_key       = destination_key
         location_changed   = True
         visited = player.setdefault("visited_locations", ["ashen_courtyard"])
-        if destination_key not in visited:
+        is_first_visit = destination_key not in visited
+        if is_first_visit:
             visited.append(destination_key)
 
     # Combat initiation
@@ -692,7 +732,7 @@ VISUAL: [scene description for image generation]"""
         if location_dirty_combat:
             save_location(location_key, current_location)
 
-        return {
+        combat_result = {
             "text":         display_text,
             "image_base64": generate_scene_image(
                 client, visual_prompt,
@@ -705,6 +745,11 @@ VISUAL: [scene description for image generation]"""
             "state":        player_to_state(player, player_id),
             "combat_event": "start",
         }
+        if location_changed and is_first_visit:
+            cutscene_url = get_cutscene_url(location_key)
+            if cutscene_url:
+                combat_result["cutscene_url"] = cutscene_url
+        return combat_result
 
     # Normal exploration
     player["history"].append(action)
@@ -1070,15 +1115,10 @@ history: one third-person sentence about {player['name']}. Empty string if trivi
         result["combat_event"] = combat_event
 
     # Inject cutscene URL if player just entered a location that has one (first visit only)
-    if location_changed:
+    if location_changed and is_first_visit:
         cutscene_url = get_cutscene_url(location_key)
         if cutscene_url:
-            visited_before = location_key in (player.get("visited_locations", [])[:])
-            # visited_locations already has the new location appended — check if it was there before this move
-            prev_visits = player.get("visited_locations", [])
-            first_visit = prev_visits.count(location_key) <= 1
-            if first_visit:
-                result["cutscene_url"] = cutscene_url
+            result["cutscene_url"] = cutscene_url
 
     result.update(extra_data)
     result.update(result_extra)
@@ -1276,3 +1316,158 @@ Respond with ONLY a JSON object (no markdown) with these exact fields:
         "state":     player_to_state(player, request.player_id),
         "text":      f"The forge burns. {new_skill['name']} takes shape from the ashes of what came before. {reasoning}",
     }
+
+
+# ── PvP ────────────────────────────────────────────────────────────────────────
+
+@app.get("/pvp-status/{player_id}")
+async def pvp_status(player_id: str):
+    world = get_world()
+    expire_old_challenges(world)
+    expire_old_fights(world)
+
+    challenge = get_pvp_challenges(world).get(player_id)
+    fight = find_active_fight(world, player_id)
+
+    result = {}
+    if challenge:
+        result["incoming_challenge"] = challenge
+    if fight:
+        opp_id = _opponent_id(fight, player_id)
+        me  = get_player(player_id)
+        opp = get_player(opp_id)
+        result["active_fight"] = {
+            "fight_id":   fight["fight_id"],
+            "whose_turn": fight["whose_turn"],
+            "round":      fight["round"],
+            "log":        fight["log"][-3:],
+            "status":     fight["status"],
+            "winner":     fight["winner"],
+            "my_hp":      me.get("hp", 0)      if me  else 0,
+            "my_max_hp":  me.get("max_hp", 1)  if me  else 1,
+            "opp_hp":     opp.get("hp", 0)     if opp else 0,
+            "opp_max_hp": opp.get("max_hp", 1) if opp else 1,
+            "opp_name":   opp.get("name", opp_id) if opp else opp_id,
+        }
+    return result
+
+
+@app.post("/pvp-challenge")
+async def pvp_challenge(request: PvPChallengeRequest):
+    challenger = get_player(request.challenger_id)
+    if not challenger:
+        raise HTTPException(status_code=404, detail="Challenger not found.")
+    target = get_player(request.target_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Target player not found.")
+    if challenger.get("status") != "alive":
+        raise HTTPException(status_code=400, detail="You must be alive to issue a challenge.")
+    if target.get("status") != "alive":
+        raise HTTPException(status_code=400, detail="Target player is not alive.")
+    if challenger.get("location") != target.get("location"):
+        raise HTTPException(status_code=400, detail="You must be in the same location to challenge a player.")
+
+    world = get_world()
+    expire_old_challenges(world)
+
+    if find_active_fight(world, request.challenger_id):
+        raise HTTPException(status_code=400, detail="You are already in a fight.")
+    if find_active_fight(world, request.target_id):
+        raise HTTPException(status_code=400, detail="That player is already in a fight.")
+
+    fight = create_fight(request.challenger_id, request.target_id, challenger["location"])
+    get_pvp_challenges(world)[request.target_id] = {
+        "fight_id":      fight["fight_id"],
+        "challenger_id": request.challenger_id,
+        "challenger_name": challenger["name"],
+        "created_at":    time.time(),
+    }
+    get_pvp_fights(world)[fight["fight_id"]] = fight
+    save_world(world)
+
+    return {
+        "fight_id": fight["fight_id"],
+        "text": f"{challenger['name']} challenges {target['name']} to a duel!",
+    }
+
+
+@app.post("/pvp-accept")
+async def pvp_accept(request: PvPAcceptRequest):
+    world = get_world()
+    expire_old_challenges(world)
+
+    challenge = get_pvp_challenges(world).get(request.player_id)
+    if not challenge or challenge["fight_id"] != request.fight_id:
+        raise HTTPException(status_code=404, detail="No pending challenge found.")
+
+    fight = get_pvp_fights(world).get(request.fight_id)
+    if not fight:
+        raise HTTPException(status_code=404, detail="Fight not found.")
+
+    fight["status"] = "active"
+    del get_pvp_challenges(world)[request.player_id]
+    save_world(world)
+
+    challenger = get_player(fight["challenger_id"])
+    return {
+        "fight_id": fight["fight_id"],
+        "text": f"The duel begins! {challenger['name']} moves first.",
+        "whose_turn": fight["whose_turn"],
+    }
+
+
+@app.post("/pvp-action")
+async def pvp_action(request: PvPActionRequest):
+    world = get_world()
+    expire_old_fights(world)
+
+    fight = get_pvp_fights(world).get(request.fight_id)
+    if not fight:
+        raise HTTPException(status_code=404, detail="Fight not found.")
+    if fight["status"] != "active":
+        raise HTTPException(status_code=400, detail="This fight is not active.")
+    if fight["whose_turn"] != request.player_id:
+        raise HTTPException(status_code=400, detail="It is not your turn.")
+
+    acting_player = get_player(request.player_id)
+    if not acting_player:
+        raise HTTPException(status_code=404, detail="Player not found.")
+
+    opponent_id = _opponent_id(fight, request.player_id)
+    opponent = get_player(opponent_id)
+    if not opponent:
+        raise HTTPException(status_code=404, detail="Opponent not found.")
+
+    skill_defs = get_world().get("skill_definitions", {})
+
+    result = process_pvp_turn(
+        fight,
+        acting_player,
+        request.action,
+        opponent,
+        request.player_id,
+        opponent_id,
+        skill_defs,
+    )
+
+    save_player(request.player_id, acting_player)
+    save_player(opponent_id, opponent)
+    get_pvp_fights(world)[request.fight_id] = fight
+    save_world(world)
+
+    response = {
+        **result,
+        "acting_hp":   acting_player["hp"],
+        "opponent_hp": opponent["hp"],
+        "whose_turn":  fight.get("whose_turn"),
+        "acting_state":   player_to_state(acting_player, request.player_id),
+        "opponent_state": player_to_state(opponent, opponent_id),
+    }
+
+    if result["pvp_event"] == "finished":
+        winner = get_player(result["winner"])
+        response["text"] = f"{winner['name']} wins the duel!"
+    elif result["pvp_event"] == "fled":
+        response["text"] = fight["log"][-1] if fight["log"] else "The duel ended."
+
+    return response

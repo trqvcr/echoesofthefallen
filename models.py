@@ -43,3 +43,16 @@ class ForgeRequest(BaseModel):
 
 class TTSRequest(BaseModel):
     text: str
+
+class PvPChallengeRequest(BaseModel):
+    challenger_id: str
+    target_id: str
+
+class PvPAcceptRequest(BaseModel):
+    player_id: str
+    fight_id: str
+
+class PvPActionRequest(BaseModel):
+    player_id: str
+    fight_id: str
+    action: str

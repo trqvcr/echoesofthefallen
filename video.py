@@ -197,7 +197,7 @@ INTRO_VIDEO_PATH = INTRO_CLIPS[0]["path"]
 
 def clip_status(idx: int) -> str:
     clip = INTRO_CLIPS[idx]
-    if os.path.exists(clip["path"]):
+    if os.path.exists(clip["path"]) and os.path.getsize(clip["path"]) > 0:
         return "ready"
     state = _clip_states[idx]
     if state["generating"]: return "generating"
@@ -207,7 +207,7 @@ def clip_status(idx: int) -> str:
 
 def audio_status(idx: int) -> str:
     narration = INTRO_NARRATIONS[idx]
-    if os.path.exists(narration["path"]):
+    if os.path.exists(narration["path"]) and os.path.getsize(narration["path"]) > 0:
         return "ready"
     state = _audio_states[idx]
     if state["generating"]: return "generating"
@@ -217,7 +217,7 @@ def audio_status(idx: int) -> str:
 
 def image_status(idx: int) -> str:
     img = INTRO_IMAGES[idx]
-    if os.path.exists(img["path"]):
+    if os.path.exists(img["path"]) and os.path.getsize(img["path"]) > 0:
         return "ready"
     state = _image_states[idx]
     if state["generating"]: return "generating"
@@ -507,7 +507,7 @@ def cutscene_status(key: str) -> str:
     clip = CUTSCENE_CLIPS.get(key)
     if not clip:
         return "none"
-    if os.path.exists(clip["path"]):
+    if os.path.exists(clip["path"]) and os.path.getsize(clip["path"]) > 0:
         return "ready"
     state = _cutscene_states[key]
     if state["generating"]:
