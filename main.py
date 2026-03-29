@@ -2,6 +2,8 @@ import os
 import random
 import time
 import json
+import asyncio
+from functools import partial
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
@@ -110,6 +112,7 @@ async def generate_intro():
     status = start_intro_generation(client)
     start_cutscene_generation(client)
     return {"status": status}
+
 
 @app.post("/tts")
 async def tts_endpoint(req: TTSRequest):
@@ -391,7 +394,7 @@ def _extract_appearance(client, description: str, gender: str, race: str, player
             '"distinctive_features":"scars, tattoos, markings, aura, etc or none"}'
         )
         resp = client.models.generate_content(
-            model="gemini-2.0-flash-001",
+            model="gemini-2.5-flash",
             contents=prompt,
             config=GenerateContentConfig(temperature=0.1, max_output_tokens=250),
         )
@@ -517,19 +520,73 @@ async def handle_action(request: ActionRequest):
         world_state["story"] = story
         save_world(world_state)
 
-    # Generate ambient music when game context changes
     combat_event  = result.get("combat_event")
     post_location = result.get("state", {}).get("location", pre_location)
     post_combat   = result.get("state", {}).get("combat_state", {}).get("active", False)
 
     prev_context = get_music_context(pre_location, pre_combat)
     new_context  = get_music_context(post_location, post_combat)
+    needs_music  = True  # always generate; client handles looping
 
-    if new_context != prev_context or combat_event in ("start", "victory", "fled"):
-        music_data, music_ctx = generate_ambient_music(client, post_location, post_combat)
-        if music_data:
-            result["music_base64"]  = music_data
-            result["music_context"] = music_ctx
+    print(f"[DEBUG] prev_ctx={prev_context} new_ctx={new_context} combat_event={combat_event} needs_music={needs_music}")
+
+    loop = asyncio.get_running_loop()
+
+   # ── Image, TTS, Music — run in parallel ───────────────────────────────────
+    tasks = {}
+
+    if "_visual_prompt" in result:
+        vp     = result.pop("_visual_prompt")
+        np_    = result.pop("_npc_portrait", "")
+        ap     = result.pop("_avatar_portrait", "")
+        lk     = result.pop("_location_key", "")
+        no_ref = result.pop("_no_ref_image", False)
+        tasks["image"] = loop.run_in_executor(
+            None, partial(generate_scene_image, client, vp,
+                          avatar_portrait_b64=ap, npc_portrait_b64=np_))
+    else:
+        lk, no_ref = "", False
+
+    narrative_text = result.get("text", "")
+    if narrative_text and client:
+        tasks["tts"] = loop.run_in_executor(
+            None, partial(generate_tts_audio, client, narrative_text))
+
+    if needs_music:
+        tasks["music"] = loop.run_in_executor(
+            None, partial(generate_ambient_music, client, post_location, post_combat))
+
+    if tasks:
+        gathered = await asyncio.gather(*tasks.values(), return_exceptions=True)
+        task_results = dict(zip(tasks.keys(), gathered))
+
+        if tasks:
+            gathered = await asyncio.gather(*tasks.values(), return_exceptions=True)
+            task_results = dict(zip(tasks.keys(), gathered))
+            print(f"[DEBUG] task_results keys: {list(task_results.keys())}, music: {task_results.get('music')}")  # ← ADD THIS LINE
+
+        if "image" in task_results:
+            scene_img = task_results["image"] if not isinstance(task_results["image"], Exception) else None
+            result["image_base64"] = scene_img or ""
+            if scene_img and no_ref and lk:
+                all_loc = get_all_locations()
+                loc = all_loc.get(lk, {})
+                if loc and not loc.get("reference_image"):
+                    loc["reference_image"] = scene_img
+                    save_location(lk, loc)
+
+        if "tts" in task_results:
+            tts_b64 = task_results["tts"] if not isinstance(task_results["tts"], Exception) else None
+            if tts_b64:
+                result["tts_base64"] = tts_b64
+
+        if "music" in task_results:
+            music_result = task_results["music"] if not isinstance(task_results["music"], Exception) else None
+            if music_result:
+                music_data, music_ctx = music_result
+                if music_data:
+                    result["music_base64"]  = music_data
+                    result["music_context"] = music_ctx
 
     # Always include current location NPC summary for the HUD
     post_loc_data = all_locations.get(post_location, {})
@@ -1070,16 +1127,6 @@ history: one third-person sentence about {player['name']}. Empty string if trivi
     if location_changed and not visual_prompt:
         visual_prompt = f"{current_location.get('name', '')}: {current_location.get('description', '')}"
 
-    scene_img = generate_scene_image(
-        client, visual_prompt,
-        avatar_portrait_b64=player.get("avatar_portrait", ""),
-        npc_portrait_b64=npc_portrait,
-    )
-    # Cache as reference_image only if one doesn't exist yet (used by fast travel)
-    if scene_img and not ref_image:
-        current_location["reference_image"] = scene_img
-        location_dirty = True
-
     if location_dirty:
         save_location(location_key, current_location)
 
@@ -1104,12 +1151,17 @@ history: one third-person sentence about {player['name']}. Empty string if trivi
 
     result = {
         "text":         display_text,
-        "image_base64": scene_img,
         "npc_portrait": npc_portrait,
         "status":       player["status"],
         "location":     current_location["name"],
         "state":        player_to_state(player, player_id),
         "env_damage":   env_damage,
+        # consumed by handle_action for parallel image + music generation
+        "_visual_prompt":   visual_prompt,
+        "_npc_portrait":    npc_portrait,
+        "_avatar_portrait": player.get("avatar_portrait", ""),
+        "_location_key":    location_key,
+        "_no_ref_image":    not bool(ref_image),
     }
     if combat_event:
         result["combat_event"] = combat_event

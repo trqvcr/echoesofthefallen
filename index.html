@@ -1520,37 +1520,30 @@
         }
 
         async function sendOpeningScene() {
+            const playerId = sessionStorage.getItem('playerId');
+            let data = null;
+
             try {
                 const res = await fetch('/action', {
                     method:  'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body:    JSON.stringify({
-                        player_id: sessionStorage.getItem('playerId'),
-                        action:    'look around',
-                        state:     gameState
-                    })
+                    body:    JSON.stringify({ player_id: playerId, action: 'look around', state: gameState })
                 });
-                if (!res.ok) return;
-                const data = await res.json();
-
-                if (data.state) {
-                    gameState = data.state;
-                    saveState(gameState);
-                }
-                updateUI();
-
-                setSceneImage(data.image_base64 || null);
-                if (data.music_base64) {
-                    playMusic(data.music_base64, data.music_context || 'default');
-                }
-                if (data.location_npcs) updateNpcHud(data.location_npcs);
-
-                const msg = document.createElement('p');
-                msg.className = "text-gray-300 leading-relaxed msg-fade";
-                msg.innerText = data.text;
-                log.appendChild(msg);
-                log.scrollTop = log.scrollHeight;
+                if (res.ok) data = await res.json();
             } catch (_) {}
+
+            if (!data) return;
+            if (data.state) { gameState = data.state; saveState(gameState); }
+            updateUI();
+            setSceneImage(data.image_base64 || null);
+            if (data.music_base64) playMusic(data.music_base64, data.music_context || 'default');
+            if (data.location_npcs) updateNpcHud(data.location_npcs);
+            const msg = document.createElement('p');
+            msg.className = "text-gray-300 leading-relaxed msg-fade";
+            msg.innerText = data.text;
+            log.appendChild(msg);
+            log.scrollTop = log.scrollHeight;
+            if (data.tts_base64 && !voiceMuted) playTTS(data.tts_base64);
         }
 
         window.onload = async () => {
@@ -1589,10 +1582,14 @@
             if (!gameState.avatar_description) {
                 openAvatarScreen(true);
             } else {
-                // Unlock audio on the first user interaction (autoplay policy)
-                const _firstClick = () => { unlockAudio(); document.removeEventListener('click', _firstClick); document.removeEventListener('keydown', _firstClick); };
-                document.addEventListener('click', _firstClick);
-                document.addEventListener('keydown', _firstClick);
+                // Try to unlock immediately (works if browser still carries the user-gesture
+                // from clicking "Enter the World" on the intro page).
+                // Keep listeners alive until it actually succeeds — first click/keypress
+                // on this page (e.g. typing an action) will trigger it if the immediate
+                // attempt was blocked.
+                document.addEventListener('click',   unlockAudio);
+                document.addEventListener('keydown', unlockAudio);
+                unlockAudio();
                 await sendOpeningScene();
             }
         };
@@ -1619,6 +1616,7 @@
         let voiceMuted  = false;
         let _ttsSource  = null;
         let _ttsGain    = null;
+        let _pendingTTS = null;  // queued while audioUnlocked is still false
 
         function toggleVoice() {
             unlockAudio();
@@ -1629,10 +1627,10 @@
         }
 
         async function playTTS(base64Wav) {
-            if (voiceMuted || !audioUnlocked) return;
+            if (voiceMuted) return;
+            if (!audioUnlocked) { _pendingTTS = base64Wav; return; }
             try {
                 const ctx = _getAudioCtx();
-                if (ctx.state === 'suspended') await ctx.resume();
 
                 const binary = atob(base64Wav);
                 const bytes  = new Uint8Array(binary.length);
@@ -1691,13 +1689,25 @@
 
         function unlockAudio() {
             if (audioUnlocked) return;
-            audioUnlocked = true;
-            _getAudioCtx().resume().catch(() => {});
-            if (pendingMusic) {
-                const { dataUrl, context } = pendingMusic;
-                pendingMusic = null;
-                _startPlayback(dataUrl, context);
-            }
+            const ctx = _getAudioCtx();
+            ctx.resume().then(() => {
+                if (audioUnlocked) return;
+                audioUnlocked = true;
+                document.removeEventListener('click',   unlockAudio);
+                document.removeEventListener('keydown', unlockAudio);
+                if (pendingMusic) {
+                    const { dataUrl, context } = pendingMusic;
+                    pendingMusic = null;
+                    _startPlayback(dataUrl, context);
+                }
+                if (_pendingTTS) {
+                    const wav = _pendingTTS;
+                    _pendingTTS = null;
+                    playTTS(wav);
+                }
+            }).catch(() => {
+                // resume() blocked by autoplay policy — will retry on next user gesture
+            });
         }
 
         function playMusic(dataUrl, context) {
@@ -1709,8 +1719,6 @@
         async function _startPlayback(dataUrl, context) {
             try {
                 const ctx = _getAudioCtx();
-                // Attempt resume in case AudioContext is still suspended
-                if (ctx.state === 'suspended') await ctx.resume();
 
                 // Decode base64 → ArrayBuffer → AudioBuffer
                 const base64 = dataUrl.split(',')[1];
